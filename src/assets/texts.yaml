@@ -1,0 +1,17 @@
+app:
+  name: 'Hupomnēmata'
+  version: 'Version 0.1'
+
+messages:
+  welcome: >
+   Este é o seu refúgio e espaço de rigor intelectual — um lugar criado para acolher suas leituras, 
+   organizar suas referências e preservar as ideias que moldam o seu percurso.
+
+
+   Pense neste aplicativo como o seu escritório particular: sem distrações, feito de papel e tinta digital, 
+   onde cada citação, artigo e livro encontra seu devido lugar de guarda. Tire um momento para organizar 
+   sua biblioteca, retomar anotações de velhas pesquisas ou registrar aquela descoberta recente que mudou 
+   sua perspectiva.
+
+
+   Sinta-se em casa. Bom trabalho e ótimas leituras.
