@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from src.domains import Author, BibliographicResource
 
 
-class Utils:
+class ABNTUtils:
     @staticmethod
     def format_authors(authors: Iterable['Author']) -> str:
         """
@@ -45,7 +45,9 @@ class Utils:
         """
         parts = []
         parts.append((
-                Utils.format_authors(partial_bibliographic_resource.authors),
+                ABNTUtils.format_authors(
+                    partial_bibliographic_resource.authors
+                ),
                 TextStyle.NORMAL
         ))
         parts.append((

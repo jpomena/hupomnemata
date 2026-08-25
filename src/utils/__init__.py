@@ -1,4 +1,4 @@
-from .abnt_utils import Utils
+from .abnt_utils import ABNTUtils
 from .types import (
     PHYSICAL_ATTRIBUTES,
     PART_IDENTIFIERS,
@@ -6,12 +6,14 @@ from .types import (
     ReferencePart,
     ViewReference
 )
+from .views import FtUtils
 
 __all__ = [
-    'Utils',
+    'ABNTUtils',
     'PHYSICAL_ATTRIBUTES',
     'PART_IDENTIFIERS',
     'TextStyle',
     'ReferencePart',
-    'ViewReference'
+    'ViewReference',
+    'FtUtils'
 ]

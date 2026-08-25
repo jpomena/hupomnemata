@@ -1,4 +1,4 @@
-from src.utils import Utils
+from src.utils import ABNTUtils as Utils
 from typing import List, TYPE_CHECKING
 from src.domains import (
     EditorialMonograph,
