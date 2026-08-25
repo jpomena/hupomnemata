@@ -1,19 +1,17 @@
-from .abnt_utils import ABNTUtils
+from .abnt import ABNTUtils
 from .types import (
-    PHYSICAL_ATTRIBUTES,
-    PART_IDENTIFIERS,
     TextStyle,
     ReferencePart,
     ViewReference
 )
-from .views import FtUtils
+from .ft_controls import ControlsUtils
+from .ft_responsiveness import Responsive
 
 __all__ = [
     'ABNTUtils',
-    'PHYSICAL_ATTRIBUTES',
-    'PART_IDENTIFIERS',
     'TextStyle',
     'ReferencePart',
     'ViewReference',
-    'FtUtils'
+    'ControlsUtils',
+    'Responsive'
 ]

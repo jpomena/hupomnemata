@@ -9,8 +9,8 @@ from src.utils import (
     ViewReference,
     TextStyle,
     ReferencePart,
-    PHYSICAL_ATTRIBUTES
 )
+from configs.settings import PHYSICAL_ATTRIBUTES
 
 if TYPE_CHECKING:
     from src.domains import BibliographicResource
