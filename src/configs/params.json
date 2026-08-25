@@ -1,0 +1,69 @@
+{
+  "COLORS": {
+    "bg": "#E7E7E7",
+    "surface": "#FFFFFF",
+    "border": "#C4C4C7",
+    "gold": "#b08537",
+    "muted": "#86868f",
+    "text": "#1d1d21",
+    "card_hover": "#f2f2f7"
+  },
+
+  "FONTS": {
+    "cormorant": {
+      "name": "Cormorant Garamond",
+      "path": "fonts/Cormorant_Garamond/CormorantGaramond-VariableFont_wght.ttf"
+    },
+    "montserrat": {
+      "name": "Montserrat",
+      "path": "fonts/Montserrat/Montserrat-VariableFont_wght.ttf"
+    },
+    "mono": {
+      "name": "JetBrains Mono",
+      "path": "fonts/JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf"
+    },
+    "greek": {
+      "name": "Ancient Geek",
+      "path": "fonts/ancient_geek/geek.ttf"
+    }
+  },
+
+  "PHYSICAL_ATTRIBUTES": {
+    "page_quantity": " p.",
+    "volumes": " v.",
+    "illustrations": " il.",
+    "dimensions": ""
+  },
+
+  "PART_IDENTIFIERS": [
+    "part_volume",
+    "part_chapter_number",
+    "part_start_page",
+    "part_end_page"
+  ],
+
+  "CORE_MENUS": {
+    "Obras & Livros": "book_outlined",
+    "Cadernos & Excertos": "note_outlined",
+    "Taxonomia e Conceitos": "hub_outlined"
+  },
+
+  "MAIN_VIEW_CARDS": {
+    "Importar Metadados": {
+      "description": "BibTeX, ISBN, ISSN, DOI ou PDF",
+      "icon": "upload_file"
+    },
+    "Fichamento Rápido": {
+      "description": "Processar leituras brutas e notas",
+      "icon": "edit_note"
+    },
+    "Exportar Citações": {
+      "description": "Gerar ABNT, APA e bibliografias",
+      "icon": "menu_book"
+    },
+    "Grafo Conceitual": {
+      "description": "Mapear ligações teóricas e redes",
+      "icon": "hub"
+    }
+  }
+}

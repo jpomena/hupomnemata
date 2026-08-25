@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hypomnemata - Painel de Referências e Excertos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#121212',
+                        surface: '#1c1c1e',
+                        card_hover: '#252529',
+                        border_color: '#2c2c30',
+                        gold: '#d4af37',
+                        muted: '#8e8e93',
+                        text: '#f2f2f7'
+                    },
+                    fontFamily: {
+                        serif: ['"Cormorant Garamond"', 'serif'],
+                        sans: ['Montserrat', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-bg text-text font-sans antialiased min-h-screen flex selection:bg-gold selection:text-black overflow-x-hidden">
+
+    <aside class="w-64 border-r border-border_color p-6 flex flex-col justify-between hidden md:flex shrink-0 bg-bg">
+        <div>
+            <div class="flex items-center gap-3 mb-10">
+                <svg class="w-6 h-6 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <span class="font-serif text-xl tracking-wide text-text">Hypomnemata</span>
+            </div>
+            
+            <nav class="space-y-1">
+                <a href="#" class="flex items-center justify-between p-3 rounded-r bg-card_hover border-l-4 border-text text-sm text-text">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        Início / Painel
+                    </span>
+                </a>
+                <a href="#" class="flex items-center justify-between p-3 rounded-r hover:bg-card_hover text-sm text-muted hover:text-text transition-all group">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        Acervo Geral
+                    </span>
+                </a>
+                <a href="#" class="flex items-center justify-between p-3 rounded-r hover:bg-card_hover text-sm text-muted hover:text-text transition-all group">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Cadernos de Notas
+                    </span>
+                </a>
+                <a href="#" class="flex items-center justify-between p-3 rounded-r hover:bg-card_hover text-sm text-muted hover:text-text transition-all group">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        Busca Cruzada
+                    </span>
+                </a>
+            </nav>
+        </div>
+        <div class="text-xs text-muted font-mono">v1.2.0-research</div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-bg">
+        <!-- Top Header -->
+        <header class="border-b border-border_color px-8 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-bg/90 backdrop-blur sticky top-0 z-10">
+            <div>
+                <h1 class="text-2xl font-serif font-normal text-text">Painel do Pesquisador</h1>
+                <p class="text-xs text-muted font-sans mt-0.5">Captura rápida de fontes, excertos recentes e tarefas bibliográficas pendentes</p>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="relative flex-1 sm:w-72">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </span>
+                    <input type="text" placeholder="Filtrar por autor, termo ou DOI..." class="w-full bg-surface border border-border_color rounded pl-9 pr-4 py-2 text-xs text-text placeholder-muted focus:outline-none focus:border-gold font-mono transition-colors">
+                </div>
+                <button onclick="showAlert('Abrindo modal de nova referência (BibTeX / Manual)...')" class="bg-gold text-black text-xs font-semibold px-4 py-2 rounded hover:bg-[#b8972b] transition-colors flex items-center gap-2 shrink-0 cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Nova Referência
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Body -->
+        <div class="p-8 space-y-10">
+            
+            <!-- SECTION 1: Utility Practical Cards (Quick Actions & Status) -->
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs font-sans uppercase tracking-widest text-muted">Ações e Módulos Práticos</h2>
+                    <span class="text-xs text-gold font-mono">Status da Sessão</span>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+                    <!-- Card 1: Importar Referência -->
+                    <div onclick="showAlert('Importando arquivo BibTeX ou colar DOI...')" class="bg-surface border border-border_color hover:border-gold/60 rounded-lg p-5 flex flex-col justify-between cursor-pointer transition-all hover:bg-card_hover group shadow-sm min-h-[140px]">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="p-2.5 rounded bg-bg border border-border_color text-gold group-hover:border-gold/40">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            </div>
+                            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-bg text-muted border border-border_color">Captura</span>
+                        </div>
+                        <div>
+                            <h3 class="font-serif text-base font-medium text-text mb-1 group-hover:text-gold transition-colors">Importar Metadados</h3>
+                            <p class="text-xs text-muted font-sans">BibTeX, DOI ou PDF</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Fichamento / Excertos Pendentes -->
+                    <div onclick="showAlert('Abrindo fila de fichamentos não processados...')" class="bg-surface border border-border_color hover:border-gold/60 rounded-lg p-5 flex flex-col justify-between cursor-pointer transition-all hover:bg-card_hover group shadow-sm min-h-[140px]">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="p-2.5 rounded bg-bg border border-border_color text-gold group-hover:border-gold/40">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                            </div>
+                            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-gold/15 text-gold border border-gold/30">7 pendentes</span>
+                        </div>
+                        <div>
+                            <h3 class="font-serif text-base font-medium text-text mb-1 group-hover:text-gold transition-colors">Fichamento Rápido</h3>
+                            <p class="text-xs text-muted font-sans">Processar leituras brutas</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Citações & Cópia Bibliográfica -->
+                    <div onclick="showAlert('Gerando formato ABNT / APA para exportação...')" class="bg-surface border border-border_color hover:border-gold/60 rounded-lg p-5 flex flex-col justify-between cursor-pointer transition-all hover:bg-card_hover group shadow-sm min-h-[140px]">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="p-2.5 rounded bg-bg border border-border_color text-gold group-hover:border-gold/40">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            </div>
+                            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-bg text-muted border border-border_color">ABNT / APA</span>
+                        </div>
+                        <div>
+                            <h3 class="font-serif text-base font-medium text-text mb-1 group-hover:text-gold transition-colors">Exportar Citações</h3>
+                            <p class="text-xs text-muted font-sans">Gerar bibliografia formatada</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Relatório / Grafos de Conexão -->
+                    <div onclick="showAlert('Carregando grafo de redes semânticas e conceitos...')" class="bg-surface border border-border_color hover:border-gold/60 rounded-lg p-5 flex flex-col justify-between cursor-pointer transition-all hover:bg-card_hover group shadow-sm min-h-[140px]">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="p-2.5 rounded bg-bg border border-border_color text-gold group-hover:border-gold/40">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            </div>
+                            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-bg text-muted border border-border_color">Rede</span>
+                        </div>
+                        <div>
+                            <h3 class="font-serif text-base font-medium text-text mb-1 group-hover:text-gold transition-colors">Grafo Conceitual</h3>
+                            <p class="text-xs text-muted font-sans">Mapear ligações teóricas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Recent Excerpts & Last References Added (Practical Workspace Feed) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Left 2 Cols: Excertos Recentes Capturados -->
+                <div class="lg:col-span-2 bg-surface border border-border_color rounded-lg p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4 pb-3 border-b border-border_color">
+                            <div class="flex items-center gap-2 text-xs font-mono text-gold">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                                ÚLTIMOS EXCERTOS CAPTURADOS
+                            </div>
+                            <span class="text-xs text-muted font-mono">3 de 148 fichas</span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <!-- Excerpt Item 1 -->
+                            <div onclick="showAlert('Copiando citação para a área de transferência...')" class="p-4 rounded bg-bg border border-border_color hover:border-gold/40 transition-colors cursor-pointer group">
+                                <p class="font-serif italic text-sm text-text mb-2 group-hover:text-gold transition-colors">"A verdadeira erudição não consiste no volume de informações acumuladas, mas na clareza com que se discriminam as premissas essenciais."</p>
+                                <div class="flex justify-between items-center text-[11px] font-sans text-muted">
+                                    <span class="font-mono text-gold">Sêneca — Epistulae Morales ad Lucilium, p. 42</span>
+                                    <span>Adicionado há 3 horas</span>
+                                </div>
+                            </div>
+
+                            <!-- Excerpt Item 2 -->
+                            <div onclick="showAlert('Copiando citação para a área de transferência...')" class="p-4 rounded bg-bg border border-border_color hover:border-gold/40 transition-colors cursor-pointer group">
+                                <p class="font-serif italic text-sm text-text mb-2 group-hover:text-gold transition-colors">"O conceito de hipomnemáton refere-se a cadernos de anotações, lembretes e extratos de leitura destinados a constituir uma memória auxiliar."</p>
+                                <div class="flex justify-between items-center text-[11px] font-sans text-muted">
+                                    <span class="font-mono text-gold">Foucault — Dits et Écrits, IV, p. 415</span>
+                                    <span>Adicionado ontem</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-4 mt-4 border-t border-border_color flex justify-between items-center">
+                        <span class="text-xs text-muted">Clique para copiar citação pronta</span>
+                        <button onclick="showAlert('Carregando todos os excertos do acervo...')" class="text-xs font-semibold text-gold hover:underline cursor-pointer">Ver Banco de Excertos →</button>
+                    </div>
+                </div>
+
+                <!-- Right Col: Metadados Bibliográficos Recentes / Atividades -->
+                <div class="bg-surface border border-border_color rounded-lg p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xs font-mono uppercase tracking-widest text-muted mb-4 pb-3 border-b border-border_color">Últimas Referências Inseridas</h3>
+                        
+                        <div class="space-y-3">
+                            <div class="p-3 rounded bg-bg border border-border_color hover:border-gold/30 transition-colors cursor-pointer" onclick="showAlert('Visualizando detalhes da obra: Sobre a Brevidade da Vida')">
+                                <div class="text-xs font-medium text-text mb-0.5 truncate">Sobre a Brevidade da Vida</div>
+                                <div class="text-[11px] text-muted font-mono">Sêneca, L. A. (Trad. 2021)</div>
+                                <div class="mt-2 flex gap-1">
+                                    <span class="text-[9px] font-mono px-1.5 py-0.5 bg-border_color text-gold rounded">Livro</span>
+                                    <span class="text-[9px] font-mono px-1.5 py-0.5 bg-border_color text-muted rounded">Filosofia</span>
+                                </div>
+                            </div>
+
+                            <div class="p-3 rounded bg-bg border border-border_color hover:border-gold/30 transition-colors cursor-pointer" onclick="showAlert('Visualizando detalhes da obra: The Hermeneutics of the Subject')">
+                                <div class="text-xs font-medium text-text mb-0.5 truncate">The Hermeneutics of the Subject</div>
+                                <div class="text-[11px] text-muted font-mono">Foucault, M. (2005)</div>
+                                <div class="mt-2 flex gap-1">
+                                    <span class="text-[9px] font-mono px-1.5 py-0.5 bg-border_color text-gold rounded">Curso</span>
+                                    <span class="text-[9px] font-mono px-1.5 py-0.5 bg-border_color text-muted rounded">Ética</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 mt-4 border-t border-border_color text-xs text-muted flex justify-between items-center">
+                        <span>Base sincronizada</span>
+                        <span class="font-mono text-gold">15 tomos</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <div id="notification" class="fixed bottom-6 right-6 bg-surface border border-border_color text-text px-4 py-3 rounded-lg shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+        <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span id="notification-text" class="text-sm font-sans"></span>
+    </div>
+
+    <script>
+        function showAlert(msg) {
+            const notif = document.getElementById('notification');
+            const text = document.getElementById('notification-text');
+            text.textContent = msg;
+            notif.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                notif.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
