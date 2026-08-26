@@ -1,94 +1,73 @@
 import sys
 from pathlib import Path
-projeto_raiz = str(Path(__file__).parent.parent)
-if projeto_raiz not in sys.path:
-    sys.path.insert(0, projeto_raiz)
-from src.domains import (
-    Author,
-    EditorialMonograph,
+
+
+project_root = str(Path(__file__).resolve().parents[1])
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from src.db.db import SessionLocal  # noqa: E402
+from src.domains import (  # noqa: E402
+    AcademicMonograph,
     BibliographicResource,
-    AcademicMonograph
+    CorrespondenceMonograph,
+    EditorialMonograph,
+)  # noqa: E402
+from src.strategies import MonographFormatter  # noqa: E402
+from src.utils.types import TextStyle  # noqa: E402
+
+
+MONOGRAPH_TYPES = (
+    ('1', 'Livro', EditorialMonograph, 'editorial_monograph'),
+    ('2', 'Tese / dissertação', AcademicMonograph, 'academic_monograph'),
+    (
+        '3',
+        'Correspondência',
+        CorrespondenceMonograph,
+        'correspondence_monograph',
+    ),
 )
-from src.strategies import MonographFormatter
-from src.utils.types import TextStyle
 
 
+def select_monograph_type():
+    print('Escolha o tipo de monografia:')
+    for option, label, _, _ in MONOGRAPH_TYPES:
+        print(f'{option}. {label}')
+
+    selected_option = input('Tipo: ').strip()
+    for option, label, model, relation_name in MONOGRAPH_TYPES:
+        if option == selected_option:
+            return label, model, relation_name
+    raise ValueError('Tipo de monografia inválido.')
 
 
 def run_test():
-    # Cenário 1: Livro inteiro (Monografia Editorial)
-    # ATENÇÃO: Ajuste os parâmetros abaixo caso a sua classe real exija
-    # nomes de atributos ligeiramente diferentes no construtor.
-    author = Author(last_name='Tolkien', given_names_initials='J. R. R.')
-    academic_author = Author(
-        last_name='SANTOS', given_names_initials='J. P. O.'
-    )
+    label, model, relation_name = select_monograph_type()
+    resource_id = int(input('ID da monografia no banco: ').strip())
 
-    book = EditorialMonograph(
-        title='O Senhor dos Anéis',
-        subtitle='a Sociedade do anel',
-        publication_place='São Paulo',
-        publisher='Martins Fontes',
-        display_year='2000',
-        edition='1',
-        page_quantity=400,
-        isbn='978-85-336-1337-9'
-    )
-    thesis = AcademicMonograph(
-        title='Em nome da justiça, a busca por punição',
-        subtitle='punitivismo nos discursos do pacote anticrime',
-        publication_place='Ribeirão Preto',
-        display_year='2024',
-        page_quantity=164,
-        thesis_type='Dissertação',
-        education_level='Mestrado',
-        course='Direito',
-        faculty='Faculdade de Direito de Ribeirão Preto, Universidade de São Paulo',  # noqa: E501
-        defense_year='2024',
-    )
+    with SessionLocal() as session:
+        resource = session.get(BibliographicResource, resource_id)
+        if resource is None:
+            raise ValueError(
+                f'Não existe recurso bibliográfico com ID {resource_id}.'
+            )
 
-    # 1. Cria a obra completa (O Senhor dos Anéis)
-    parent_resource = BibliographicResource(
-        id=2,
-        authors=[author],
-        editorial_monograph=book,
-        is_partial=False
-    )
+        work = getattr(resource, relation_name)
+        if not isinstance(work, model):
+            raise ValueError(
+                f'O recurso ID {resource_id} não é do tipo {label}.'
+            )
 
-    # 2. Cria o recurso da parte (O capítulo)
-    resource = BibliographicResource(  # noqa: F841
-        id=1,
-        authors=[author],
-        is_partial=True,
-        part_title='A Estalagem do Pônei Saltitante',
-        part_start_page='145',
-        part_end_page='160',
-        part_volume='1',
-        part_chapter='9',
-        parent_work=parent_resource  # <-- AQUI ESTAVA FALTANDO
-    )
+        view_reference = MonographFormatter.formatter(resource)
 
-    academic_resource = BibliographicResource(  # noqa: F841
-        id=3,
-        authors=[academic_author],
-        academic_monograph=thesis,
-        is_partial=False
-    )
-
-    # Executa o formatador
-    view_reference = MonographFormatter.formatter(resource)
-
-    # Imprime o resultado simulando a renderização no terminal
     print('\n=== RESULTADO DA REFERÊNCIA ===')
-
     texto_final = ''
     for part in view_reference.parts:
         texto = part.content
-
         if part.style == TextStyle.BOLD:
-            texto_final += f'\033[1m{texto}\033[0m'  # Negrito no terminal
+            texto_final += f'\033[1m{texto}\033[0m'
         elif part.style == TextStyle.ITALIC:
-            texto_final += f'\033[3m{texto}\033[0m'  # Itálico no terminal
+            texto_final += f'\033[3m{texto}\033[0m'
         else:
             texto_final += texto
 

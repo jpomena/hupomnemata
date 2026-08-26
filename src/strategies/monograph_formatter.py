@@ -10,7 +10,7 @@ from src.utils import (
     TextStyle,
     ReferencePart,
 )
-from configs.settings import PHYSICAL_ATTRIBUTES
+from src.configs.settings import PHYSICAL_ATTRIBUTES
 
 if TYPE_CHECKING:
     from src.domains import BibliographicResource

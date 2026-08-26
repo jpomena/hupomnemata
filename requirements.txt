@@ -1,0 +1,5 @@
+flet==0.86.5
+flet-desktop==0.86.5
+PyYAML==6.0.3
+SQLAlchemy==2.0.51
+pytest==9.1.1

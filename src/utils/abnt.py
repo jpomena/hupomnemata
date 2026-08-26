@@ -51,12 +51,12 @@ class ABNTUtils:
                 TextStyle.NORMAL
         ))
         parts.append((
-            f' {partial_bibliographic_resource.part_title}',
+            f' {partial_bibliographic_resource.specific_work.title}',
             TextStyle.NORMAL
         ))
-        if partial_bibliographic_resource.part_subtitle:
+        if partial_bibliographic_resource.specific_work.subtitle:
             parts.append((
-                f': {partial_bibliographic_resource.part_subtitle}',
+                f': {partial_bibliographic_resource.specific_work.subtitle}',
                 TextStyle.NORMAL
             ))
         return parts
@@ -83,8 +83,11 @@ class ABNTUtils:
 
     @staticmethod
     def format_abbrev_date(
-        date: date | datetime
+        date: date | datetime | None
     ) -> str:
+        if date is None:
+            return '[s.d.]'
+
         MESES_ABREV = {
             1: 'jan.', 2: 'fev.', 3: 'mar.', 4: 'abr.',
             5: 'maio', 6: 'jun.', 7: 'jul.', 8: 'ago.',

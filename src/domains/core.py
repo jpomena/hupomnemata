@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         CartographicDocument,
         MusicalScore
     )
+    from .digital import MiscellaneousDigitalDocument
     from .patent import Patent
 
 
@@ -72,8 +73,6 @@ class BibliographicResource(Base):
             ondelete='RESTRICT'
         ), nullable=True
     )
-    part_title: Mapped[str] = mapped_column(String(150), nullable=True)
-    part_subtitle: Mapped[str] = mapped_column(String(500), nullable=True)
     part_start_page: Mapped[str] = mapped_column(String(6), nullable=True)
     part_end_page: Mapped[str] = mapped_column(String(6), nullable=True)
     part_volume: Mapped[str] = mapped_column(String(15), nullable=True)
@@ -159,6 +158,12 @@ class BibliographicResource(Base):
     musical_score: Mapped['MusicalScore'] = relationship(
         'MusicalScore', back_populates='bibliographic_resource'
     )
+    miscellaneous_digital_document: Mapped[
+        'MiscellaneousDigitalDocument'
+    ] = relationship(
+        'MiscellaneousDigitalDocument',
+        back_populates='bibliographic_resource',
+    )
     citations: Mapped[List[Citation]] = relationship(
         'Citation', back_populates='bibliographic_resource'
     )
@@ -166,11 +171,13 @@ class BibliographicResource(Base):
     @property
     def specific_work(self):
         '''Descobre a obra dinamicamente lendo os metadados do SQLAlchemy.'''
-        exclude_relations = {'parent_work', 'authorships', 'authors'}
+        exclude_relations = {
+            'parent_work', 'authorships', 'authors', 'citations'
+        }
         mapper = object_mapper(self)
 
         for rel in mapper.relationships:
-            if rel.key not in exclude_relations:
+            if rel.key not in exclude_relations and not rel.uselist:
                 work = getattr(self, rel.key)
                 if work is not None:
                     return work
@@ -199,7 +206,9 @@ class WorkMixin(Base):
     # 01-01 como âncora.
     date_anchor: Mapped[date] = mapped_column(nullable=True)
 
-    display_year: Mapped[str] = mapped_column(String(10), nullable=False)
+    display_year: Mapped[str] = mapped_column(
+        String(10), nullable=False, default='[s.d.]'
+    )
     date_precision: Mapped[DatePrecision] = mapped_column(
         Enum(DatePrecision),
         default=DatePrecision.EXACT,

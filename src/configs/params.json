@@ -6,6 +6,7 @@
     "gold": "#B59410",
     "muted": "#86868f",
     "text": "#1d1d21",
+    "black": "#101010",
     "card_hover": "#f2f2f7"
   },
 
@@ -26,6 +27,62 @@
       "name": "Ancient Geek",
       "path": "fonts/ancient_geek/geek.ttf"
     }
+  },
+
+  "TYPOGRAPHY": {
+    "weights": {
+      "thin": "W_300",
+      "normal": "W_400",
+      "medium": "W_500",
+      "semibold": "W_600",
+      "bold": "W_700",
+      "heavy": "W_800"
+    },
+    "sizes": {
+      "page_title": 32,
+      "page_subtitle": 12,
+      "action": 12,
+      "sidebar_brand": 28,
+      "sidebar_slogan": 14,
+      "sidebar_section": 12,
+      "sidebar_item": 13,
+      "sidebar_icon": 16,
+      "sidebar_quote": 16,
+      "card_icon": 64,
+      "card_title": 20,
+      "card_description": 11,
+      "modal_title": 24,
+      "modal_type_card": 12,
+      "modal_description": 14,
+      "modal_section_label": 16,
+      "modal_field": 16,
+      "modal_hint": 16
+    }
+  },
+
+  "UI": {
+    "sidebar_width": 300,
+    "sidebar_padding": 20,
+    "sidebar_footnote_height": 300,
+    "navigation_padding": 15,
+    "card_padding": 12,
+    "card_height": 283,
+    "card_radius": 6,
+    "modal_width": 1180,
+    "modal_height": 720,
+    "modal_type_panel_width": 270,
+    "modal_content_padding": 24,
+    "modal_gap": 10,
+    "control_gap": 12,
+    "animation_ms": 150,
+    "border_width": 1,
+    "active_border_width": 4,
+    "header_horizontal_padding": 30,
+    "header_top_padding": 15,
+    "header_bottom_padding": 5,
+    "content_top_padding": 10,
+    "content_padding": 50,
+    "grid_gap": 20
   },
 
   "PHYSICAL_ATTRIBUTES": {
