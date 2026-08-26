@@ -1,49 +1,49 @@
+"""Fabricas de controles Flet compartilhados pela interface."""
+
 import flet as ft
-from src.configs.settings import COLORS, FONTS
 
-
-PHI = (1 + 5**0.5) / 2
+from src.views.view_config import ViewConfig
 
 
 class ControlsUtils:
+    """Cria controles reutilizaveis com a configuracao recebida."""
 
     @staticmethod
     def create_sidebar_menu(
         label_ref: str,
         icon_data: ft.IconData,
-        scale: float
+        scale: float,
+        config: ViewConfig,
     ) -> ft.Container:
-
+        """Cria um item de menu com estado visual de hover."""
         icon = ft.Icon(
             icon_data,
-            size=16 * scale,
-            color=COLORS['gold'],
+            size=config.font_size["sidebar_icon"] * scale,
+            color=config.colors["gold"],
         )
-
         label = ft.Text(
-            label_ref,
-            size=13 * scale,
-            color=COLORS['text'],
-            font_family=FONTS['montserrat'],
+            value=label_ref,
+            size=config.font_size["sidebar_item"] * scale,
+            color=config.colors["text"],
+            font_family=config.fonts["montserrat"],
+            weight=config.font_weight["semibold"],
         )
-
         row_content = ft.Row(
             controls=[
                 ft.Row(
                     controls=[icon, label],
-                    spacing=10,
+                    spacing=config.ui["control_gap"],
                 ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
-
         btn_container = ft.Container(
             content=row_content,
-            padding=12,
-            bgcolor=COLORS['surface'],
+            padding=config.ui["card_padding"],
+            bgcolor=config.colors["surface"],
             animate=ft.Animation(
-                150,
-                ft.AnimationCurve.EASE_OUT
+                config.ui["animation_ms"],
+                ft.AnimationCurve.EASE_OUT,
             ),
             border_radius=ft.BorderRadius(
                 top_left=0,
@@ -55,23 +55,21 @@ class ControlsUtils:
 
         def handle_hover(e: ft.Event[ft.Container]):
             if e.data:
-                btn_container.bgcolor = COLORS['card_hover']
+                btn_container.bgcolor = config.colors["card_hover"]
                 btn_container.border = ft.Border(
-                    left=ft.BorderSide(4, COLORS['text']),
-                    top=ft.BorderSide(1, COLORS['text']),
-                    right=ft.BorderSide(1, COLORS['text']),
-                    bottom=ft.BorderSide(1, COLORS['text'])
+                    left=ft.BorderSide(4, config.colors["text"]),
+                    top=ft.BorderSide(1, config.colors["text"]),
+                    right=ft.BorderSide(1, config.colors["text"]),
+                    bottom=ft.BorderSide(1, config.colors["text"]),
                 )
-                icon.color = COLORS['text']
+                icon.color = config.colors["text"]
             else:
-                btn_container.bgcolor = COLORS['surface']
+                btn_container.bgcolor = config.colors["surface"]
                 btn_container.border = None
-                icon.color = COLORS['gold']
-
+                icon.color = config.colors["gold"]
             btn_container.update()
 
         btn_container.on_hover = handle_hover
-
         return btn_container
 
     @staticmethod
@@ -79,35 +77,33 @@ class ControlsUtils:
         icon_data: ft.IconData,
         label_str: str,
         description_str: str,
-        scale: float
+        scale: float,
+        config: ViewConfig,
     ) -> ft.Container:
-
+        """Cria um cartao de atalho da visao principal."""
         icon = ft.Icon(
             icon_data,
-            size=64 * scale,
-            color=COLORS['gold'],
+            size=config.font_size["card_icon"] * scale,
+            color=config.colors["gold"],
         )
-
         label = ft.Text(
-            label_str,
-            size=20 * scale,
+            value=label_str,
+            size=config.font_size["card_title"] * scale,
             text_align=ft.TextAlign.CENTER,
-            font_family=FONTS['cormorant'],
-            weight=ft.FontWeight.W_800,
-            color=COLORS['text'],
+            font_family=config.fonts["cormorant"],
+            weight=config.font_weight["semibold"],
+            color=config.colors["text"],
             style=ft.TextStyle(letter_spacing=2),
         )
-
         description = ft.Text(
-            description_str,
-            size=11 * scale,
+            value=description_str,
+            size=config.font_size["card_description"] * scale,
             overflow=ft.TextOverflow.ELLIPSIS,
-            font_family=FONTS['montserrat'],
+            font_family=config.fonts["montserrat"],
             max_lines=2,
-            color=COLORS['muted'],
-            weight=ft.FontWeight.W_500,
+            color=config.colors["muted"],
+            weight=config.font_weight["semibold"],
         )
-
         card_content = ft.Column(
             controls=[
                 ft.Row(
@@ -117,50 +113,44 @@ class ControlsUtils:
                 ),
                 ft.Column(
                     controls=[label, description],
-                    spacing=4,
+                    spacing=config.ui["modal_gap"] - 6,
                 ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            spacing=12,
+            spacing=config.ui["modal_gap"],
             expand=True,
         )
-
         btn_container = ft.Container(
             content=card_content,
-            padding=12,
-            bgcolor=COLORS['surface'],
-            height=175 * PHI,
-            border=ft.Border.all(
-                1,
-                COLORS['border'],
-            ),
-            border_radius=ft.BorderRadius.all(6),
+            padding=config.ui["card_padding"],
+            bgcolor=config.colors["surface"],
+            height=config.ui["card_height"],
+            border=ft.Border.all(1, config.colors["border"]),
+            border_radius=ft.BorderRadius.all(config.ui["card_radius"]),
             animate=ft.Animation(
-                150,
+                config.ui["animation_ms"],
                 ft.AnimationCurve.EASE_OUT,
             ),
         )
 
         def handle_hover(e: ft.Event[ft.Container]):
             if e.data:
-                btn_container.bgcolor = COLORS['card_hover']
+                btn_container.bgcolor = config.colors["card_hover"]
                 btn_container.border = ft.Border(
-                    left=ft.BorderSide(1, COLORS['text']),
-                    top=ft.BorderSide(1, COLORS['text']),
-                    right=ft.BorderSide(1, COLORS['text']),
-                    bottom=ft.BorderSide(4, COLORS['text'])
+                    left=ft.BorderSide(1, config.colors["text"]),
+                    top=ft.BorderSide(1, config.colors["text"]),
+                    right=ft.BorderSide(1, config.colors["text"]),
+                    bottom=ft.BorderSide(4, config.colors["text"]),
                 )
-                icon.color = COLORS['text']
+                icon.color = config.colors["text"]
             else:
-                btn_container.bgcolor = COLORS['surface']
+                btn_container.bgcolor = config.colors["surface"]
                 btn_container.border = ft.Border.all(
                     1,
-                    COLORS['border'],
+                    config.colors["border"],
                 )
-                icon.color = COLORS['gold']
-
+                icon.color = config.colors["gold"]
             btn_container.update()
 
         btn_container.on_hover = handle_hover
-
         return btn_container
