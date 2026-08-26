@@ -21,10 +21,10 @@ class PeriodicalFormatter:
     def formatter(
         bibliographic_resource: 'BibliographicResource'
     ) -> ViewReference:
-        """
+        '''
         Método principal que orquestra a montagem da referência.
         Funciona como um 'sumário' do que está acontecendo.
-        """
+        '''
         parts: List[ReferencePart] = []
 
         PeriodicalFormatter._validate_specific_work(bibliographic_resource)
@@ -53,8 +53,8 @@ class PeriodicalFormatter:
     def _validate_specific_work(bibliographic_resource):
         if not bibliographic_resource.specific_work:
             raise ValueError(
-                f"O recurso ID {bibliographic_resource.id} "
-                "não possui nenhuma obra específica associada."
+                f'O recurso ID {bibliographic_resource.id} '
+                'não possui nenhuma obra específica associada.'
             )
 
     @staticmethod
@@ -146,7 +146,7 @@ class PeriodicalFormatter:
     def _format_collection_details(
         collection: PeriodicalCollection
     ) -> List[ReferencePart]:
-        """Trata particularidades de publicação de uma Coleção."""
+        '''Trata particularidades de publicação de uma Coleção.'''
         parts = []
 
         parts.append(
@@ -256,9 +256,9 @@ class PeriodicalFormatter:
             parts.append(ReferencePart(
                 content=f' {formatted_date}. {article.section},'
             ))
-            parts.append(ReferencePart(content=get_pagination(suffix=".")))
+            parts.append(ReferencePart(content=get_pagination(suffix='.')))
         else:
-            parts.append(ReferencePart(content=get_pagination(suffix=",")))
+            parts.append(ReferencePart(content=get_pagination(suffix=',')))
             parts.append(ReferencePart(content=f' {formatted_date}.'))
 
         return parts

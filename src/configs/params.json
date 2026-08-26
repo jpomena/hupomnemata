@@ -3,7 +3,7 @@
     "bg": "#E7E7E7",
     "surface": "#FFFFFF",
     "border": "#C4C4C7",
-    "gold": "#b08537",
+    "gold": "#B59410",
     "muted": "#86868f",
     "text": "#1d1d21",
     "card_hover": "#f2f2f7"
@@ -45,7 +45,11 @@
   "CORE_MENUS": {
     "Obras & Livros": "book_outlined",
     "Cadernos & Excertos": "note_outlined",
-    "Taxonomia e Conceitos": "hub_outlined"
+    "Taxonomia e Conceitos": "hub_outlined",
+    "Favoritos": "bookmark",
+    "IArquivo": "analytics",
+    "Configurações": "settings",
+    "Descarte": "thrash"
   },
 
   "MAIN_VIEW_CARDS": {

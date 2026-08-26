@@ -5,7 +5,7 @@ from typing import Dict
 
 
 class AudiovisualDocument(WorkMixin):
-    """Documentos audiovisuais, como vídeos, áudios, gravações."""
+    '''Documentos audiovisuais, como vídeos, áudios, gravações.'''
 
     __tablename__ = 'audiovisual_documents'
 
@@ -28,7 +28,7 @@ class AudiovisualDocument(WorkMixin):
 
 
 class AudioDocument(WorkMixin):
-    """Inclui disco, CD, podcast, entre outros documentos."""
+    '''Inclui disco, CD, podcast, entre outros documentos.'''
 
     __tablename__ = 'audio_documents'
 

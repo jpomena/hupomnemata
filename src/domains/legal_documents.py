@@ -5,13 +5,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class Statute(WorkMixin):
-    """Compreende constituição, emenda constitucional, textos legais
+    '''Compreende constituição, emenda constitucional, textos legais
     infraconstitucionais (lei complementar e ordinária, medida provisória,
     decreto em todas as suas formas, resolução do Senado Federal, entre
     outros) e normas emanadas das entidades coletivas públicas e privadas
     (ato normativo, portaria, resolução, ordem de serviço, instrução
     normativa, comunicado, aviso, circular, decisão administrativa, entre
-    outras)."""
+    outras).'''
 
     __tablename__ = 'statutes'
 
@@ -19,8 +19,8 @@ class Statute(WorkMixin):
 
 
 class CaseLaw(WorkMixin):
-    """Compreende súmula, enunciado, acórdão, sentença, despacho
-    entre outros tipos de decisões judiciais."""
+    '''Compreende súmula, enunciado, acórdão, sentença, despacho
+    entre outros tipos de decisões judiciais.'''
 
     __tablename__ = 'caselaws'
 
@@ -33,9 +33,9 @@ class CaseLaw(WorkMixin):
 
 
 class AdministrativeAct(WorkMixin):
-    """Compreende circular, contrato, decreto, ordem de serviço, edital,
+    '''Compreende circular, contrato, decreto, ordem de serviço, edital,
     estatuto, ofício, parecer, portaria, regulamento, regimento, entre outros
-    documentos."""
+    documentos.'''
 
     __tablename__ = 'administrative_acts'
 

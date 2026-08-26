@@ -10,14 +10,14 @@ if TYPE_CHECKING:
 class ABNTUtils:
     @staticmethod
     def format_authors(authors: Iterable['Author']) -> str:
-        """
+        '''
         Padroniza a lista de autores para qualquer referência ABNT.
         Ex: SILVA, J.; SANTOS, M.
         Ex: BRASIL. Ministério da Saúde.
-        """
+        '''
         authors_strs = []
         if not authors:
-            return ""
+            return ''
 
         for a in authors:
             if not a.corporation:
@@ -41,8 +41,8 @@ class ABNTUtils:
     def format_part_header(
         partial_bibliographic_resource: BibliographicResource
     ) -> List[Tuple[str, TextStyle]]:
-        """Monta a string inicial de autoria e título da parte (capítulo, etc).
-        """
+        '''Monta a string inicial de autoria e título da parte (capítulo, etc).
+        '''
         parts = []
         parts.append((
                 ABNTUtils.format_authors(
@@ -67,11 +67,11 @@ class ABNTUtils:
         subtitle: str | None = None,
         title_style: TextStyle = TextStyle.NORMAL
     ) -> List[Tuple[str, TextStyle]]:
-        """
+        '''
         Formata título e subtítulo. O estilo do título pode variar
         (negrito na obra principal, normal na parte).
         O subtítulo, segundo a ABNT, nunca recebe destaque (sempre normal).
-        """
+        '''
         parts = []
         parts.append((f' {title}', title_style))
 

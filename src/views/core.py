@@ -13,28 +13,29 @@ from src.configs.settings import (
 
 ICON_MAP = {
     # Existing core menu and card icons
-    "book_outlined": ft.Icons.BOOK_OUTLINED,
-    "note_outlined": ft.Icons.NOTE_OUTLINED,
-    "hub_outlined": ft.Icons.HUB_OUTLINED,
+    'book_outlined': ft.Icons.BOOK_OUTLINED,
+    'note_outlined': ft.Icons.NOTE_OUTLINED,
+    'hub_outlined': ft.Icons.HUB_OUTLINED,
 
     # Main View Practical Cards & General Actions
-    "upload_file": ft.Icons.UPLOAD_FILE,
-    "edit_note": ft.Icons.EDIT_NOTE,
-    "menu_book": ft.Icons.MENU_BOOK,
-    "hub": ft.Icons.HUB,
+    'upload_file': ft.Icons.UPLOAD_FILE,
+    'edit_note': ft.Icons.EDIT_NOTE,
+    'menu_book': ft.Icons.MENU_BOOK,
+    'hub': ft.Icons.HUB,
 
     # Navigation & Sidebar Icons
-    "dashboard": ft.Icons.DASHBOARD_OUTLINED,
-    "library": ft.Icons.LIBRARY_BOOKS_OUTLINED,
-    "search": ft.Icons.SEARCH,
+    'dashboard': ft.Icons.DASHBOARD_OUTLINED,
+    'library': ft.Icons.LIBRARY_BOOKS_OUTLINED,
+    'search': ft.Icons.SEARCH,
 
     # Utilities & Actions
-    "settings": ft.Icons.SETTINGS_OUTLINED,
-    "bookmark": ft.Icons.BOOKMARK_BORDER,
-    "label": ft.Icons.LABEL_OUTLINE,
-    "share": ft.Icons.SHARE_OUTLINED,
-    "download": ft.Icons.DOWNLOAD_OUTLINED,
-    "analytics": ft.Icons.ANALYTICS_OUTLINED,
+    'settings': ft.Icons.SETTINGS_OUTLINED,
+    'bookmark': ft.Icons.BOOKMARK_BORDER,
+    'label': ft.Icons.LABEL_OUTLINE,
+    'share': ft.Icons.SHARE_OUTLINED,
+    'download': ft.Icons.DOWNLOAD_OUTLINED,
+    'analytics': ft.Icons.ANALYTICS_OUTLINED,
+    'thrash': ft.Icons.RESTORE_FROM_TRASH_OUTLINED
 }
 
 
@@ -46,8 +47,8 @@ def main(page: ft.Page):
 
     scale = Responsive.get_scale(page)
     page.fonts = PAGE_FONTS
-    page.theme = ft.Theme(font_family=FONTS["cormorant"])
-    page.title = f"{TEXTS['app']['name']} {TEXTS['app']['version']}"
+    page.theme = ft.Theme(font_family=FONTS['cormorant'])
+    page.title = f'{TEXTS['app']['name']} {TEXTS['app']['version']}'
 
     page.padding = 0
 
@@ -60,18 +61,18 @@ def main(page: ft.Page):
     # ============================================================
 
     main_view_title = ft.Text(
-        TEXTS["app"]["main_view_title"],
+        TEXTS['app']['main_view_title'],
         weight=ft.FontWeight.W_700,
-        color=COLORS["text"],
-        font_family=FONTS["cormorant"],
+        color=COLORS['text'],
+        font_family=FONTS['cormorant'],
         size=32,
     )
 
     main_view_subtitle = ft.Text(
-        TEXTS["app"]["main_view_subtitle"],
+        TEXTS['app']['main_view_subtitle'],
         weight=ft.FontWeight.W_500,
-        color=COLORS["muted"],
-        font_family=FONTS["montserrat"],
+        color=COLORS['muted'],
+        font_family=FONTS['montserrat'],
         size=12,
     )
 
@@ -89,8 +90,14 @@ def main(page: ft.Page):
                 ft.Column(
                     controls=[
                         ft.ElevatedButton(
-                            '+ Inserir Nova Obra',
-                            on_click=btn_click
+                            ft.Text(
+                                '+ Inserir Nova Obra',
+                                weight=ft.FontWeight.BOLD,
+                                font_family=FONTS['montserrat'],
+                                color=COLORS['text']
+                            ),
+                            bgcolor=COLORS['gold'],
+                            on_click=btn_click,
                         )
                     ],
                     alignment=ft.MainAxisAlignment.CENTER
@@ -114,24 +121,24 @@ def main(page: ft.Page):
                 ft.Row(
                     controls=[
                         ft.Text(
-                            TEXTS["app"]["name"],
+                            TEXTS['app']['name_normalized'],
                             size=28,
                             weight=ft.FontWeight.BOLD,
-                            color=COLORS["text"],
-                            font_family=FONTS["greek"],
+                            color=COLORS['text'],
+                            font_family=FONTS['greek'],
                             style=ft.TextStyle(letter_spacing=4),
                         )
                     ],
                     spacing=8,
                 ),
                 ft.Text(
-                    TEXTS["app"]["slogan"],
+                    TEXTS['app']['slogan'],
                     align=ft.Alignment.BOTTOM_CENTER,
-                    font_family=FONTS["cormorant"],
-                    color=COLORS["muted"],
+                    font_family=FONTS['cormorant'],
+                    color=COLORS['muted'],
                     style=ft.TextStyle(letter_spacing=3),
                     size=14,
-                    weight=ft.FontWeight.W_700,
+                    weight=ft.FontWeight.BOLD,
                 ),
             ],
             spacing=6,
@@ -146,10 +153,10 @@ def main(page: ft.Page):
         content=ft.Column(
             controls=[
                 ft.Text(
-                    "Cadernos",
-                    font_family=FONTS["montserrat"],
+                    'Cadernos',
+                    font_family=FONTS['montserrat'],
                     size=12,
-                    color=COLORS["muted"],
+                    color=COLORS['muted'],
                 ),
                 *[
                     Utils.create_sidebar_menu(
@@ -178,11 +185,12 @@ def main(page: ft.Page):
         content=ft.Row(
             controls=[
                 ft.Text(
-                    TEXTS["messages"]["placeholder_citation"],
-                    size=16 * scale,
-                    color=COLORS["muted"],
-                    font_family=FONTS["cormorant"],
+                    TEXTS['messages']['placeholder_citation'],
+                    size=18 * scale,
+                    color=COLORS['muted'],
+                    font_family=FONTS['cormorant'],
                     align=ft.Alignment.CENTER_LEFT,
+                    text_align=ft.TextAlign.JUSTIFY,
                     no_wrap=False,
                     expand=True,
                     weight=ft.FontWeight.W_600
@@ -193,7 +201,7 @@ def main(page: ft.Page):
         ),
         padding=15,
         border=ft.Border(
-            top=ft.BorderSide(1, COLORS["border"])
+            top=ft.BorderSide(1, COLORS['border'])
         ),
     )
 
@@ -203,9 +211,9 @@ def main(page: ft.Page):
 
     sidebar = ft.Container(
         width=300,
-        bgcolor=COLORS["surface"],
+        bgcolor=COLORS['surface'],
         border=ft.Border(
-            right=ft.BorderSide(1, COLORS["border"])
+            right=ft.BorderSide(1, COLORS['border'])
         ),
         content=ft.Column(
             controls=[
@@ -229,17 +237,17 @@ def main(page: ft.Page):
                 content=Utils.create_main_view_card(
                     label_str=title,
                     icon_data=ICON_MAP.get(
-                        data["icon"],
+                        data['icon'],
                         ft.Icons.HELP_OUTLINE,
                     ),
-                    description_str=data["description"],
+                    description_str=data['description'],
                     scale=scale
                 ),
                 col={
-                    "xs": 12,
-                    "sm": 6,
-                    "md": 4,
-                    "lg": 3,
+                    'xs': 12,
+                    'sm': 6,
+                    'md': 4,
+                    'lg': 3,
                 },
             )
             for title, data in MAIN_VIEW_CARDS.items()
@@ -255,7 +263,7 @@ def main(page: ft.Page):
     content_area = ft.Container(
         expand=True,
         padding=ft.Padding(top=10, right=0, bottom=0, left=0),
-        bgcolor=COLORS["surface"],
+        bgcolor=COLORS['surface'],
         content=ft.Column(
             controls=[
                 main_view_header,

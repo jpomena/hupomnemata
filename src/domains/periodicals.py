@@ -2,17 +2,17 @@ from .core import WorkMixin
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-"""Uma publicação periódica é uma obra editada em qualquer tipo
+'''Uma publicação periódica é uma obra editada em qualquer tipo
 de suporte, em unidades físicas sequenciais, com identificações
 numéricas e/ou cronológicas, elaborada sob a responsabilidade de um
 grupo editorial. As publicações periódicas mais comuns são jornais e
 revistas. São constituídas de fascículos, números ou partes, e tratam de
 assuntos variados, de acordo com um plano definido.
-"""
+'''
 
 
 class PeriodicalCollection(WorkMixin):
-    """Coleção completa ou parcial de uma publicação periódica."""
+    '''Coleção completa ou parcial de uma publicação periódica.'''
 
     __tablename__ = 'periodical_collections'
 
@@ -31,9 +31,9 @@ class PeriodicalCollection(WorkMixin):
 
 
 class JournalArticle(WorkMixin):
-    """Compreende partes de uma publicação periódica, como artigo,
+    '''Compreende partes de uma publicação periódica, como artigo,
     comunicação, editorial, suplemento, entrevista, recensão, resenha,
-    reportagem, entre outras."""
+    reportagem, entre outras.'''
 
     __tablename__ = 'journal_articles'
 
@@ -53,8 +53,8 @@ class JournalArticle(WorkMixin):
 
 
 class NewspaperArticle(WorkMixin):
-    """Compreende partes de um jornal, como reportagem, entrevista,
-    editorial, entre outras."""
+    '''Compreende partes de um jornal, como reportagem, entrevista,
+    editorial, entre outras.'''
 
     __tablename__ = 'newspaper_articles'
 

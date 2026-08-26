@@ -22,10 +22,10 @@ class MonographFormatter:
     def formatter(
         bibliographic_resource: BibliographicResource
     ) -> ViewReference:
-        """
+        '''
         Método principal que orquestra a montagem da referência.
         Funciona como um 'sumário' do que está acontecendo.
-        """
+        '''
         parts = []
         # 1. Trata recursos parciais e obtém a obra principal se necessário
         bibliographic_resource, partial_bibliographic_resource = (
@@ -70,8 +70,8 @@ class MonographFormatter:
     def _validate_specific_work(bibliographic_resource):
         if not bibliographic_resource.specific_work:
             raise ValueError(
-                f"O recurso bibliográfico ID {bibliographic_resource.id} "
-                "não possui nenhuma obra específica associada."
+                f'O recurso bibliográfico ID {bibliographic_resource.id} '
+                'não possui nenhuma obra específica associada.'
             )
 
     @staticmethod
@@ -148,9 +148,9 @@ class MonographFormatter:
     def _format_editorial_details(
         monograph: EditorialMonograph
     ) -> List[ReferencePart]:
-        """Trata todas as particularidades de
+        '''Trata todas as particularidades de
         publicação de uma Monografia Editorial.
-        """
+        '''
         parts = []
 
         if monograph.responsabilities:
@@ -252,9 +252,9 @@ class MonographFormatter:
 
     @staticmethod
     def _format_part_details(p_bs) -> List[ReferencePart]:
-        """Adiciona as páginas, capítulos e
+        '''Adiciona as páginas, capítulos e
         volumes lidos no final da referência.
-        """
+        '''
         parts = []
         has_prev = False
 

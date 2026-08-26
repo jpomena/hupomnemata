@@ -36,7 +36,7 @@ class CoreNormalizer:
             for part in name_string.lower().strip().split()
         ]
         last_name = name_parts[-1]
-        given_name = " ".join(name_parts[:-1])
+        given_name = ' '.join(name_parts[:-1])
 
         name_initials = [
             part[0].upper()
@@ -45,7 +45,7 @@ class CoreNormalizer:
         ]
         last_name_initial = name_initials[-1]
         given_names_initials = (
-            ". ".join(name_initials[:-1]) + '.'
+            '. '.join(name_initials[:-1]) + '.'
         )
 
         return NameElements(
@@ -60,7 +60,7 @@ class CoreNormalizer:
             part if part in NAME_PARTICLES else part.title()
             for part in name_string.lower().strip().split()
         ]
-        name = " ".join(name_parts)
+        name = ' '.join(name_parts)
 
         return name
 
@@ -69,7 +69,7 @@ class CoreNormalizer:
             part if part in NAME_PARTICLES else part.title()
             for part in title_string.lower().strip().split()
         ]
-        name = " ".join(name_parts)
+        name = ' '.join(name_parts)
 
         return name
 
