@@ -5,8 +5,8 @@ from sqlalchemy import String, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.associationproxy import association_proxy
 
-"""Compreende os trabalhos apresentados em um evento (resumos, atas,
-anais, proceedings, entre outros)."""
+'''Compreende os trabalhos apresentados em um evento (resumos, atas,
+anais, proceedings, entre outros).'''
 
 
 class MonographicProceedings(Base):

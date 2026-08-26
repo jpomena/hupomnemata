@@ -17,14 +17,14 @@ class ControlsUtils:
         icon = ft.Icon(
             icon_data,
             size=16 * scale,
-            color=COLORS["gold"],
+            color=COLORS['gold'],
         )
 
         label = ft.Text(
             label_ref,
             size=13 * scale,
-            color=COLORS["text"],
-            font_family=FONTS["montserrat"],
+            color=COLORS['text'],
+            font_family=FONTS['montserrat'],
         )
 
         row_content = ft.Row(
@@ -40,7 +40,7 @@ class ControlsUtils:
         btn_container = ft.Container(
             content=row_content,
             padding=12,
-            bgcolor=COLORS["surface"],
+            bgcolor=COLORS['surface'],
             animate=ft.Animation(
                 150,
                 ft.AnimationCurve.EASE_OUT
@@ -55,18 +55,18 @@ class ControlsUtils:
 
         def handle_hover(e: ft.Event[ft.Container]):
             if e.data:
-                btn_container.bgcolor = COLORS["card_hover"]
+                btn_container.bgcolor = COLORS['card_hover']
                 btn_container.border = ft.Border(
-                    left=ft.BorderSide(4, COLORS["text"]),
-                    top=ft.BorderSide(1, COLORS["text"]),
-                    right=ft.BorderSide(1, COLORS["text"]),
-                    bottom=ft.BorderSide(1, COLORS["text"])
+                    left=ft.BorderSide(4, COLORS['text']),
+                    top=ft.BorderSide(1, COLORS['text']),
+                    right=ft.BorderSide(1, COLORS['text']),
+                    bottom=ft.BorderSide(1, COLORS['text'])
                 )
-                icon.color = COLORS["text"]
+                icon.color = COLORS['text']
             else:
-                btn_container.bgcolor = COLORS["surface"]
+                btn_container.bgcolor = COLORS['surface']
                 btn_container.border = None
-                icon.color = COLORS["gold"]
+                icon.color = COLORS['gold']
 
             btn_container.update()
 
@@ -85,16 +85,16 @@ class ControlsUtils:
         icon = ft.Icon(
             icon_data,
             size=64 * scale,
-            color=COLORS["gold"],
+            color=COLORS['gold'],
         )
 
         label = ft.Text(
             label_str,
             size=20 * scale,
             text_align=ft.TextAlign.CENTER,
-            font_family=FONTS["cormorant"],
+            font_family=FONTS['cormorant'],
             weight=ft.FontWeight.W_800,
-            color=COLORS["text"],
+            color=COLORS['text'],
             style=ft.TextStyle(letter_spacing=2),
         )
 
@@ -102,9 +102,9 @@ class ControlsUtils:
             description_str,
             size=11 * scale,
             overflow=ft.TextOverflow.ELLIPSIS,
-            font_family=FONTS["montserrat"],
+            font_family=FONTS['montserrat'],
             max_lines=2,
-            color=COLORS["muted"],
+            color=COLORS['muted'],
             weight=ft.FontWeight.W_500,
         )
 
@@ -128,11 +128,11 @@ class ControlsUtils:
         btn_container = ft.Container(
             content=card_content,
             padding=12,
-            bgcolor=COLORS["surface"],
+            bgcolor=COLORS['surface'],
             height=175 * PHI,
             border=ft.Border.all(
                 1,
-                COLORS["border"],
+                COLORS['border'],
             ),
             border_radius=ft.BorderRadius.all(6),
             animate=ft.Animation(
@@ -143,21 +143,21 @@ class ControlsUtils:
 
         def handle_hover(e: ft.Event[ft.Container]):
             if e.data:
-                btn_container.bgcolor = COLORS["card_hover"]
+                btn_container.bgcolor = COLORS['card_hover']
                 btn_container.border = ft.Border(
-                    left=ft.BorderSide(1, COLORS["text"]),
-                    top=ft.BorderSide(1, COLORS["text"]),
-                    right=ft.BorderSide(1, COLORS["text"]),
-                    bottom=ft.BorderSide(4, COLORS["text"])
+                    left=ft.BorderSide(1, COLORS['text']),
+                    top=ft.BorderSide(1, COLORS['text']),
+                    right=ft.BorderSide(1, COLORS['text']),
+                    bottom=ft.BorderSide(4, COLORS['text'])
                 )
-                icon.color = COLORS["text"]
+                icon.color = COLORS['text']
             else:
-                btn_container.bgcolor = COLORS["surface"]
+                btn_container.bgcolor = COLORS['surface']
                 btn_container.border = ft.Border.all(
                     1,
-                    COLORS["border"],
+                    COLORS['border'],
                 )
-                icon.color = COLORS["gold"]
+                icon.color = COLORS['gold']
 
             btn_container.update()
 

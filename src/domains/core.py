@@ -84,14 +84,14 @@ class BibliographicResource(Base):
     parent_work: Mapped['BibliographicResource'] = relationship(
         'BibliographicResource', remote_side=[id]
     )
-    authorships: Mapped[list["Authorship"]] = relationship(
-        "Authorship",
-        back_populates="bibliographic_resource",
-        cascade="all, delete-orphan"
+    authorships: Mapped[list['Authorship']] = relationship(
+        'Authorship',
+        back_populates='bibliographic_resource',
+        cascade='all, delete-orphan'
     )
     authors = association_proxy(
-        target_collection="authorships",
-        attr="author",
+        target_collection='authorships',
+        attr='author',
         creator=lambda author_obj: Authorship(author=author_obj)
     )
 
@@ -165,7 +165,7 @@ class BibliographicResource(Base):
 
     @property
     def specific_work(self):
-        """Descobre a obra dinamicamente lendo os metadados do SQLAlchemy."""
+        '''Descobre a obra dinamicamente lendo os metadados do SQLAlchemy.'''
         exclude_relations = {'parent_work', 'authorships', 'authors'}
         mapper = object_mapper(self)
 
@@ -253,8 +253,8 @@ class Author(Base):
         String(150), nullable=True
     )
 
-    authorships: Mapped[list["Authorship"]] = relationship(
-        "Authorship", back_populates='author'
+    authorships: Mapped[list['Authorship']] = relationship(
+        'Authorship', back_populates='author'
     )
     bibliographic_resources = association_proxy(
         target_collection='authorships', attr='bibliographic_resource',
@@ -299,7 +299,7 @@ class Citation(Base):
     excerpt: Mapped[str] = mapped_column(Text, nullable=False)
     bib_res_id: Mapped[int] = mapped_column(
         ForeignKey(
-            'bibliographic_resourced.id',
+            'bibliographic_resources.id',
             ondelete='CASCADE'
         ), nullable=False
     )

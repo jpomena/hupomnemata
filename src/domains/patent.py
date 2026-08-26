@@ -5,10 +5,10 @@ from sqlalchemy import String, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.associationproxy import association_proxy
 
-"""Patente é o registro do direito do inventor, concedido através de
+'''Patente é o registro do direito do inventor, concedido através de
 um documento oficial outorgado pelo Estado chamado carta-patente,
 que garante o uso exclusivo, durante certo período, de algo inédito que
-ele tenha inventado, criado ou aperfeiçoado."""
+ele tenha inventado, criado ou aperfeiçoado.'''
 
 
 class Patent(Base):

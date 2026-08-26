@@ -1,5 +1,6 @@
 app:
   name: 'Hupomnēmata'
+  name_normalized: 'hupomnemata'
   version: 'Version 0.1'
   main_view_title: 'Gabinete de Leitura'
   main_view_subtitle: 'Seu repositório pessoal de bibliografia e escrita.'
@@ -22,5 +23,6 @@ messages:
     "O movimento que eles [os hupomnēmata] procuram realizar é o inverso daquele: trata-se não de buscar o indizível, não de revelar 
     o oculto, não de dizer o não-dito, mas de captar, pelo contrário, o já dito; reunir o que se pôde ouvir ou ler, e isso 
     com uma finalidade que nada mais é que a constituição de si."
+
 
     Foucault, Michel — A escrita de si
