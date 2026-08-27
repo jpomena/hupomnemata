@@ -1,8 +1,9 @@
 """Fabricas de controles Flet compartilhados pela interface."""
 
 import flet as ft
+from collections.abc import Callable
 
-from src.views.view_config import ViewConfig
+from .types import ViewConfig
 
 
 class ControlsUtils:
@@ -14,19 +15,20 @@ class ControlsUtils:
         icon_data: ft.IconData,
         scale: float,
         config: ViewConfig,
+        on_navigate: Callable[[str], None]
     ) -> ft.Container:
         """Cria um item de menu com estado visual de hover."""
         icon = ft.Icon(
             icon_data,
-            size=config.font_size["sidebar_icon"] * scale,
+            size=config.font_sizes["montserrat_medium"] * scale,
             color=config.colors["gold"],
         )
         label = ft.Text(
             value=label_ref,
-            size=config.font_size["sidebar_item"] * scale,
+            size=config.font_sizes["montserrat_large"] * scale,
             color=config.colors["text"],
-            font_family=config.fonts["montserrat"],
-            weight=config.font_weight["semibold"],
+            font_family=config.font_families["montserrat"],
+            weight=config.font_weights["montserrat_semibold"],
         )
         row_content = ft.Row(
             controls=[
@@ -41,8 +43,9 @@ class ControlsUtils:
             content=row_content,
             padding=config.ui["card_padding"],
             bgcolor=config.colors["surface"],
+            on_click=lambda e: on_navigate(f"{label_ref}"),
             animate=ft.Animation(
-                config.ui["animation_ms"],
+                int(config.ui["animation_ms"]),
                 ft.AnimationCurve.EASE_OUT,
             ),
             border_radius=ft.BorderRadius(
@@ -79,30 +82,31 @@ class ControlsUtils:
         description_str: str,
         scale: float,
         config: ViewConfig,
+        on_click: Callable | None = None,
     ) -> ft.Container:
         """Cria um cartao de atalho da visao principal."""
         icon = ft.Icon(
             icon_data,
-            size=config.font_size["card_icon"] * scale,
+            size=config.icon_sizes["icon_large"] * scale,
             color=config.colors["gold"],
         )
         label = ft.Text(
             value=label_str,
-            size=config.font_size["card_title"] * scale,
+            size=config.font_sizes["cormorant_large"] * scale,
             text_align=ft.TextAlign.CENTER,
-            font_family=config.fonts["cormorant"],
-            weight=config.font_weight["semibold"],
+            font_family=config.font_families["cormorant"],
+            weight=config.font_weights["cormorant_semibold"],
             color=config.colors["text"],
             style=ft.TextStyle(letter_spacing=2),
         )
         description = ft.Text(
             value=description_str,
-            size=config.font_size["card_description"] * scale,
+            size=config.font_sizes["montserrat_micro"] * scale,
             overflow=ft.TextOverflow.ELLIPSIS,
-            font_family=config.fonts["montserrat"],
+            font_family=config.font_families["montserrat"],
             max_lines=2,
             color=config.colors["muted"],
-            weight=config.font_weight["semibold"],
+            weight=config.font_weights["montserrat_semibold"],
         )
         card_content = ft.Column(
             controls=[
@@ -128,7 +132,7 @@ class ControlsUtils:
             border=ft.Border.all(1, config.colors["border"]),
             border_radius=ft.BorderRadius.all(config.ui["card_radius"]),
             animate=ft.Animation(
-                config.ui["animation_ms"],
+                int(config.ui["animation_ms"]),
                 ft.AnimationCurve.EASE_OUT,
             ),
         )
@@ -153,4 +157,5 @@ class ControlsUtils:
             btn_container.update()
 
         btn_container.on_hover = handle_hover
+        btn_container.on_click = on_click
         return btn_container

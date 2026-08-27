@@ -125,7 +125,7 @@ class MonographFormatter:
         work = bibliographic_resource.specific_work
         if work.additional_notes:
             parts.append(
-                ReferencePart(content=f' {work.additional_notes}')
+                ReferencePart(content=f' {work.additional_notes}.')
             )
 
         if work.url:
@@ -135,7 +135,7 @@ class MonographFormatter:
                         ' Disponível em:'
                         f' {work.url}.'
                         ' Acesso em:'
-                        f' {Utils.format_abbrev_date(work.viewed_at)}'
+                        f' {Utils.format_abbrev_date(work.viewed_at)}.'
                     )
                 )
             )
@@ -229,7 +229,7 @@ class MonographFormatter:
                 f' {monograph.display_year}. {monograph. page_quantity} f.'
                 f' {monograph.thesis_type} ({monograph.education_level} em'
                 f' {monograph.course}) — {monograph.faculty},'
-                f' {monograph.publication_place}, {monograph.defense_year}'
+                f' {monograph.publication_place}, {monograph.defense_year}.'
             )
         )
 

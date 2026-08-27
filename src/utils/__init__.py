@@ -2,7 +2,8 @@ from .abnt import ABNTUtils
 from .types import (
     TextStyle,
     ReferencePart,
-    ViewReference
+    ViewReference,
+    ViewConfig
 )
 from .ft_controls import ControlsUtils
 from .ft_responsiveness import Responsive
@@ -13,5 +14,6 @@ __all__ = [
     'ReferencePart',
     'ViewReference',
     'ControlsUtils',
-    'Responsive'
+    'Responsive',
+    'ViewConfig'
 ]

@@ -46,7 +46,6 @@ class PeriodicalFormatter:
         PeriodicalFormatter._append_suffix_details(
             bibliographic_resource, parts
         )
-
         return ViewReference(parts=parts)
 
     @staticmethod

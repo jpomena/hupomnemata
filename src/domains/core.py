@@ -169,7 +169,7 @@ class BibliographicResource(Base):
     )
 
     @property
-    def specific_work(self):
+    def specific_work(self) -> 'WorkMixin | None':
         '''Descobre a obra dinamicamente lendo os metadados do SQLAlchemy.'''
         exclude_relations = {
             'parent_work', 'authorships', 'authors', 'citations'

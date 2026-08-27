@@ -1,6 +1,7 @@
 """Composer stateful do dialogo de insercao de obras."""
 
 from collections.abc import Callable
+import re
 
 import flet as ft
 
@@ -10,7 +11,7 @@ from src.views.work_insert_specs import (
     WORK_TYPES,
     FieldSpec,
 )
-from src.views.view_config import ViewConfig
+from src.utils.types import ViewConfig
 
 
 class WorkInsertModalComposer:
@@ -21,16 +22,24 @@ class WorkInsertModalComposer:
         page: ft.Page,
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
+        search_authors: Callable[[str], list[str]] | None = None,
     ):
         self.page = page
         self.config = config
         self.on_save = on_save
+        self.search_authors = search_authors
         self.selected = WORK_TYPES[0]
         self.fields: dict[str, ft.Control] = {}
         self.partial_enabled = False
+        self.author_names: list[str] = []
+        self.author_search = ""
+        self.author_control: ft.Column | None = None
+        self.author_search_field: ft.TextField | None = None
+        self.author_results: ft.Row | None = None
+        self.author_pills: ft.Row | None = None
         self.stored_values: dict[str, object] = {}
         self.type_grid = ft.GridView(
-            runs_count=2,
+            runs_count=3,
             spacing=self.config.ui["control_gap"] - 4,
             run_spacing=self.config.ui["control_gap"] - 4,
             expand=True,
@@ -51,8 +60,8 @@ class WorkInsertModalComposer:
             "color": self.config.colors["text"],
             "label_style": ft.TextStyle(
                 color=self.config.colors["muted"],
-                weight=self.config.font_weight["normal"],
-                font_family=self.config.fonts['montserrat'],
+                weight=self.config.font_weights["montserrat_normal"],
+                font_family=self.config.font_families["montserrat"],
                 letter_spacing=2,
                 size=12
             ),
@@ -67,15 +76,15 @@ class WorkInsertModalComposer:
         style = self._style()
         style["text_style"] = ft.TextStyle(
             color=self.config.colors["muted"],
-            weight=self.config.font_weight["normal"],
-            font_family=self.config.fonts['montserrat'],
+            weight=self.config.font_weights["montserrat_normal"],
+            font_family=self.config.font_families["montserrat"],
             letter_spacing=2,
             size=12
         )
         style["label_style"] = ft.TextStyle(
             color=self.config.colors["muted"],
-            weight=self.config.font_weight["normal"],
-            font_family=self.config.fonts['montserrat'],
+            weight=self.config.font_weights["montserrat_normal"],
+            font_family=self.config.font_families["montserrat"],
             letter_spacing=2,
             size=12
         )
@@ -86,14 +95,14 @@ class WorkInsertModalComposer:
         """Retorna a tipografia e as cores dos campos de texto."""
         style = self._style()
         style["text_style"] = ft.TextStyle(
-            size=self.config.font_size["modal_field"],
-            weight=self.config.font_weight["semibold"],
-            font_family=self.config.fonts["cormorant"],
+            size=self.config.font_sizes["cormorant_small"],
+            weight=self.config.font_weights["cormorant_semibold"],
+            font_family=self.config.font_families["cormorant"],
         )
         style["hint_style"] = ft.TextStyle(
             color=self.config.colors["muted"],
-            weight=self.config.font_weight["normal"],
-            font_family=self.config.fonts['montserrat'],
+            weight=self.config.font_weights["montserrat_normal"],
+            font_family=self.config.font_families["montserrat"],
             letter_spacing=2,
             size=12
         )
@@ -106,6 +115,8 @@ class WorkInsertModalComposer:
         on_change: Callable | None = None,
     ) -> ft.Control:
         """Cria o controle correspondente a uma especificacao de campo."""
+        if spec.key == "authors":
+            return self._authors_control()
         if spec.kind == "responsabilities":
             data = initial_value if isinstance(initial_value, dict) else {}
             responsibility_key, responsibility_names = next(
@@ -115,7 +126,7 @@ class WorkInsertModalComposer:
                 controls=[
                     ft.TextField(
                         label="Tipo de responsabilidade",
-                        hint_text="Ex.: Editora",
+                        hint_text="Ex.: Coord.",
                         value=responsibility_key,
                         expand=True,
                         **self._text_field_style(),
@@ -141,9 +152,9 @@ class WorkInsertModalComposer:
                 on_change=on_change,
                 label_style=ft.TextStyle(
                     size=12,
-                    weight=self.config.font_weight["normal"],
+                    weight=self.config.font_weights["montserrat_normal"],
                     color=self.config.colors["text"],
-                    font_family=self.config.fonts["montserrat"],
+                    font_family=self.config.font_families["montserrat"],
                 ),
             )
         if spec.kind == "dropdown":
@@ -160,10 +171,14 @@ class WorkInsertModalComposer:
                         key=value, text=value,
                         content=ft.Text(
                             value=value,
-                            weight=self.config.font_weight['normal'],
+                            weight=self.config.font_weights[
+                                "montserrat_normal"
+                            ],
                             style=ft.TextStyle(letter_spacing=2),
-                            font_family=self.config.fonts['montserrat'],
-                            size=12
+                            font_family=self.config.font_families[
+                                "montserrat"
+                            ],
+                            size=self.config.font_sizes["montserrat_tiny"]
                         )
                     )
                     for value in (
@@ -179,17 +194,25 @@ class WorkInsertModalComposer:
         common_args = {
             "label": spec.label + (" *" if spec.required else ""),
             "hint_text": (
-                "DD/MM/AAAA" if spec.kind == "date" else spec.label
+                "DD/MM/AAAA" if spec.kind == "date"
+                else spec.hint if spec.hint else spec.label
             ),
             "multiline": spec.kind == "multiline",
             "min_lines": 3 if spec.kind == "multiline" else 1,
             "expand": True,
             "value": initial_value if isinstance(initial_value, str) else "",
         }
+        if spec.kind == "date":
+            common_args["on_change"] = self._format_date_input
+        elif spec.key == "issn":
+            common_args["on_change"] = self._format_issn_input
+        elif spec.key == "isbn":
+            common_args["on_change"] = self._format_isbn_input
         if spec.kind == "number":
             return ft.TextField(
                 **common_args,
                 keyboard_type=ft.KeyboardType.NUMBER,
+                input_filter=ft.NumbersOnlyInputFilter(),
                 **self._text_field_style(),
             )
         return ft.TextField(
@@ -197,26 +220,152 @@ class WorkInsertModalComposer:
             **self._text_field_style(),
         )
 
+    def _authors_control(self) -> ft.Control:
+        if self.author_control is not None:
+            return self.author_control
+
+        search = ft.TextField(
+            hint_text="Buscar autor",
+            prefix_icon=ft.Icons.SEARCH,
+            value=self.author_search,
+            on_change=self._search_author_names,
+            expand=True,
+            **self._text_field_style(),
+        )
+        self.author_search_field = search
+        self.author_results = ft.Row(wrap=True, spacing=4)
+        self.author_pills = ft.Row(wrap=True, spacing=4)
+        self.author_control = ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            search,
+                            ft.IconButton(
+                                icon=ft.Icons.ADD,
+                                tooltip="Adicionar novo autor",
+                                on_click=self._add_author_from_search,
+                            ),
+                        ],
+                        spacing=self.config.ui["control_gap"],
+                        expand=True,
+                    ),
+                    border_radius=self.config.ui["card_radius"],
+                    padding=4,
+                    expand=True,
+                ),
+                self.author_results,
+                self.author_pills,
+            ],
+            spacing=4,
+            expand=True,
+        )
+        self._refresh_author_search(refresh=False)
+        return self.author_control
+
+    def _search_author_names(self, event) -> None:
+        self.author_search = event.control.value or ""
+        self._refresh_author_search()
+
+    def _refresh_author_search(self, refresh: bool = True) -> None:
+        if (
+            self.author_control is None
+            or self.author_results is None
+            or self.author_pills is None
+        ):
+            return
+        names = (
+            self.search_authors(self.author_search)
+            if self.author_search and self.search_authors is not None
+            else []
+        )
+        self.author_results.controls = [
+            ft.TextButton(
+                content=name,
+                on_click=lambda e, name=name: self._select_author(name),
+            )
+            for name in names
+            if name not in self.author_names
+        ]
+        self.author_results.visible = bool(self.author_results.controls)
+        self.author_pills.controls = [
+            ft.Chip(
+                label=ft.Text(name),
+                on_delete=lambda e, name=name: self._remove_author(name),
+            )
+            for name in self.author_names
+        ]
+        self.author_pills.visible = bool(self.author_pills.controls)
+        if refresh:
+            self.author_control.update()
+
+    def _select_author(self, name: str) -> None:
+        if name not in self.author_names:
+            self.author_names.append(name)
+        self.author_search = ""
+        if self.author_search_field is not None:
+            self.author_search_field.value = ""
+        self._refresh_author_search()
+
+    def _add_author_from_search(self, event) -> None:
+        name = self.author_search.strip()
+        if name:
+            self._select_author(name)
+
+    def _remove_author(self, name: str) -> None:
+        self.author_names.remove(name)
+        self._refresh_author_search()
+
+    @staticmethod
+    def _format_digits(value: object, groups: tuple[int, ...]) -> str:
+        digits = re.sub(r"\D", "", str(value))
+        position = 0
+        parts = []
+        for group_size in groups:
+            part = digits[position:position + group_size]
+            if not part:
+                break
+            parts.append(part)
+            position += group_size
+        return "/".join(parts) if groups == (2, 2, 4) else "-".join(parts)
+
+    def _format_date_input(self, event) -> None:
+        event.control.value = self._format_digits(
+            event.control.value, (2, 2, 4)
+        )
+        event.control.update()
+
+    def _format_issn_input(self, event) -> None:
+        event.control.value = self._format_digits(event.control.value, (4, 4))
+        event.control.update()
+
+    def _format_isbn_input(self, event) -> None:
+        event.control.value = self._format_digits(
+            event.control.value, (3, 2, 4, 3, 1)
+        )
+        event.control.update()
+
     def _type_card(
         self,
         spec, selected: bool, on_select: Callable[[], None]
     ) -> ft.Container:
         """Cria um cartao selecionavel para um tipo de obra."""
-        return ft.Container(
+        icon = ft.Icon(
+            spec.icon,
+            size=36,
+            color=self.config.colors["gold"],
+            align=ft.Alignment.CENTER,
+        )
+        card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(
-                        spec.icon,
-                        size=36,
-                        color=self.config.colors["gold"],
-                        align=ft.Alignment.CENTER
-                    ),
+                    icon,
                     ft.Text(
                         value=spec.label,
-                        size=self.config.font_size["modal_type_card"],
+                        size=self.config.font_sizes["montserrat_tiny"],
                         color=self.config.colors["text"],
-                        font_family=self.config.fonts["montserrat"],
-                        weight=self.config.font_weight["semibold"],
+                        font_family=self.config.font_families["montserrat"],
+                        weight=self.config.font_weights["montserrat_semibold"],
                         text_align=ft.TextAlign.CENTER
                     ),
                 ],
@@ -240,12 +389,47 @@ class WorkInsertModalComposer:
             ),
             border_radius=self.config.ui["card_radius"],
             on_click=lambda e: on_select(),
+            animate=ft.Animation(
+                int(self.config.ui["animation_ms"]),
+                ft.AnimationCurve.EASE_OUT,
+            ),
         )
+
+        def handle_hover(e: ft.Event[ft.Container]):
+            if e.data:
+                card.bgcolor = self.config.colors["card_hover"]
+                card.border = ft.Border(
+                    left=ft.BorderSide(1, self.config.colors["text"]),
+                    top=ft.BorderSide(1, self.config.colors["text"]),
+                    right=ft.BorderSide(1, self.config.colors["text"]),
+                    bottom=ft.BorderSide(4, self.config.colors["text"]),
+                )
+                icon.color = self.config.colors["text"]
+            else:
+                card.bgcolor = (
+                    self.config.colors["card_hover"]
+                    if selected
+                    else self.config.colors["surface"]
+                )
+                card.border = ft.Border.all(
+                    2 if selected else 1,
+                    self.config.colors["gold"]
+                    if selected
+                    else self.config.colors["border"],
+                )
+                icon.color = self.config.colors["gold"]
+            card.update()
+
+        card.on_hover = handle_hover
+        return card
 
     def _collect(self) -> dict[str, object]:
         """Converte os controles atuais nos dados do formulario."""
         data: dict[str, object] = {"work_type": self.selected.key}
         for key, control in self.fields.items():
+            if key == "authors":
+                data[key] = "; ".join(self.author_names)
+                continue
             if isinstance(control, ft.Checkbox):
                 data[key] = control.value
             elif isinstance(control, ft.Row):
@@ -273,6 +457,11 @@ class WorkInsertModalComposer:
         """Seleciona um tipo novo e reinicia seus valores."""
         self.selected = spec
         self.partial_enabled = False
+        self.author_names.clear()
+        self.author_search = ""
+        if self.author_search_field is not None:
+            self.author_search_field.value = ""
+        self._refresh_author_search()
         self.stored_values.clear()
         self._render()
 
@@ -291,17 +480,24 @@ class WorkInsertModalComposer:
                 if spec.key != "is_partial" and not self.partial_enabled:
                     continue
             if spec.key in DEFAULTED_FIELDS.get(self.selected.key, set()):
-                spec = FieldSpec(spec.key, spec.label, spec.kind)
+                spec = FieldSpec(
+                    key=spec.key,
+                    label=spec.label,
+                    hint=spec.hint,
+                    kind=spec.kind,
+                    required=False,
+                )
             if spec.key == "date_anchor":
                 spec = FieldSpec(
-                    spec.key,
-                    (
-                        "Data de publicação (DD/MM/AAAA)"
+                    key=spec.key,
+                    label=(
+                        "Data de publicação"
                         if self.selected.date_kind == "date"
                         else spec.label
                     ),
-                    self.selected.date_kind,
-                    spec.required,
+                    hint=spec.hint,
+                    kind=self.selected.date_kind,
+                    required=spec.required,
                 )
             control = self._field(
                 spec,
@@ -320,7 +516,9 @@ class WorkInsertModalComposer:
                 ),
             )
             self.fields[spec.key] = control
-            if spec.kind in ("multiline", "checkbox", "responsabilities"):
+            if spec.kind in (
+                "multiline", "checkbox", "responsabilities"
+            ) or spec.key == "authors":
                 if current:
                     rows.append(
                         ft.Row(
@@ -354,7 +552,7 @@ class WorkInsertModalComposer:
                 else:
                     rows.append(
                         control
-                        if spec.kind == "responsabilities"
+                        if spec.kind in ("responsabilities", "authors")
                         else ft.Row(controls=[control])
                     )
             else:
@@ -377,10 +575,10 @@ class WorkInsertModalComposer:
         self.form.controls = [
             ft.Text(
                 value=self.selected.description,
-                size=self.config.font_size["modal_description"],
+                size=self.config.font_sizes["montserrat_medium"],
                 color=self.config.colors["muted"],
-                font_family=self.config.fonts["montserrat"],
-                weight=self.config.font_weight["semibold"],
+                font_family=self.config.font_families["montserrat"],
+                weight=self.config.font_weights["montserrat_semibold"],
             ),
             ft.Column(
                 controls=rows,
@@ -432,10 +630,10 @@ class WorkInsertModalComposer:
                 controls=[
                     ft.Text(
                         value="Cadastrar nova obra".title(),
-                        size=self.config.font_size["modal_title"],
+                        size=self.config.font_sizes["cormorant_large"],
                         color=self.config.colors["text"],
-                        font_family=self.config.fonts["cormorant"],
-                        weight=self.config.font_weight["bold"],
+                        font_family=self.config.font_families["cormorant"],
+                        weight=self.config.font_weights["cormorant_bold"],
                     ),
                     ft.Row(
                         controls=[
@@ -444,15 +642,17 @@ class WorkInsertModalComposer:
                                     controls=[
                                         ft.Text(
                                             value="Tipo de obra",
-                                            size=self.config.font_size[
-                                                "modal_section_label"
+                                            size=self.config.font_sizes[
+                                                "montserrat_large"
                                             ],
                                             color=self.config.colors["muted"],
-                                            font_family=self.config.fonts[
-                                                "montserrat"
-                                            ],
-                                            weight=self.config.font_weight[
-                                                "semibold"
+                                            font_family=(
+                                                self.config.font_families[
+                                                    "montserrat"
+                                                ]
+                                            ),
+                                            weight=self.config.font_weights[
+                                                "montserrat_semibold"
                                             ],
                                         ),
                                         self.type_grid,
@@ -484,14 +684,14 @@ class WorkInsertModalComposer:
                 ft.TextButton(
                     content=ft.Text(
                         value="Cancelar",
-                        font_family=self.config.fonts["montserrat"],
+                        font_family=self.config.font_families["montserrat"],
                     ),
                     on_click=self._close,
                 ),
                 ft.ElevatedButton(
                     content=ft.Text(
                         value="Salvar acervo",
-                        font_family=self.config.fonts["montserrat"],
+                        font_family=self.config.font_families["montserrat"],
                     ),
                     on_click=self._save,
                     bgcolor=self.config.colors["gold"],
