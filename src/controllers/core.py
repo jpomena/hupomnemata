@@ -45,6 +45,8 @@ from src.utils.ft_responsiveness import Responsive
 from src.views.application import ApplicationComposer
 from src.views.page_config import PageConfigurator
 from src.utils.types import ViewConfig
+from src.utils.clipboard import copy_reference as copy_reference_html
+from src.utils.types import ViewReference
 
 
 class CoreController:
@@ -89,12 +91,12 @@ class CoreController:
             self.application.show_view("dashboard")
         if destination == "work_insert":
             self.open_insert_work()
-        if destination == "Obras & Livros":
+        if destination == "Acervo":
             with SessionLocal() as session:
                 works = WorkRepository(session).list_works()
-            self.application.show_view("Obras & Livros", works)
-        if destination == "Cadernos & Excertos":
-            self.application.show_view("Cadernos & Excertos")
+            self.application.show_view("Acervo", works)
+        if destination == "Fragmentos":
+            self.application.show_view("Fragmentos")
 
     def build_application(self) -> None:
         scale = Responsive.get_scale(self.page)
@@ -104,6 +106,7 @@ class CoreController:
                 config=self.view_config,
                 on_save=self.handle_work_submission,
                 search_authors=self.search_authors,
+                search_works=self.search_works,
             )
         )
         self.multiple_authors_modal: ft.AlertDialog | None = None
@@ -112,6 +115,7 @@ class CoreController:
             config=self.view_config,
             on_navigate=self.navigate,
             on_work_click=self.open_work_details,
+            on_copy_reference=self.copy_reference,
         )
         self.page.add(self.application.compose_main())
 
@@ -127,6 +131,14 @@ class CoreController:
         )
         self.page.show_dialog(modal)
 
+    async def copy_reference(self, reference: ViewReference) -> None:
+        """Copia uma referencia formatada para a area de transferencia."""
+        if not copy_reference_html(reference):
+            await self.page.clipboard.set(
+                "".join(part.content for part in reference.parts).strip()
+            )
+        self.show_message('Referência copiada.', COLORS['gold'])
+
     def close_dialog(self, modal: ft.AlertDialog) -> None:
         modal.open = False
         self.page.update()
@@ -135,6 +147,16 @@ class CoreController:
         """Retorna autores existentes para a busca do modal."""
         with SessionLocal() as session:
             return WorkRepository(session).search_authors(query)
+
+    def search_works(self, query: str) -> list[tuple[int, str]]:
+        """Retorna obras encontradas para seletores relacionados."""
+        with SessionLocal() as session:
+            resources = WorkRepository(session).search_works(query)
+        return [
+            (resource.id, resource.specific_work.title)
+            for resource in resources
+            if resource.specific_work is not None
+        ]
 
     def handle_work_submission(self, form_data: dict[str, object]) -> bool:
         """Normaliza a entrada e coordena sua persistência."""
@@ -264,6 +286,7 @@ class CoreController:
         )
         resource_keys = {
             'is_partial',
+            'parent_work_id',
             'part_volume', 'part_chapter', 'part_start_page', 'part_end_page',
             'consult_start_year', 'consult_end_year',
         }

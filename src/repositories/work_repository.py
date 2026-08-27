@@ -140,6 +140,22 @@ class WorkRepository:
                     related.bibliographic_resource
         return works
 
+    def search_works(
+        self, query: str, limit: int = 8
+    ) -> list[BibliographicResource]:
+        """Busca obras pelo titulo para seletores relacionados."""
+        query = query.strip().casefold()
+        if not query:
+            return []
+        matches = []
+        for resource in self.list_works():
+            work = resource.specific_work
+            if work is not None and query in work.title.casefold():
+                matches.append(resource)
+                if len(matches) == limit:
+                    break
+        return matches
+
     def _author_by_id(self, author_id: int) -> Author:
         author = self.session.get(Author, author_id)
         if author is None:

@@ -25,10 +25,10 @@ class ControlsUtils:
         )
         label = ft.Text(
             value=label_ref,
-            size=config.font_sizes["montserrat_large"] * scale,
+            size=config.font_sizes["cormorant_medium"] * scale,
             color=config.colors["text"],
-            font_family=config.font_families["montserrat"],
-            weight=config.font_weights["montserrat_semibold"],
+            font_family=config.font_families["cormorant"],
+            weight=config.font_weights["cormorant_semibold"],
         )
         row_content = ft.Row(
             controls=[

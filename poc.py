@@ -38,7 +38,7 @@ def main(page: ft.Page):
     page.window.height = 750
     page.window.resizable = True
 
-    view_title = ft.Text("Catálogo de Obras & Livros", size=24, weight=ft.FontWeight.W_300, color="#1d1d21", font_family=FONTS['cormorant'])
+    view_title = ft.Text("Catálogo de Acervo", size=24, weight=ft.FontWeight.W_300, color="#1d1d21", font_family=FONTS['cormorant'])
     view_subtitle = ft.Text("Registros bibliográficos primários do acervo local.", size=12, color=COLORS['muted'], font_family=FONTS['montserrat'])
 
     content_area = ft.Container(expand=True, padding=20)
@@ -201,9 +201,9 @@ def main(page: ft.Page):
     def create_nav_button(label, icon, tab_key):
         def handle_click(e):
             if tab_key == 'biblioteca':
-                update_view("Catálogo de Obras & Livros", "Registros bibliográficos primários do acervo local.", get_biblioteca_view())
+                update_view("Catálogo de Acervo", "Registros bibliográficos primários do acervo local.", get_biblioteca_view())
             elif tab_key == 'excertos':
-                update_view("Cadernos & Excertos Reunidos", "Banco unificado de citações e anotações por obra.", get_excertos_view())
+                update_view("Fragmentos Reunidos", "Banco unificado de citações e anotações por obra.", get_excertos_view())
             elif tab_key == 'taxonomia':
                 update_view("Taxonomia & Grafo de Conceitos", "Ontologia de tags, relações e remissões cruzadas.", get_taxonomia_view())
             elif tab_key == 'ia':
@@ -265,8 +265,8 @@ def main(page: ft.Page):
                         ft.Container(
                             content=ft.Column([
                                 ft.Text("MÓDULOS DO SISTEMA", size=9, color=COLORS['muted'], font_family=FONTS['mono']),
-                                create_nav_button("01. Obras & Livros", ft.Icons.BOOK_OUTLINED, 'biblioteca'),
-                                create_nav_button("02. Cadernos & Excertos", ft.Icons.NOTE_OUTLINED, 'excertos'),
+                                create_nav_button("01. Acervo", ft.Icons.BOOK_OUTLINED, 'biblioteca'),
+                                create_nav_button("02. Fragmentos", ft.Icons.NOTE_OUTLINED, 'excertos'),
                                 create_nav_button("03. Taxonomia & Conceitos", ft.Icons.HUB_OUTLINED, 'taxonomia'),
                                 create_nav_button("04. Assistente IA (Gemini)", ft.Icons.AUTO_AWESOME, 'ia'),
                             ], spacing=4),

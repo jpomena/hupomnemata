@@ -84,7 +84,7 @@
             <button onclick="switchTab('biblioteca', this)" class="w-full flex items-center justify-between px-3.5 py-3 rounded-r text-vault-muted hover:text-white hover:bg-vault-cardHover transition-all sidebar-item-active group">
                 <span class="flex items-center space-x-3">
                     <i data-lucide="book-open" class="w-4 h-4 text-vault-gold"></i>
-                    <span class="font-medium tracking-wide">01. Obras & Livros</span>
+                    <span class="font-medium tracking-wide">01. Acervo</span>
                 </span>
                 <span class="mono-text text-[10px] px-1.5 py-0.5 rounded bg-vault-bg border border-vault-border text-vault-gold">142</span>
             </button>
@@ -92,7 +92,7 @@
             <button onclick="switchTab('excertos', this)" class="w-full flex items-center justify-between px-3.5 py-3 rounded-r text-vault-muted hover:text-white hover:bg-vault-cardHover transition-all group">
                 <span class="flex items-center space-x-3">
                     <i data-lucide="file-text" class="w-4 h-4 text-vault-muted group-hover:text-vault-gold transition-colors"></i>
-                    <span class="font-medium tracking-wide">02. Cadernos & Excertos</span>
+                    <span class="font-medium tracking-wide">02. Fragmentos</span>
                 </span>
                 <span class="mono-text text-[10px] px-1.5 py-0.5 rounded bg-vault-bg border border-vault-border">1,248</span>
             </button>
@@ -147,7 +147,7 @@
         <!-- Header da Área Principal -->
         <header class="h-16 px-8 border-b border-vault-border flex justify-between items-center bg-vault-surface/40 backdrop-blur-md shrink-0">
             <div>
-                <h2 id="viewTitle" class="serif-heading text-2xl font-light text-white">Catálogo de Obras & Livros</h2>
+                <h2 id="viewTitle" class="serif-heading text-2xl font-light text-white">Catálogo de Acervo</h2>
                 <p id="viewSubtitle" class="text-xs text-vault-muted mt-0.5">Registros bibliográficos primários do acervo local.</p>
             </div>
 
@@ -289,7 +289,7 @@
             }
 
             if (tabId === 'biblioteca') {
-                viewTitle.textContent = "Catálogo de Obras & Livros";
+                viewTitle.textContent = "Catálogo de Acervo";
                 viewSubtitle.textContent = "Registros bibliográficos primários do acervo local.";
                 mainContentArea.innerHTML = `
                     <div class="space-y-4">
@@ -315,7 +315,7 @@
                         </div>
                     </div>`;
             } else if (tabId === 'excertos') {
-                viewTitle.textContent = "Cadernos & Excertos Reunidos";
+                viewTitle.textContent = "Fragmentos Reunidos";
                 viewSubtitle.textContent = "Banco unificado de citações e anotações por obra.";
                 mainContentArea.innerHTML = `
                     <div class="space-y-4">
