@@ -23,12 +23,18 @@ class ApplicationComposer:
         on_navigate: Callable[[str], None],
         on_work_click: Callable,
         on_copy_reference: Callable[[ViewReference], Awaitable[None]],
+        on_delete_work: Callable,
+        on_create_parent_work: Callable[
+            [Callable[[int, str], None]], None
+        ],
     ):
         self.scale = scale
         self.config = config
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
         self.on_copy_reference = on_copy_reference
+        self.on_delete_work = on_delete_work
+        self.on_create_parent_work = on_create_parent_work
 
     def compose_main(self) -> ft.Row:
         """Monta a barra lateral e o dashboard em uma linha principal."""
@@ -92,6 +98,7 @@ class ApplicationComposer:
             on_navigate=self.on_navigate,
             on_work_click=self.on_work_click,
             on_copy_reference=self.on_copy_reference,
+            on_delete_work=self.on_delete_work,
         ).compose()
 
     @staticmethod
@@ -107,6 +114,9 @@ class ApplicationComposer:
         on_save: Callable[[dict[str, object]], bool],
         search_authors: Callable[[str], list[str]] | None = None,
         search_works: Callable[[str], list[tuple[int, str]]] | None = None,
+        on_create_parent_work: Callable[
+            [Callable[[int, str], None]], None
+        ] | None = None,
     ) -> ft.AlertDialog:
         return WorkInsertModalComposer(
             page=page,
@@ -114,6 +124,7 @@ class ApplicationComposer:
             on_save=on_save,
             search_authors=search_authors,
             search_works=search_works,
+            on_create_parent_work=on_create_parent_work,
         ).compose()
 
     @staticmethod

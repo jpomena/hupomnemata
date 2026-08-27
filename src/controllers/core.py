@@ -1,5 +1,6 @@
 import flet as ft
 from datetime import date, datetime
+from collections.abc import Callable
 
 import src.domains  # noqa: F401
 from src.configs.settings import (
@@ -58,6 +59,8 @@ class CoreController:
         self._pending_payload: WorkCreationPayload | None = None
         self._pending_author_ids: dict[int, int] = {}
         self._new_author_indexes: set[int] = set()
+        self._pending_on_created: Callable[[int, str], None] | None = None
+        self._pending_on_deferred_close: Callable[[], None] | None = None
         self.normalizer = CoreNormalizer()
         self.view_config = ViewConfig(
             colors=COLORS,
@@ -107,6 +110,7 @@ class CoreController:
                 on_save=self.handle_work_submission,
                 search_authors=self.search_authors,
                 search_works=self.search_works,
+                on_create_parent_work=self.open_parent_work,
             )
         )
         self.multiple_authors_modal: ft.AlertDialog | None = None
@@ -116,6 +120,8 @@ class CoreController:
             on_navigate=self.navigate,
             on_work_click=self.open_work_details,
             on_copy_reference=self.copy_reference,
+            on_delete_work=self.delete_work,
+            on_create_parent_work=self.open_parent_work,
         )
         self.page.add(self.application.compose_main())
 
@@ -131,6 +137,33 @@ class CoreController:
         )
         self.page.show_dialog(modal)
 
+    def open_parent_work(
+        self, on_created: Callable[[int, str], None]
+    ) -> None:
+        """Abre um cadastro auxiliar e devolve a obra-pai recém-criada."""
+        parent_modal: ft.AlertDialog | None = None
+
+        def close_parent_modal() -> None:
+            if parent_modal is not None:
+                self.close_dialog(parent_modal)
+
+        def save_parent(form_data: dict[str, object]) -> bool:
+            return self.handle_work_submission(
+                form_data,
+                on_created=on_created,
+                on_deferred_close=close_parent_modal,
+            )
+
+        parent_modal = ApplicationComposer.compose_work_insert_modal(
+            page=self.page,
+            config=self.view_config,
+            on_save=save_parent,
+            search_authors=self.search_authors,
+            search_works=self.search_works,
+            on_create_parent_work=self.open_parent_work,
+        )
+        self.page.show_dialog(parent_modal)
+
     async def copy_reference(self, reference: ViewReference) -> None:
         """Copia uma referencia formatada para a area de transferencia."""
         if not copy_reference_html(reference):
@@ -138,6 +171,20 @@ class CoreController:
                 "".join(part.content for part in reference.parts).strip()
             )
         self.show_message('Referência copiada.', COLORS['gold'])
+
+    def delete_work(self, resource) -> None:
+        """Remove uma obra do acervo e atualiza a listagem."""
+        try:
+            with SessionLocal() as session:
+                WorkRepository(session).remove_work(resource)
+        except Exception as error:
+            self.show_message(
+                f'Não foi possível excluir a obra.\n\n{error}', COLORS['text']
+            )
+            return
+
+        self.navigate('Acervo')
+        self.show_message('Obra excluída do acervo.', COLORS['gold'])
 
     def close_dialog(self, modal: ft.AlertDialog) -> None:
         modal.open = False
@@ -158,7 +205,12 @@ class CoreController:
             if resource.specific_work is not None
         ]
 
-    def handle_work_submission(self, form_data: dict[str, object]) -> bool:
+    def handle_work_submission(
+        self,
+        form_data: dict[str, object],
+        on_created: Callable[[int, str], None] | None = None,
+        on_deferred_close: Callable[[], None] | None = None,
+    ) -> bool:
         """Normaliza a entrada e coordena sua persistência."""
         title = str(form_data.get('title', '')).strip()
         authors = str(form_data.get('authors', '')).strip()
@@ -173,6 +225,8 @@ class CoreController:
             self._pending_payload = self.prepare_work_payload(form_data)
             self._pending_author_ids.clear()
             self._new_author_indexes.clear()
+            self._pending_on_created = on_created
+            self._pending_on_deferred_close = on_deferred_close
             return self._continue_pending_submission(close_form=False)
         except (ValueError, TypeError) as error:
             self.show_message(str(error), COLORS['text'])
@@ -188,6 +242,7 @@ class CoreController:
         if self._pending_payload is None:
             return False
 
+        created_work: tuple[int, str] | None = None
         try:
             with SessionLocal() as session:
                 repository = WorkRepository(session, self.normalizer)
@@ -206,10 +261,14 @@ class CoreController:
                         self._show_multiple_authors_modal(index, candidates)
                         return False
 
-                repository.create(
+                resource = repository.create(
                     self._pending_payload,
                     author_ids=self._pending_author_ids,
                 )
+                work = resource.specific_work
+                if work is None:
+                    raise ValueError('A obra cadastrada não possui detalhes.')
+                created_work = (resource.id, work.title)
         except (ValueError, TypeError) as error:
             self._clear_pending_submission()
             self.show_message(str(error), COLORS['text'])
@@ -221,9 +280,16 @@ class CoreController:
             )
             return False
 
+        on_created = self._pending_on_created
+        on_deferred_close = self._pending_on_deferred_close
         self._clear_pending_submission()
         if close_form:
-            self.close_insert_work()
+            if on_deferred_close is not None:
+                on_deferred_close()
+            else:
+                self.close_insert_work()
+        if created_work is not None and on_created is not None:
+            on_created(*created_work)
         self.show_message('Obra adicionada ao acervo.', COLORS['gold'])
         return True
 
@@ -253,6 +319,8 @@ class CoreController:
         self._pending_payload = None
         self._pending_author_ids.clear()
         self._new_author_indexes.clear()
+        self._pending_on_created = None
+        self._pending_on_deferred_close = None
 
     def prepare_work_payload(
         self, form_data: dict[str, object]
@@ -279,6 +347,10 @@ class CoreController:
             )
 
         converted = self.convert_model_values(form_data)
+        if 'title' in converted:
+            converted['title'] = self.normalizer.title_normalizer(
+                str(converted['title'])
+            )
         converted['date_anchor'] = date_anchor
         converted['date_precision'] = date_precision
         converted['display_year'] = self.normalizer.display_year_normalizer(

@@ -20,6 +20,7 @@ class WorksComposer:
             on_navigate,
             on_work_click: Callable[[BibliographicResource], None],
             on_copy_reference: Callable[[ViewReference], Awaitable[None]],
+            on_delete_work: Callable[[BibliographicResource], None],
     ) -> None:
         self.scale = scale
         self.config = config
@@ -27,6 +28,7 @@ class WorksComposer:
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
         self.on_copy_reference = on_copy_reference
+        self.on_delete_work = on_delete_work
         self.board: ft.Column | None = None
 
     def _compose_header(self) -> ft.Container:
@@ -107,7 +109,21 @@ class WorksComposer:
         type_filter = ft.Dropdown(
             value=selected_type,
             options=[
-                ft.dropdown.Option(value)
+                ft.dropdown.Option(
+                    key=value,
+                    text=value,
+                    content=ft.Text(
+                        value=value,
+                        weight=self.config.font_weights[
+                            "montserrat_normal"
+                        ],
+                        style=ft.TextStyle(letter_spacing=2),
+                        font_family=self.config.font_families[
+                            "montserrat"
+                        ],
+                        size=self.config.font_sizes["montserrat_tiny"]
+                    )
+                )
                 for value in [
                     selected_type,
                     *sorted(type_options - {selected_type}),
@@ -120,6 +136,27 @@ class WorksComposer:
             filled=True,
             fill_color=self.config.colors["surface"],
             bgcolor=self.config.colors['surface'],
+            hint_style=ft.TextStyle(
+                color=self.config.colors["muted"],
+                weight=self.config.font_weights["montserrat_normal"],
+                font_family=self.config.font_families["montserrat"],
+                letter_spacing=2,
+                size=12
+            ),
+            label_style=ft.TextStyle(
+                color=self.config.colors["muted"],
+                weight=self.config.font_weights["montserrat_normal"],
+                font_family=self.config.font_families["montserrat"],
+                letter_spacing=2,
+                size=12
+            ),
+            text_style=ft.TextStyle(
+                color=self.config.colors["muted"],
+                weight=self.config.font_weights["montserrat_normal"],
+                font_family=self.config.font_families["montserrat"],
+                letter_spacing=2,
+                size=12
+            ),
         )
         self.board = ft.Column(
             expand=True,
@@ -160,43 +197,9 @@ class WorksComposer:
 
             cards.append(
                 ft.Container(
-                    content=ft.Column(
+                    content=ft.Row(
                         controls=[
-                            ft.Text(
-                                value=work.title,
-                                size=self.config.font_sizes[
-                                    "cormorant_medium"
-                                ],
-                                font_family=self.config.font_families[
-                                    "cormorant"
-                                ],
-                                weight=self.config.font_weights[
-                                    "cormorant_semibold"
-                                ],
-                            ),
-                            ft.Text(
-                                value=authors or "Autor não informado",
-                                size=self.config.font_sizes[
-                                    "montserrat_small"
-                                ],
-                                font_family=self.config.font_families[
-                                    "montserrat"
-                                ],
-                                color=self.config.colors["muted"],
-                            ),
-                            ft.Text(
-                                spans=self._reference_spans(reference),
-                                size=self.config.font_sizes[
-                                    "montserrat_tiny"
-                                ],
-                                font_family=self.config.font_families[
-                                    "montserrat"
-                                ],
-                                color=self.config.colors["text"],
-                                max_lines=3,
-                                overflow=ft.TextOverflow.ELLIPSIS,
-                            ),
-                            ft.Row(
+                            ft.Column(
                                 controls=[
                                     ft.Text(
                                         value=(
@@ -213,22 +216,71 @@ class WorksComposer:
                                             "montserrat"
                                         ],
                                         color=self.config.colors["muted"],
-                                        expand=True,
                                     ),
+                                    ft.Text(
+                                        value=work.title,
+                                        size=self.config.font_sizes[
+                                            "cormorant_medium"
+                                        ],
+                                        font_family=self.config.font_families[
+                                            "cormorant"
+                                        ],
+                                        weight=self.config.font_weights[
+                                            "cormorant_semibold"
+                                        ],
+                                    ),
+                                    ft.Text(
+                                        value=authors or "Autor não informado",
+                                        size=self.config.font_sizes[
+                                            "montserrat_small"
+                                        ],
+                                        font_family=self.config.font_families[
+                                            "montserrat"
+                                        ],
+                                        color=self.config.colors["muted"],
+                                    ),
+                                    ft.Text(
+                                        spans=self._reference_spans(reference),
+                                        size=self.config.font_sizes[
+                                            "montserrat_tiny"
+                                        ],
+                                        font_family=self.config.font_families[
+                                            "montserrat"
+                                        ],
+                                        color=self.config.colors["text"],
+                                        max_lines=3,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
+                                    ),
+                                ],
+                                spacing=4,
+                                horizontal_alignment=(
+                                    ft.CrossAxisAlignment.STRETCH
+                                ),
+                                expand=True,
+                            ),
+                            ft.Column(
+                                controls=[
                                     ft.IconButton(
                                         icon=ft.Icons.COPY,
                                         tooltip="Copiar referência",
                                         on_click=copy_reference,
                                     ),
+                                    ft.IconButton(
+                                        icon=ft.Icons.DELETE_OUTLINE,
+                                        icon_color=ft.Colors.RED_400,
+                                        tooltip="Excluir obra",
+                                        on_click=lambda e, resource=resource: (
+                                            self.on_delete_work(resource)
+                                        ),
+                                    ),
                                 ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                vertical_alignment=(
+                                spacing=0,
+                                horizontal_alignment=(
                                     ft.CrossAxisAlignment.CENTER
                                 ),
                             ),
                         ],
-                        spacing=4,
-                        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     padding=self.config.ui["card_padding"],
                     bgcolor=self.config.colors["surface"],
