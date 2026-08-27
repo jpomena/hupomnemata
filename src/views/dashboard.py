@@ -1,12 +1,9 @@
 """Composer da area principal do dashboard."""
-
-from collections.abc import Callable
-
 import flet as ft
 
-from src.utils.ft_controls import ControlsUtils
+from collections.abc import Callable
+from src.utils import ControlsUtils, ViewConfig
 from src.utils.ft_icons import get_icon
-from src.views.view_config import ViewConfig
 
 
 class DashboardComposer:
@@ -16,17 +13,14 @@ class DashboardComposer:
         self,
         scale: float,
         config: ViewConfig,
-        on_insert_work: Callable[[], None],
+        on_navigate: Callable[[str], None],
     ):
         self.scale = scale
         self.config = config
-        self.on_insert_work = on_insert_work
+        self.on_navigate = on_navigate
 
     def _compose_header(self) -> ft.Container:
         """Cria o cabecalho e sua acao de insercao."""
-
-        def open_insert_modal(e):
-            self.on_insert_work()
 
         return ft.Container(
             content=ft.Row(
@@ -37,36 +31,32 @@ class DashboardComposer:
                                 value=self.config.texts["app"][
                                     "main_view_title"
                                 ],
-                                weight=self.config.font_weight["semibold"],
+                                weight=self.config.font_weights[
+                                    "cormorant_semibold"
+                                ],
                                 color=self.config.colors["text"],
-                                font_family=self.config.fonts["cormorant"],
-                                size=self.config.font_size["page_title"],
+                                font_family=self.config.font_families[
+                                    "cormorant"
+                                ],
+                                size=self.config.font_sizes["cormorant_big"],
                             ),
                             ft.Text(
                                 value=self.config.texts["app"][
                                     "main_view_subtitle"
                                 ],
-                                weight=self.config.font_weight["semibold"],
+                                weight=self.config.font_weights[
+                                    "montserrat_semibold"
+                                ],
                                 color=self.config.colors["muted"],
-                                font_family=self.config.fonts["montserrat"],
-                                size=self.config.font_size["page_subtitle"],
+                                font_family=self.config.font_families[
+                                    "montserrat"
+                                ],
+                                size=self.config.font_sizes["montserrat_tiny"],
                             ),
                         ],
                         spacing=2,
                         alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                    ft.ElevatedButton(
-                        content=ft.Text(
-                            value="+ Inserir Nova Obra",
-                            weight=self.config.font_weight["semibold"],
-                            font_family=self.config.fonts["montserrat"],
-                            color=self.config.colors["text"],
-                            size=self.config.font_size["action"],
-                            style=ft.TextStyle(letter_spacing=2),
-                        ),
-                        bgcolor=self.config.colors["gold"],
-                        on_click=open_insert_modal,
-                    ),
+                    )
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -81,6 +71,14 @@ class DashboardComposer:
 
     def _compose_cards(self) -> ft.ResponsiveRow:
         """Cria a grade responsiva de atalhos do acervo."""
+
+        def open_insert_modal(e):
+            self.on_navigate("work_insert")
+
+        on_click_dict = {
+            "work_insert": open_insert_modal
+        }
+
         cards: list[ft.Control] = [
             ft.Container(
                 content=ControlsUtils.create_main_view_card(
@@ -89,6 +87,8 @@ class DashboardComposer:
                     icon_data=get_icon(data["icon"], ft.Icons.HELP_OUTLINE),
                     description_str=data["description"],
                     scale=self.scale,
+                    on_click=on_click_dict[data['on_click']]
+                    if 'on_click' in data else None
                 ),
                 col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
             )

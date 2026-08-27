@@ -14,7 +14,7 @@ from src.domains import (  # noqa: E402
     EditorialMonograph,
 )  # noqa: E402
 from src.strategies import MonographFormatter  # noqa: E402
-from src.utils.types import TextStyle  # noqa: E402
+from src.utils import TextStyle  # noqa: E402
 
 
 MONOGRAPH_TYPES = (

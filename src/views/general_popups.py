@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
-from src.views.view_config import ViewConfig
-
+from src.utils.types import ViewConfig
 import flet as ft
 
 if TYPE_CHECKING:
@@ -21,7 +20,7 @@ class MultipleAuthors:
         config: ViewConfig
     ) -> ft.AlertDialog:
         TEXT_STYLE = {
-                "font_family": config.fonts['montserrat'],
+                "font_family": config.font_families["montserrat"],
                 "size": 16,
                 "color": config.colors['text']
             }

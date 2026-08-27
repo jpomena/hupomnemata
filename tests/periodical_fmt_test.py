@@ -14,7 +14,7 @@ from src.domains import (  # noqa
     BibliographicResource
 )
 from src.strategies import PeriodicalFormatter  # noqa
-from src.utils.types import TextStyle  # noqa
+from src.utils import TextStyle  # noqa
 
 
 def run_test():

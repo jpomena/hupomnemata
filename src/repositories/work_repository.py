@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import TypedDict
 
-from sqlalchemy import or_, select
+from sqlalchemy import inspect, or_, select
 from sqlalchemy.orm import Session
 
 from src.domains import Author, Authorship, BibliographicResource, WorkMixin
@@ -99,6 +99,46 @@ class WorkRepository:
             Author.given_names != elements.given_names,
         ).order_by(Author.given_names)
         return list(self.session.scalars(statement))
+
+    def search_authors(self, query: str, limit: int = 8) -> list[str]:
+        """Busca autores existentes pelo nome para o formulario."""
+        query = query.strip()
+        if not query:
+            return []
+        statement = (
+            select(Author)
+            .where(
+                or_(
+                    Author.given_names.ilike(f"%{query}%"),
+                    Author.last_name.ilike(f"%{query}%"),
+                )
+            )
+            .order_by(Author.last_name, Author.given_names)
+            .limit(limit)
+        )
+        return [
+            f"{author.given_names} {author.last_name}"
+            for author in self.session.scalars(statement)
+        ]
+
+    def list_works(self) -> list[BibliographicResource]:
+        """Lista todas as obras cadastradas, da mais recente à mais antiga."""
+        statement = select(BibliographicResource).order_by(
+            BibliographicResource.id.desc()
+        )
+        works = list(self.session.scalars(statement))
+        relationships = inspect(BibliographicResource).relationships
+        for resource in works:
+            for relationship in relationships:
+                related = getattr(resource, relationship.key)
+                if relationship.key == "authorships":
+                    for authorship in related:
+                        authorship.author
+                elif related is not None and hasattr(
+                    related, "bibliographic_resource"
+                ):
+                    related.bibliographic_resource
+        return works
 
     def _author_by_id(self, author_id: int) -> Author:
         author = self.session.get(Author, author_id)

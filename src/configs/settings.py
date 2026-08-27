@@ -21,20 +21,27 @@ COLORS = parameters['COLORS']
 
 CORE_MENUS = parameters['CORE_MENUS']
 
-FONTS_CONFIGS = parameters['FONTS']
-TYPOGRAPHY = parameters['TYPOGRAPHY']
+FONT_CONFIG = parameters['FONTS']
+ICON_SIZES = parameters['ICON_SIZES']
 UI = parameters['UI']
-FONT_WEIGHT = {
-    key: getattr(ft.FontWeight, value)
-    for key, value in TYPOGRAPHY['weights'].items()
-}
-FONT_SIZE = TYPOGRAPHY['sizes']
-FONTS = {}
+FONT_FAMILIES = {}
 PAGE_FONTS = {}
-for key, config in FONTS_CONFIGS.items():
-    FONTS[key] = config['name']
+for key, config in FONT_CONFIG.items():
+    FONT_FAMILIES[key] = config['name']
     PAGE_FONTS[config['name']] = str(
         PROJECT_ROOT / 'assets' / config['path']
     )
+
+FONT_SIZES = {
+    f'{family}_{size_name}': size
+    for family, config in FONT_CONFIG.items()
+    for size_name, size in config.get('sizes', {}).items()
+}
+
+FONT_WEIGHTS = {
+    f'{family}_{weight_name}': getattr(ft.FontWeight, weight)
+    for family, config in FONT_CONFIG.items()
+    for weight_name, weight in config.get('weights', {}).items()
+}
 
 MAIN_VIEW_CARDS = parameters['MAIN_VIEW_CARDS']

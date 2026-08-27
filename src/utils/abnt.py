@@ -43,6 +43,14 @@ class ABNTUtils:
     ) -> List[Tuple[str, TextStyle]]:
         '''Monta a string inicial de autoria e título da parte (capítulo, etc).
         '''
+        work = partial_bibliographic_resource.specific_work
+        if work is None:
+            raise ValueError(
+                f'O recurso bibliográfico ID '
+                f'{partial_bibliographic_resource.id} '
+                'não possui nenhuma obra específica associada.'
+            )
+
         parts = []
         parts.append((
                 ABNTUtils.format_authors(
@@ -51,12 +59,12 @@ class ABNTUtils:
                 TextStyle.NORMAL
         ))
         parts.append((
-            f' {partial_bibliographic_resource.specific_work.title}',
+            f' {work.title}',
             TextStyle.NORMAL
         ))
-        if partial_bibliographic_resource.specific_work.subtitle:
+        if work.subtitle:
             parts.append((
-                f': {partial_bibliographic_resource.specific_work.subtitle}',
+                f': {work.subtitle}',
                 TextStyle.NORMAL
             ))
         return parts

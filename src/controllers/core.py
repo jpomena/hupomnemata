@@ -5,9 +5,10 @@ import src.domains  # noqa: F401
 from src.configs.settings import (
     COLORS,
     CORE_MENUS,
-    FONTS,
-    FONT_SIZE,
-    FONT_WEIGHT,
+    FONT_FAMILIES,
+    FONT_SIZES,
+    FONT_WEIGHTS,
+    ICON_SIZES,
     MAIN_VIEW_CARDS,
     PAGE_FONTS,
     TEXTS,
@@ -43,7 +44,7 @@ from src.strategies import CoreNormalizer
 from src.utils.ft_responsiveness import Responsive
 from src.views.application import ApplicationComposer
 from src.views.page_config import PageConfigurator
-from src.views.view_config import ViewConfig
+from src.utils.types import ViewConfig
 
 
 class CoreController:
@@ -58,10 +59,11 @@ class CoreController:
         self.normalizer = CoreNormalizer()
         self.view_config = ViewConfig(
             colors=COLORS,
-            fonts=FONTS,
             page_fonts=PAGE_FONTS,
-            font_size=FONT_SIZE,
-            font_weight=FONT_WEIGHT,
+            font_families=FONT_FAMILIES,
+            font_sizes=FONT_SIZES,
+            icon_sizes=ICON_SIZES,
+            font_weights=FONT_WEIGHTS,
             ui=UI,
             texts=TEXTS,
             core_menus=CORE_MENUS,
@@ -82,6 +84,18 @@ class CoreController:
     def configure_page(self) -> None:
         self.page_configurator.configure_page(self.page)
 
+    def navigate(self, destination: str) -> None:
+        if destination == "dashboard":
+            self.application.show_view("dashboard")
+        if destination == "work_insert":
+            self.open_insert_work()
+        if destination == "Obras & Livros":
+            with SessionLocal() as session:
+                works = WorkRepository(session).list_works()
+            self.application.show_view("Obras & Livros", works)
+        if destination == "Cadernos & Excertos":
+            self.application.show_view("Cadernos & Excertos")
+
     def build_application(self) -> None:
         scale = Responsive.get_scale(self.page)
         self.work_insert_modal = (
@@ -89,20 +103,38 @@ class CoreController:
                 page=self.page,
                 config=self.view_config,
                 on_save=self.handle_work_submission,
+                search_authors=self.search_authors,
             )
         )
         self.multiple_authors_modal: ft.AlertDialog | None = None
-        self.page.add(
-            ApplicationComposer(
-                scale=scale,
-                config=self.view_config,
-                on_insert_work=self.open_insert_work,
-            ).compose_main()
+        self.application = ApplicationComposer(
+            scale=scale,
+            config=self.view_config,
+            on_navigate=self.navigate,
+            on_work_click=self.open_work_details,
         )
+        self.page.add(self.application.compose_main())
 
     def open_insert_work(self) -> None:
         if self.work_insert_modal is not None:
             self.page.show_dialog(self.work_insert_modal)
+
+    def open_work_details(self, resource) -> None:
+        modal = ApplicationComposer.compose_work_details_popup(
+            resource=resource,
+            config=self.view_config,
+            on_close=lambda: self.close_dialog(modal),
+        )
+        self.page.show_dialog(modal)
+
+    def close_dialog(self, modal: ft.AlertDialog) -> None:
+        modal.open = False
+        self.page.update()
+
+    def search_authors(self, query: str) -> list[str]:
+        """Retorna autores existentes para a busca do modal."""
+        with SessionLocal() as session:
+            return WorkRepository(session).search_authors(query)
 
     def handle_work_submission(self, form_data: dict[str, object]) -> bool:
         """Normaliza a entrada e coordena sua persistência."""

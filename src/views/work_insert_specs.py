@@ -11,6 +11,7 @@ class FieldSpec:
 
     key: str
     label: str
+    hint: str | None = None
     kind: str = "text"
     required: bool = False
 
@@ -28,43 +29,99 @@ class WorkTypeSpec:
 
 
 COMMON = (
-    FieldSpec("title", "Título da obra", required=True),
-    FieldSpec("subtitle", "Subtítulo"),
     FieldSpec(
-        "authors",
-        "Autores / responsáveis, separados por ponto e vírgula",
+        key="title",
+        label="Título da obra",
+        hint="Ex.: A nova razão do mundo",
+        required=True
+    ),
+    FieldSpec(
+        key="subtitle",
+        label="Subtítulo",
+        hint="Ex.: ensaio sobre a sociedade neoliberal"
+    ),
+    FieldSpec(
+        key="authors",
+        label="Autores / responsáveis, separados por ponto e vírgula",
+        hint="Ex.: Pierre Dardot; Christian Laval",
         required=True,
     ),
-    FieldSpec("abstract", "Resumo / descrição (se houver)", "multiline"),
-    FieldSpec("date_anchor", "Ano de publicação (ou estimado)", "year", True),
-    FieldSpec("date_precision", "Precisão da data", "dropdown"),
-    FieldSpec("url", "URL"),
-    FieldSpec("viewed_at", "Data de acesso", "date"),
+    FieldSpec(
+        key="abstract",
+        label="Resumo / descrição (se houver)",
+        hint="Ex.: análise das transformações do trabalho contemporâneo",
+        kind="multiline"
+    ),
+    FieldSpec(
+        key="date_anchor",
+        label="Ano de publicação (ou estimado)",
+        hint="Ex.: 2024",
+        kind="year",
+        required=True
+    ),
+    FieldSpec(key="date_precision", label="Precisão da data", kind="dropdown"),
+    FieldSpec(key="url", label="URL", hint="https://z-library.gs/..."),
+    FieldSpec(
+        key="viewed_at",
+        label="Data de acesso",
+        hint="DD/MM/AAAA",
+        kind="date"
+    ),
 )
 
 PARTIAL = (
-    FieldSpec("is_partial", "É parte de outra obra", "checkbox"),
-    FieldSpec("part_volume", "Volume da parte (se houver)"),
-    FieldSpec("part_chapter", "Capítulo da parte (se houver)"),
-    FieldSpec("part_start_page", "Página inicial da parte (se houver)"),
-    FieldSpec("part_end_page", "Página final da parte (se houver)"),
     FieldSpec(
-        "consult_start_year",
-        "Ano inicial consultado (para coleções de periódicos)",
-        "number",
+        key="is_partial",
+        label="É parte de outra obra",
+        kind="checkbox"
     ),
     FieldSpec(
-        "consult_end_year",
-        "Ano final consultado (se houver, para coleções de periódicos)",
-        "number",
+        key="part_volume",
+        label="Volume da parte (se houver)",
+        hint="Ex.: 2"
+    ),
+    FieldSpec(
+        key="part_chapter",
+        label="Capítulo da parte (se houver)",
+        hint="Ex.: 3"
+    ),
+    FieldSpec(
+        key="part_start_page",
+        label="Página inicial da parte (se houver)",
+        hint="Ex.: 45"
+    ),
+    FieldSpec(
+        key="part_end_page",
+        label="Página final da parte (se houver)",
+        hint="Ex.: 68"
+    ),
+    FieldSpec(
+        key="consult_start_year",
+        label="Ano inicial consultado (para coleções de periódicos)",
+        hint="Ex.: 2019",
+        kind="number",
+    ),
+    FieldSpec(
+        key="consult_end_year",
+        label="Ano final consultado (se houver, para coleções de periódicos)",
+        hint="Ex.: 2024",
+        kind="number",
     ),
 )
 
 PUBLICATION = (
     FieldSpec(
-        "publication_place", "Local de publicação (se houver)", required=True
+        key="publication_place",
+        label="Local de publicação (se houver)",
+        hint="Ex.: São Paulo",
+        required=True
     ),
-    FieldSpec("publisher", "Editora / produtor (se houver)", required=True),
+    FieldSpec(
+        key="publisher",
+        label="Editora / produtor (se houver)",
+        hint="Ex.: Boitempo",
+        required=True
+    ),
 )
 
 DEFAULTED_FIELDS = {
@@ -107,7 +164,12 @@ def _spec(key, label, description, icon, *fields):
         "date" if key in {"journal_article", "newspaper_article"} else "year"
     )
     return WorkTypeSpec(
-        key, label, description, icon, COMMON + PARTIAL + fields, date_kind
+        key=key,
+        label=label,
+        description=description,
+        icon=icon,
+        fields=COMMON + PARTIAL + fields,
+        date_kind=date_kind,
     )
 
 
@@ -118,21 +180,61 @@ WORK_TYPES = (
         "Livro, enciclopédia ou catálogo",
         ft.Icons.BOOK_OUTLINED,
         *PUBLICATION,
-        FieldSpec("edition", "Edição", "number"),
-        FieldSpec("page_quantity", "Quantidade de páginas", "number"),
-        FieldSpec("volumes", "Quantidade de volumes, se mais de um", "number"),
-        FieldSpec("illustrations", "Possui ilustrações", "checkbox"),
-        FieldSpec("dimensions", "Dimensões"),
-        FieldSpec("collection_name", "Nome da coleção"),
-        FieldSpec("collection_number", "Número da obra na coleção", "number"),
-        FieldSpec("translation_notes", "Notas de tradução"),
-        FieldSpec("original_full_title", "Título original completo"),
-        FieldSpec("additional_notes", "Notas adicionais"),
-        FieldSpec("isbn", "ISBN"),
+        FieldSpec(key="edition", label="Edição", kind="number"),
         FieldSpec(
-            "responsabilities",
-            "Notas de responsabilidade:",
-            "responsabilities",
+            key="page_quantity",
+            label="Quantidade de páginas",
+            hint='Ex.: 416',
+            kind="number"
+        ),
+        FieldSpec(
+            key="volumes",
+            label="Quantidade de volumes, se mais de um",
+            kind="number"
+        ),
+        FieldSpec(
+            key="illustrations",
+            label="Possui ilustrações",
+            kind="checkbox"
+        ),
+        FieldSpec(
+            key="dimensions",
+            label="Dimensões",
+            hint="Ex.: 21 x 14 x 2 cm"
+        ),
+        FieldSpec(
+            key="collection_name",
+            label="Nome da coleção",
+            hint="Ex.: Estado de sítio"
+        ),
+        FieldSpec(
+            key="collection_number",
+            label="Número da obra na coleção",
+            kind="number"
+        ),
+        FieldSpec(
+            key="translation_notes",
+            label="Notas de tradução",
+            hint="Ex.: tradução Mariana Echalar"
+        ),
+        FieldSpec(
+            key="original_full_title",
+            label="Título original completo",
+            hint=(
+                "Ex.: La Nouvelle raison du monde"
+                ": essai sur la société néolibérale"
+            )
+        ),
+        FieldSpec(
+            key="additional_notes",
+            label="Notas adicionais",
+            hint="Quaisquer outras notas sobre a obra"
+        ),
+        FieldSpec(key="isbn", label="ISBN", hint="Ex.: 978-85-7559-484-1"),
+        FieldSpec(
+            key="responsabilities",
+            label="Notas de responsabilidade:",
+            kind="responsabilities",
         )
     ),
     _spec(
@@ -140,14 +242,36 @@ WORK_TYPES = (
         "Artigo de revista",
         "Artigo ou comunicação científica",
         ft.Icons.ARTICLE_OUTLINED,
-        FieldSpec("journal_title", "Título do periódico", required=True),
-        FieldSpec("journal_subtitle", "Subtítulo do periódico"),
+        FieldSpec(
+            key="journal_title",
+            label="Título do periódico",
+            hint="Ex.: Revista Brasileira de Ciências Sociais",
+            required=True
+        ),
+        FieldSpec(
+            key="journal_subtitle",
+            label="Subtítulo do periódico",
+            hint="Ex.: revista de estudos sociais"
+        ),
         *PUBLICATION,
-        FieldSpec("volume", "Volume", "number"),
-        FieldSpec("year_season", "Ano / estação", "number"),
-        FieldSpec("number", "Número", "number", True),
-        FieldSpec("issn", "ISSN"),
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(
+            key="volume", label="Volume", hint="Ex.: 12", kind="number"
+        ),
+        FieldSpec(
+            key="year_season",
+            label="Ano da revista",
+            hint="Ex.: 4",
+            kind="number"
+        ),
+        FieldSpec(
+            key="number",
+            label="Número do fascículo",
+            hint="Ex.: 3",
+            kind="number",
+            required=True
+        ),
+        FieldSpec(key="issn", label="ISSN", hint="Ex.: 2317-1782"),
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "academic_monograph",
@@ -155,125 +279,263 @@ WORK_TYPES = (
         "Trabalho acadêmico",
         ft.Icons.SCHOOL_OUTLINED,
         *PUBLICATION,
-        FieldSpec("page_quantity", "Quantidade de páginas", "number", True),
-        FieldSpec("thesis_type", "Tipo de trabalho", required=True),
-        FieldSpec("education_level", "Nível de formação", required=True),
-        FieldSpec("course", "Curso", required=True),
-        FieldSpec("faculty", "Faculdade / instituição", required=True),
-        FieldSpec("defense_year", "Ano de defesa", "number", True),
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(
+            key="page_quantity",
+            label="Quantidade de páginas",
+            hint="Ex.: 120",
+            kind="number",
+            required=True
+        ),
+        FieldSpec(
+            key="thesis_type",
+            label="Tipo de trabalho",
+            hint="Ex.: Dissertação",
+            required=True
+        ),
+        FieldSpec(
+            key="education_level",
+            label="Nível de formação",
+            hint="Ex.: Mestrado",
+            required=True
+        ),
+        FieldSpec(
+            key="course",
+            label="Curso",
+            hint="Ex.: Sociologia",
+            required=True
+        ),
+        FieldSpec(
+            key="faculty",
+            label="Faculdade / instituição",
+            hint="Ex.: Universidade de São Paulo",
+            required=True
+        ),
+        FieldSpec(
+            key="defense_year",
+            label="Ano de defesa",
+            kind="number",
+            required=True,
+        ),
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "monographic_proceedings",
         "Anais de evento em volume único",
         "Anais de evento em volume único",
         ft.Icons.EVENT,
-        FieldSpec("event_name", "Nome do evento", required=True),
-        FieldSpec("event_number", "Número do evento", "number"),
-        FieldSpec("event_year", "Ano do evento", "number", True),
-        FieldSpec("event_place", "Local do evento"),
+        FieldSpec(
+            key="event_name",
+            label="Nome do evento",
+            hint="Ex.: Congresso Brasileiro de Sociologia",
+            required=True
+        ),
+        FieldSpec(
+            key="event_number",
+            label="Número do evento",
+            hint="Ex.: 20",
+            kind="number"
+        ),
+        FieldSpec(
+            key="event_year",
+            label="Ano do evento",
+            kind="number",
+            required=True
+        ),
+        FieldSpec(
+            key="event_place", label="Local do evento", hint="Ex.: São Paulo"
+        ),
         *PUBLICATION,
-        FieldSpec("publication_year", "Ano de publicação", "number", True),
-        FieldSpec("page_quantity", "Quantidade de páginas", "number"),
-        FieldSpec("isbn", "ISBN"),
-        FieldSpec("published", "Publicado", "checkbox")
+        FieldSpec(
+            key="publication_year",
+            label="Ano de publicação",
+            kind="number",
+            required=True,
+        ),
+        FieldSpec(
+            key="page_quantity", label="Quantidade de páginas", kind="number"
+        ),
+        FieldSpec(key="isbn", label="ISBN", hint="Ex.: 978-85-0000-000-0"),
+        FieldSpec(key="published", label="Publicado", kind="checkbox")
     ),
     _spec(
         "periodical_proceedings",
         "Anais de evento em periódico",
         "Anais de evento periódico",
         ft.Icons.EVENT_NOTE,
-        FieldSpec("event_name", "Nome do evento", required=True),
-        FieldSpec("event_number", "Número do evento", "number"),
-        FieldSpec("event_year", "Ano do evento", "number", True),
-        FieldSpec("event_place", "Local do evento"),
+        FieldSpec(
+            key="event_name",
+            label="Nome do evento",
+            hint="Ex.: Congresso Brasileiro de Sociologia",
+            required=True
+        ),
+        FieldSpec(
+            key="event_number",
+            label="Número do evento",
+            hint="Ex.: 20",
+            kind="number"
+        ),
+        FieldSpec(
+            key="event_year",
+            label="Ano do evento",
+            kind="number",
+            required=True
+        ),
+        FieldSpec(
+            key="event_place", label="Local do evento", hint="Ex.: São Paulo"
+        ),
         *PUBLICATION,
-        FieldSpec("publication_year", "Ano de publicação", "number", True),
-        FieldSpec("page_quantity", "Quantidade de páginas", "number"),
-        FieldSpec("vol_or_year", "Volume / ano", "number"),
-        FieldSpec("number", "Número", "number", True),
-        FieldSpec("start_page", "Página inicial", required=True),
-        FieldSpec("end_page", "Página final", required=True),
-        FieldSpec("publication_date", "Data de publicação", "date", True),
-        FieldSpec("issn", "ISSN")
+        FieldSpec(
+            key="publication_year",
+            label="Ano de publicação",
+            kind="number",
+            required=True,
+        ),
+        FieldSpec(
+            key="page_quantity", label="Quantidade de páginas", kind="number"
+        ),
+        FieldSpec(key="vol_or_year", label="Volume / ano", kind="number"),
+        FieldSpec(key="number", label="Número", kind="number", required=True),
+        FieldSpec(key="start_page", label="Página inicial", required=True),
+        FieldSpec(key="end_page", label="Página final", required=True),
+        FieldSpec(
+            key="publication_date",
+            label="Data de publicação",
+            kind="date",
+            required=True,
+        ),
+        FieldSpec(key="issn", label="ISSN", hint="Ex.: 2317-1782")
     ),
     _spec(
         "newspaper_article",
         "Artigo de jornal",
         "Reportagem, entrevista ou editorial",
         ft.Icons.NEWSPAPER_OUTLINED,
-        FieldSpec("journal_title", "Título do jornal", required=True),
-        FieldSpec("journal_subtitle", "Subtítulo do jornal"),
+        FieldSpec(
+            key="journal_title",
+            label="Título do jornal",
+            hint="Ex.: Folha de S.Paulo",
+            required=True
+        ),
+        FieldSpec(
+            key="journal_subtitle",
+            label="Subtítulo do jornal",
+            hint="Ex.: edição de domingo"
+        ),
         *PUBLICATION,
-        FieldSpec("volume", "Volume", "number"),
-        FieldSpec("year_season", "Ano / estação", "number"),
-        FieldSpec("number", "Número", "number"),
-        FieldSpec("section", "Seção"),
-        FieldSpec("start_page", "Página inicial", required=True),
-        FieldSpec("end_page", "Página final", required=True),
-        FieldSpec("issn", "ISSN")
+        FieldSpec(key="volume", label="Volume", kind="number"),
+        FieldSpec(key="year_season", label="Ano / estação", kind="number"),
+        FieldSpec(key="number", label="Número", kind="number"),
+        FieldSpec(key="section", label="Seção", hint="Ex.: Política"),
+        FieldSpec(key="start_page", label="Página inicial", required=True),
+        FieldSpec(key="end_page", label="Página final", required=True),
+        FieldSpec(key="issn", label="ISSN", hint="Ex.: 0101-3300")
     ),
     _spec(
         "statute",
         "Legislação",
         "Lei, decreto ou norma",
         ft.Icons.GAVEL,
-        FieldSpec("additional_notes", "Notas adicionais"),
+        FieldSpec(key="additional_notes", label="Notas adicionais"),
     ),
     _spec(
         "caselaw",
         "Jurisprudência",
         "Acórdão, sentença ou decisão",
         ft.Icons.ACCOUNT_BALANCE,
-        FieldSpec("decision_type", "Tipo de decisão", required=True),
-        FieldSpec("decision_date", "Data da decisão", "date", True),
-        FieldSpec("case_number", "Número do processo"),
-        FieldSpec("rapporteur", "Relator"),
-        FieldSpec("additional_notes", "Notas adicionais"),
+        FieldSpec(
+            key="decision_type",
+            label="Tipo de decisão",
+            hint="Ex.: Acórdão",
+            required=True
+        ),
+        FieldSpec(
+            key="decision_date",
+            label="Data da decisão",
+            kind="date",
+            required=True,
+        ),
+        FieldSpec(
+            key="case_number",
+            label="Número do processo",
+            hint="Ex.: 0001234-56.2024.8.26.0000",
+        ),
+        FieldSpec(
+            key="rapporteur", label="Relator", hint="Ex.: Min. Cármen Lúcia"
+        ),
+        FieldSpec(key="additional_notes", label="Notas adicionais"),
     ),
     _spec(
         "administrative_act",
         "Ato administrativo",
         "Portaria, edital ou parecer",
         ft.Icons.ACCOUNT_BALANCE_OUTLINED,
-        FieldSpec("additional_notes", "Notas adicionais"),
+        FieldSpec(key="additional_notes", label="Notas adicionais"),
     ),
     _spec(
         "miscellaneous_digital_document",
         "Documento digital",
         "Documento digital diverso",
         ft.Icons.INSERT_DRIVE_FILE_OUTLINED,
-        FieldSpec("version", "Versão", "number"),
+        FieldSpec(
+            key="version", label="Versão", hint="Ex.: 2", kind="number"
+        ),
         *PUBLICATION,
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "audiovisual_document",
         "Audiovisual",
         "Filme, vídeo ou gravação",
         ft.Icons.VIDEO_LIBRARY_OUTLINED,
-        FieldSpec("carrier_type", "Tipo de suporte", required=True),
-        FieldSpec("seconds", "Duração em segundos", "number", True),
-        FieldSpec("sound", "Possui som", "checkbox"),
-        FieldSpec("colorized", "Colorizado", "checkbox"),
+        FieldSpec(
+            key="carrier_type",
+            label="Tipo de suporte",
+            hint="Ex.: DVD",
+            required=True
+        ),
+        FieldSpec(
+            key="seconds",
+            label="Duração em segundos",
+            hint="Ex.: 5400",
+            kind="number",
+            required=True,
+        ),
+        FieldSpec(key="sound", label="Possui som", kind="checkbox"),
+        FieldSpec(key="colorized", label="Colorizado", kind="checkbox"),
         *PUBLICATION,
-        FieldSpec("responsabilities", "Responsabilidades", "responsabilities"),
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(
+            key="responsabilities",
+            label="Responsabilidades",
+            kind="responsabilities",
+        ),
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "audio_document",
         "Áudio",
         "Disco, podcast ou gravação sonora",
         ft.Icons.AUDIOTRACK,
-        FieldSpec("carrier_type", "Tipo de suporte", required=True),
-        FieldSpec("is_part", "É parte de uma obra sonora", "checkbox"),
+        FieldSpec(key="carrier_type", label="Tipo de suporte", required=True),
         FieldSpec(
-            "part_responsabilities",
-            "Responsabilidades da parte",
-            "responsabilities",
+            key="is_part", label="É parte de uma obra sonora", kind="checkbox"
         ),
-        FieldSpec("part_identifier", "Identificador da parte", required=True),
-        FieldSpec("responsabilities", "Responsabilidades", "responsabilities"),
+        FieldSpec(
+            key="part_responsabilities",
+            label="Responsabilidades da parte",
+            hint="Ex.: intérprete Maria Bethânia",
+            kind="responsabilities",
+        ),
+        FieldSpec(
+            key="part_identifier",
+            label="Identificador da parte",
+            hint="Ex.: faixa 3",
+            required=True,
+        ),
+        FieldSpec(
+            key="responsabilities",
+            label="Responsabilidades",
+            kind="responsabilities",
+        ),
         *PUBLICATION
     ),
     _spec(
@@ -282,46 +544,96 @@ WORK_TYPES = (
         "Carta, telegrama ou e-mail",
         ft.Icons.MAIL_OUTLINE,
         *PUBLICATION,
-        FieldSpec("recipient", "Destinatário"),
         FieldSpec(
-            "correspondence_type", "Tipo de correspondência", required=True
+            key="recipient", label="Destinatário", hint="Ex.: Machado de Assis"
         ),
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(
+            key="correspondence_type",
+            label="Tipo de correspondência",
+            hint="Ex.: Carta",
+            required=True,
+        ),
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "periodical_collection",
         "Coleção periódica",
         "Revista ou jornal completo",
         ft.Icons.MENU_BOOK,
-        FieldSpec("journal_title", "Título do periódico", required=True),
-        FieldSpec("journal_subtitle", "Subtítulo do periódico"),
         FieldSpec(
-            "first_volume_year", "Ano do primeiro volume", "number", True
+            key="journal_title",
+            label="Título do periódico",
+            hint="Ex.: Revista Brasileira de Ciências Sociais",
+            required=True
         ),
-        FieldSpec("last_volume_year", "Ano do último volume", "number"),
+        FieldSpec(
+            key="journal_subtitle",
+            label="Subtítulo do periódico",
+            hint="Ex.: revista de estudos sociais"
+        ),
+        FieldSpec(
+            key="first_volume_year",
+            label="Ano do primeiro volume",
+            kind="number",
+            required=True,
+        ),
+        FieldSpec(
+            key="last_volume_year",
+            label="Ano do último volume",
+            hint="Ex.: 2024",
+            kind="number"
+        ),
         *PUBLICATION,
-        FieldSpec("issn", "ISSN"),
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(key="issn", label="ISSN", hint="Ex.: 2317-1782"),
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "patent",
         "Patente",
         "Documento de propriedade industrial",
         ft.Icons.LIGHTBULB_OUTLINE,
-        FieldSpec("applicant", "Requerente", required=True),
-        FieldSpec("representative", "Representante"),
-        FieldSpec("number", "Número da patente", required=True),
-        FieldSpec("filing_date", "Data de depósito", "date", True),
-        FieldSpec("grant_date", "Data de concessão", "date"),
+        FieldSpec(
+            key="applicant",
+            label="Requerente",
+            hint="Ex.: Instituto Butantan",
+            required=True,
+        ),
+        FieldSpec(
+            key="representative", label="Representante", hint="Ex.: Ana Souza"
+        ),
+        FieldSpec(
+            key="number",
+            label="Número da patente",
+            hint="Ex.: BR1020240001234",
+            required=True,
+        ),
+        FieldSpec(
+            key="filing_date",
+            label="Data de depósito",
+            hint="DD/MM/AAAA",
+            kind="date",
+            required=True,
+        ),
+        FieldSpec(
+            key="grant_date",
+            label="Data de concessão",
+            hint="DD/MM/AAAA",
+            kind="date"
+        ),
     ),
     _spec(
         "musical_score",
         "Partitura",
         "Partitura ou obra musical",
         ft.Icons.MUSIC_NOTE,
-        FieldSpec("instrumentation", "Instrumentação", required=True),
+        FieldSpec(
+            key="instrumentation",
+            label="Instrumentação",
+            hint="Ex.: piano e voz",
+            required=True
+        ),
         *PUBLICATION,
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "visual_document",
@@ -334,9 +646,11 @@ WORK_TYPES = (
         "Cartográfico",
         "Mapa, atlas ou carta",
         ft.Icons.MAP_OUTLINED,
-        FieldSpec("edition", "Edição", "number"),
+        FieldSpec(
+            key="edition", label="Edição", hint="Ex.: 2", kind="number"
+        ),
         *PUBLICATION,
-        FieldSpec("additional_notes", "Notas adicionais")
+        FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
     _spec(
         "three_dimensional_document",
@@ -344,9 +658,22 @@ WORK_TYPES = (
         "Objeto tridimensional",
         ft.Icons.VIEW_IN_AR,
         FieldSpec(
-            "responsability_type", "Tipo de responsabilidade", required=True
+            key="responsability_type",
+            label="Tipo de responsabilidade",
+            hint="Ex.: fabricante",
+            required=True,
         ),
-        FieldSpec("manufacturing_place", "Local de fabricação", required=True),
-        FieldSpec("manufacturer", "Fabricante", required=True),
+        FieldSpec(
+            key="manufacturing_place",
+            label="Local de fabricação",
+            hint="Ex.: São Paulo",
+            required=True,
+        ),
+        FieldSpec(
+            key="manufacturer",
+            label="Fabricante",
+            hint="Ex.: Editora Abril",
+            required=True,
+        ),
     ),
 )

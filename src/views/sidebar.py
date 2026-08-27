@@ -2,17 +2,22 @@
 
 import flet as ft
 
+from typing import Callable
 from src.utils.ft_controls import ControlsUtils
 from src.utils.ft_icons import get_icon
-from src.views.view_config import ViewConfig
+from src.utils.types import ViewConfig
 
 
 class SidebarComposer:
     """Compoe marca, navegacao e nota da barra lateral."""
 
-    def __init__(self, scale: float, config: ViewConfig):
+    def __init__(
+            self, scale: float, config: ViewConfig,
+            on_navigate: Callable[[str], None]
+    ) -> None:
         self.scale = scale
         self.config = config
+        self.on_navigate = on_navigate
 
     def _compose_branding(self) -> ft.Container:
         """Cria a marca e o slogan exibidos no topo."""
@@ -21,22 +26,28 @@ class SidebarComposer:
             bgcolor=self.config.colors["surface"],
             content=ft.Column(
                 controls=[
-                    ft.Text(
-                        value=self.config.texts["app"]["name_normalized"],
-                        size=self.config.font_size["sidebar_brand"],
-                        weight=self.config.font_weight["semibold"],
-                        color=self.config.colors["text"],
-                        font_family=self.config.fonts["greek"],
-                        style=ft.TextStyle(letter_spacing=4),
+                    ft.TextButton(
+                        content=ft.Text(
+                            value=self.config.texts["app"]["name_normalized"],
+                            size=self.config.font_sizes["greek_brand"],
+                            weight=self.config.font_weights["greek_semibold"],
+                            color=self.config.colors["text"],
+                            font_family=self.config.font_families["greek"],
+                            style=ft.TextStyle(letter_spacing=4),
+                            align=ft.Alignment.CENTER
+                        ),
+                        on_click=lambda e: self.on_navigate("dashboard")
                     ),
                     ft.Text(
                         value=self.config.texts["app"]["slogan"],
                         align=ft.Alignment.BOTTOM_CENTER,
-                        font_family=self.config.fonts["cormorant"],
+                        font_family=self.config.font_families["cormorant"],
                         color=self.config.colors["muted"],
                         style=ft.TextStyle(letter_spacing=3),
-                        size=self.config.font_size["sidebar_slogan"],
-                        weight=self.config.font_weight["semibold"],
+                        size=self.config.font_sizes["cormorant_small"],
+                        weight=self.config.font_weights[
+                            "cormorant_semibold"
+                        ],
                     ),
                 ],
                 spacing=6,
@@ -51,6 +62,7 @@ class SidebarComposer:
                 icon_data=get_icon(icon_name),
                 scale=self.scale,
                 config=self.config,
+                on_navigate=self.on_navigate
             )
             for label, icon_name in self.config.core_menus.items()
         ]
@@ -59,10 +71,12 @@ class SidebarComposer:
                 controls=[
                     ft.Text(
                         value="Cadernos",
-                        font_family=self.config.fonts["montserrat"],
-                        size=self.config.font_size["sidebar_section"],
+                        font_family=self.config.font_families["greek"],
+                        size=self.config.font_sizes["cormorant_small"],
                         color=self.config.colors["muted"],
-                        weight=self.config.font_weight["semibold"],
+                        weight=self.config.font_weights[
+                            "montserrat_semibold"
+                        ],
                     ),
                     *menu_items,
                 ],
@@ -78,14 +92,17 @@ class SidebarComposer:
         return ft.Container(
             content=ft.Text(
                 value=self.config.texts["messages"]["placeholder_citation"],
-                size=self.config.font_size["sidebar_quote"] * self.scale,
+                size=(
+                    self.config.font_sizes["cormorant_small"]
+                    * self.scale
+                ),
                 color=self.config.colors["muted"],
-                font_family=self.config.fonts["cormorant"],
+                font_family=self.config.font_families["cormorant"],
                 align=ft.Alignment.CENTER_LEFT,
                 text_align=ft.TextAlign.JUSTIFY,
                 no_wrap=False,
                 expand=True,
-                weight=self.config.font_weight["semibold"],
+                weight=self.config.font_weights["cormorant_semibold"],
             ),
             height=self.config.ui["sidebar_footnote_height"] * self.scale,
             padding=self.config.ui["navigation_padding"],
