@@ -24,12 +24,16 @@ class WorkInsertModalComposer:
         on_save: Callable[[dict[str, object]], bool],
         search_authors: Callable[[str], list[str]] | None = None,
         search_works: Callable[[str], list[tuple[int, str]]] | None = None,
+        on_create_parent_work: Callable[
+            [Callable[[int, str], None]], None
+        ] | None = None,
     ):
         self.page = page
         self.config = config
         self.on_save = on_save
         self.search_authors = search_authors
         self.search_works = search_works
+        self.on_create_parent_work = on_create_parent_work
         self.selected = WORK_TYPES[0]
         self.fields: dict[str, ft.Control] = {}
         self.partial_enabled = False
@@ -378,6 +382,11 @@ class WorkInsertModalComposer:
         if self.parent_work_results is not None:
             self.parent_work_results.update()
 
+    def _create_parent_work(self, event) -> None:
+        """Abre o cadastro de uma obra-pai e a seleciona ao salvá-la."""
+        if self.on_create_parent_work is not None:
+            self.on_create_parent_work(self._select_parent_work)
+
     def _remove_author(self, name: str) -> None:
         self.author_names.remove(name)
         self._refresh_author_search()
@@ -607,7 +616,7 @@ class WorkInsertModalComposer:
                                 ft.IconButton(
                                     icon=ft.Icons.ADD,
                                     tooltip="Nova obra-pai",
-                                    # on_click=...
+                                    on_click=self._create_parent_work,
                                 )
                             ],
                             spacing=self.config.ui["control_gap"],

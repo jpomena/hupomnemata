@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import TypedDict
 
-from sqlalchemy import inspect, or_, select
+from sqlalchemy import inspect, or_, select, delete
 from sqlalchemy.orm import Session
 
 from src.domains import Author, Authorship, BibliographicResource, WorkMixin
@@ -166,3 +166,35 @@ class WorkRepository:
         self, payloads: Iterable[WorkCreationPayload]
     ) -> list[BibliographicResource]:
         return [self.create(payload) for payload in payloads]
+
+    def remove_work(self, work: BibliographicResource) -> None:
+        author_ids = list(
+            self.session.scalars(
+                select(Authorship.author_id).where(
+                    Authorship.bib_res_id == work.id
+                )
+            )
+        )
+
+        try:
+            self.session.execute(
+                delete(BibliographicResource).where(
+                    BibliographicResource.id == work.id
+                )
+            )
+
+            for author_id in author_ids:
+                remaining_authorship = self.session.scalar(
+                    select(Authorship.id)
+                    .where(Authorship.author_id == author_id)
+                    .limit(1)
+                )
+                if remaining_authorship is None:
+                    self.session.execute(
+                        delete(Author).where(Author.id == author_id)
+                    )
+
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise

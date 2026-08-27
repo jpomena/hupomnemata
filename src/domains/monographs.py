@@ -1,5 +1,5 @@
 from .core import WorkMixin
-from sqlalchemy import String, CheckConstraint, JSON
+from sqlalchemy import String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Dict
 
@@ -14,13 +14,6 @@ class EditorialMonograph(WorkMixin):
     editorial, e.g.: livros, enciclopédias, dicionários.'''
 
     __tablename__ = 'editorial_monographs'
-
-    __table_args__ = (
-        CheckConstraint(
-            '(collection_number IS NOT NULL AND collection_name IS NOT NULL)'
-            ' OR (collection_number IS NULL AND collection_name IS NULL)'
-        ),
-    )
 
     page_quantity: Mapped[int] = mapped_column(nullable=True)
     publication_place: Mapped[str] = mapped_column(
