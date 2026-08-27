@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import TypedDict
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from src.domains import Author, Authorship, BibliographicResource, WorkMixin
@@ -27,7 +27,11 @@ class WorkRepository:
         self.session = session
         self.normalizer = normalizer or CoreNormalizer()
 
-    def create(self, payload: WorkCreationPayload) -> BibliographicResource:
+    def create(
+        self,
+        payload: WorkCreationPayload,
+        author_ids: dict[int, int] | None = None,
+    ) -> BibliographicResource:
         work_model = payload['work_model']
         author_names = payload['author_names']
         resource_data = payload['resource_data']
@@ -39,9 +43,18 @@ class WorkRepository:
         setattr(resource, relationship_name, work)
         self.session.add(resource)
 
-        for author_name in author_names:
-            author = self._find_or_create_author(author_name)
+        attached_author_ids: set[int] = set()
+        for index, author_name in enumerate(author_names):
+            author_id = (author_ids or {}).get(index)
+            author = (
+                self._author_by_id(author_id)
+                if author_id is not None
+                else self._find_or_create_author(author_name)
+            )
+            if author.id in attached_author_ids:
+                continue
             resource.authorships.append(Authorship(author=author))
+            attached_author_ids.add(author.id)
 
         try:
             self.session.commit()
@@ -54,21 +67,43 @@ class WorkRepository:
     def _find_or_create_author(self, name: str) -> Author:
         elements = self.normalizer.natural_name_parser(name)
         statement = select(Author).where(
-            Author.given_names == elements.given_name,
+            Author.given_names == elements.given_names,
             Author.last_name == elements.last_name,
         )
-        author = self.session.scalar(statement)
+        author = self.session.scalars(statement).first()
         if author is not None:
             return author
 
         author = Author(
-            given_names=elements.given_name,
+            given_names=elements.given_names,
             last_name=elements.last_name,
-            given_names_initials=elements.given_name_initials,
+            given_names_initials=elements.given_names_initials,
             last_name_initial=elements.last_name_initial,
         )
         self.session.add(author)
         self.session.flush()
+        return author
+
+    def find_possible_duplicate_authors(self, name: str) -> list[Author]:
+        """Retorna homônimos parciais que precisam de confirmação humana."""
+        elements = self.normalizer.natural_name_parser(name)
+        if not elements.given_names:
+            return []
+        first_given_name = elements.given_names.split(maxsplit=1)[0]
+        statement = select(Author).where(
+            Author.last_name == elements.last_name,
+            or_(
+                Author.given_names == first_given_name,
+                Author.given_names.like(f'{first_given_name} %'),
+            ),
+            Author.given_names != elements.given_names,
+        ).order_by(Author.given_names)
+        return list(self.session.scalars(statement))
+
+    def _author_by_id(self, author_id: int) -> Author:
+        author = self.session.get(Author, author_id)
+        if author is None:
+            raise ValueError('O autor selecionado não está mais disponível.')
         return author
 
     def create_many(

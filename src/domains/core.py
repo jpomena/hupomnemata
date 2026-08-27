@@ -247,6 +247,7 @@ class Author(Base):
         CheckConstraint(
             '"acronym" IS NULL OR "corporation" IS TRUE'
         ),
+        UniqueConstraint('given_names', 'last_name'),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
