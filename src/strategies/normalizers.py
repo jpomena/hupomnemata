@@ -20,9 +20,9 @@ NAME_PARTICLES = (
 
 @dataclass
 class NameElements:
-    given_name: str
+    given_names: str
     last_name: str
-    given_name_initials: str
+    given_names_initials: str
     last_name_initial: str
 
 
@@ -36,7 +36,7 @@ class CoreNormalizer:
             for part in name_string.lower().strip().split()
         ]
         last_name = name_parts[-1]
-        given_name = ' '.join(name_parts[:-1])
+        given_names = ' '.join(name_parts[:-1])
 
         name_initials = [
             part[0].upper()
@@ -49,9 +49,9 @@ class CoreNormalizer:
         )
 
         return NameElements(
-            given_name=given_name,
+            given_names=given_names,
             last_name=last_name,
-            given_name_initials=given_names_initials,
+            given_names_initials=given_names_initials,
             last_name_initial=last_name_initial
         )
 

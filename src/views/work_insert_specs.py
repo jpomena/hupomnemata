@@ -114,7 +114,7 @@ def _spec(key, label, description, icon, *fields):
 WORK_TYPES = (
     _spec(
         "editorial_monograph",
-        "Livro",
+        "Livros em geral",
         "Livro, enciclopédia ou catálogo",
         ft.Icons.BOOK_OUTLINED,
         *PUBLICATION,
@@ -151,7 +151,7 @@ WORK_TYPES = (
     ),
     _spec(
         "academic_monograph",
-        "Tese / dissertação",
+        "Trabalho acadêmico",
         "Trabalho acadêmico",
         ft.Icons.SCHOOL_OUTLINED,
         *PUBLICATION,
@@ -165,7 +165,7 @@ WORK_TYPES = (
     ),
     _spec(
         "monographic_proceedings",
-        "Anais monográficos de evento",
+        "Anais de evento em volume único",
         "Anais de evento em volume único",
         ft.Icons.EVENT,
         FieldSpec("event_name", "Nome do evento", required=True),
@@ -180,7 +180,7 @@ WORK_TYPES = (
     ),
     _spec(
         "periodical_proceedings",
-        "Anais periódicos de evento",
+        "Anais de evento em periódico",
         "Anais de evento periódico",
         ft.Icons.EVENT_NOTE,
         FieldSpec("event_name", "Nome do evento", required=True),

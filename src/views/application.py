@@ -7,6 +7,7 @@ from src.views.dashboard import DashboardComposer
 from src.views.sidebar import SidebarComposer
 from src.views.view_config import ViewConfig
 from src.views.work_insert_modal import WorkInsertModalComposer
+from src.views.general_popups import MultipleAuthors
 
 
 class ApplicationComposer:
@@ -47,3 +48,19 @@ class ApplicationComposer:
             config=config,
             on_save=on_save,
         ).compose()
+
+    @staticmethod
+    def compose_multiple_authors_modal(
+        authors,
+        on_select: Callable[[int], None],
+        on_create_new: Callable[[], None],
+        on_cancel: Callable[[], None],
+        config: ViewConfig
+    ) -> ft.AlertDialog:
+        return MultipleAuthors().compose(
+            authors=authors,
+            on_select=on_select,
+            on_create_new=on_create_new,
+            on_cancel=on_cancel,
+            config=config
+        )

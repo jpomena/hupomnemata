@@ -52,6 +52,9 @@ class CoreController:
     def __init__(self, page: ft.Page):
         self.page = page
         self.work_insert_modal: ft.AlertDialog | None = None
+        self._pending_payload: WorkCreationPayload | None = None
+        self._pending_author_ids: dict[int, int] = {}
+        self._new_author_indexes: set[int] = set()
         self.normalizer = CoreNormalizer()
         self.view_config = ViewConfig(
             colors=COLORS,
@@ -85,9 +88,10 @@ class CoreController:
             ApplicationComposer.compose_work_insert_modal(
                 page=self.page,
                 config=self.view_config,
-                on_save=self.handle_work_submission
+                on_save=self.handle_work_submission,
             )
         )
+        self.multiple_authors_modal: ft.AlertDialog | None = None
         self.page.add(
             ApplicationComposer(
                 scale=scale,
@@ -112,21 +116,89 @@ class CoreController:
             return False
 
         try:
-            payload = self.prepare_work_payload(form_data)
-            with SessionLocal() as session:
-                WorkRepository(session, self.normalizer).create(payload)
+            self._pending_payload = self.prepare_work_payload(form_data)
+            self._pending_author_ids.clear()
+            self._new_author_indexes.clear()
+            return self._continue_pending_submission(close_form=False)
         except (ValueError, TypeError) as error:
             self.show_message(str(error), COLORS['text'])
             return False
-        except Exception:
+        except Exception as e:
             self.show_message(
-                'Não foi possível salvar a obra.', COLORS['text']
+                f'Não foi possível salvar a obra.\n\n{e} ', COLORS['text']
             )
             return False
 
-        self.close_insert_work()
+    def _continue_pending_submission(self, close_form: bool) -> bool:
+        """Resolve autores semelhantes um por vez e persiste no fim."""
+        if self._pending_payload is None:
+            return False
+
+        try:
+            with SessionLocal() as session:
+                repository = WorkRepository(session, self.normalizer)
+                for index, author_name in enumerate(
+                    self._pending_payload['author_names']
+                ):
+                    if (
+                        index in self._pending_author_ids
+                        or index in self._new_author_indexes
+                    ):
+                        continue
+                    candidates = repository.find_possible_duplicate_authors(
+                        author_name
+                    )
+                    if candidates:
+                        self._show_multiple_authors_modal(index, candidates)
+                        return False
+
+                repository.create(
+                    self._pending_payload,
+                    author_ids=self._pending_author_ids,
+                )
+        except (ValueError, TypeError) as error:
+            self._clear_pending_submission()
+            self.show_message(str(error), COLORS['text'])
+            return False
+        except Exception as error:
+            self._clear_pending_submission()
+            self.show_message(
+                f'Não foi possível salvar a obra.\n\n{error}', COLORS['text']
+            )
+            return False
+
+        self._clear_pending_submission()
+        if close_form:
+            self.close_insert_work()
         self.show_message('Obra adicionada ao acervo.', COLORS['gold'])
         return True
+
+    def _show_multiple_authors_modal(self, index: int, candidates) -> None:
+        self.multiple_authors_modal = (
+            ApplicationComposer.compose_multiple_authors_modal(
+                authors=candidates,
+                on_select=lambda author_id: self._select_existing_author(
+                    index, author_id
+                ),
+                on_create_new=lambda: self._create_new_author(index),
+                on_cancel=self._clear_pending_submission,
+                config=self.view_config
+            )
+        )
+        self.page.show_dialog(self.multiple_authors_modal)
+
+    def _select_existing_author(self, index: int, author_id: int) -> None:
+        self._pending_author_ids[index] = author_id
+        self._continue_pending_submission(close_form=True)
+
+    def _create_new_author(self, index: int) -> None:
+        self._new_author_indexes.add(index)
+        self._continue_pending_submission(close_form=True)
+
+    def _clear_pending_submission(self) -> None:
+        self._pending_payload = None
+        self._pending_author_ids.clear()
+        self._new_author_indexes.clear()
 
     def prepare_work_payload(
         self, form_data: dict[str, object]

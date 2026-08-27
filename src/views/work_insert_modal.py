@@ -51,7 +51,10 @@ class WorkInsertModalComposer:
             "color": self.config.colors["text"],
             "label_style": ft.TextStyle(
                 color=self.config.colors["muted"],
-                weight=self.config.font_weight["semibold"]
+                weight=self.config.font_weight["normal"],
+                font_family=self.config.fonts['montserrat'],
+                letter_spacing=2,
+                size=12
             ),
             "border_radius": self.config.ui["card_radius"],
             "content_padding": self.config.ui["card_padding"],
@@ -62,6 +65,20 @@ class WorkInsertModalComposer:
     def _dropdown_style(self):
         """Retorna o estilo dos menus suspensos."""
         style = self._style()
+        style["text_style"] = ft.TextStyle(
+            color=self.config.colors["muted"],
+            weight=self.config.font_weight["normal"],
+            font_family=self.config.fonts['montserrat'],
+            letter_spacing=2,
+            size=12
+        )
+        style["label_style"] = ft.TextStyle(
+            color=self.config.colors["muted"],
+            weight=self.config.font_weight["normal"],
+            font_family=self.config.fonts['montserrat'],
+            letter_spacing=2,
+            size=12
+        )
         style.pop("cursor_color")
         return style
 
@@ -74,10 +91,11 @@ class WorkInsertModalComposer:
             font_family=self.config.fonts["cormorant"],
         )
         style["hint_style"] = ft.TextStyle(
-            size=self.config.font_size["modal_hint"],
-            weight=self.config.font_weight["semibold"],
             color=self.config.colors["muted"],
-            font_family=self.config.fonts["cormorant"],
+            weight=self.config.font_weight["normal"],
+            font_family=self.config.fonts['montserrat'],
+            letter_spacing=2,
+            size=12
         )
         return style
 
@@ -122,10 +140,10 @@ class WorkInsertModalComposer:
                 ),
                 on_change=on_change,
                 label_style=ft.TextStyle(
-                    size=self.config.font_size["modal_field"],
-                    weight=self.config.font_weight["semibold"],
+                    size=12,
+                    weight=self.config.font_weight["normal"],
                     color=self.config.colors["text"],
-                    font_family=self.config.fonts["cormorant"],
+                    font_family=self.config.fonts["montserrat"],
                 ),
             )
         if spec.kind == "dropdown":
@@ -138,7 +156,16 @@ class WorkInsertModalComposer:
                 label=spec.label,
                 value=selected_value,
                 options=[
-                    ft.dropdown.Option(value)
+                    ft.dropdown.Option(
+                        key=value, text=value,
+                        content=ft.Text(
+                            value=value,
+                            weight=self.config.font_weight['normal'],
+                            style=ft.TextStyle(letter_spacing=2),
+                            font_family=self.config.fonts['montserrat'],
+                            size=12
+                        )
+                    )
                     for value in (
                         "Data exata",
                         "Década",
@@ -180,8 +207,9 @@ class WorkInsertModalComposer:
                 controls=[
                     ft.Icon(
                         spec.icon,
-                        size=22,
+                        size=36,
                         color=self.config.colors["gold"],
+                        align=ft.Alignment.CENTER
                     ),
                     ft.Text(
                         value=spec.label,
@@ -189,10 +217,11 @@ class WorkInsertModalComposer:
                         color=self.config.colors["text"],
                         font_family=self.config.fonts["montserrat"],
                         weight=self.config.font_weight["semibold"],
-                        text_align=ft.TextAlign.CENTER,
+                        text_align=ft.TextAlign.CENTER
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
                 spacing=6,
             ),
             width=120,
@@ -300,11 +329,34 @@ class WorkInsertModalComposer:
                         )
                     )
                     current = []
-                rows.append(
-                    control
-                    if spec.kind == "responsabilities"
-                    else ft.Row(controls=[control])
-                )
+
+                if spec.key == "is_partial" and self.partial_enabled:
+                    rows.append(
+                        ft.Row(
+                            controls=[
+                                control,
+                                ft.TextField(
+                                    hint_text="Nome da obra-pai",
+                                    prefix_icon=ft.Icons.SEARCH,
+                                    expand=True,
+                                    **self._text_field_style()
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.ADD,
+                                    tooltip="Nova obra-pai",
+                                    # on_click=...
+                                )
+                            ],
+                            spacing=self.config.ui["control_gap"],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER
+                        )
+                    )
+                else:
+                    rows.append(
+                        control
+                        if spec.kind == "responsabilities"
+                        else ft.Row(controls=[control])
+                    )
             else:
                 current.append(control)
                 if len(current) == 2:
@@ -351,6 +403,7 @@ class WorkInsertModalComposer:
         self.selected = WORK_TYPES[0]
         self.partial_enabled = False
         self.stored_values.clear()
+        self.fields.clear()
         self._render(update_page=False)
 
     def _close(self, event) -> None:
@@ -372,16 +425,17 @@ class WorkInsertModalComposer:
         self.modal = ft.AlertDialog(
             modal=False,
             bgcolor=self.config.colors["surface"],
+            on_dismiss=self._close,
             shape=ft.RoundedRectangleBorder(radius=8),
             content_padding=self.config.ui["modal_content_padding"],
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        value="Cadastrar nova obra",
+                        value="Cadastrar nova obra".title(),
                         size=self.config.font_size["modal_title"],
                         color=self.config.colors["text"],
                         font_family=self.config.fonts["cormorant"],
-                        weight=self.config.font_weight["semibold"],
+                        weight=self.config.font_weight["bold"],
                     ),
                     ft.Row(
                         controls=[
