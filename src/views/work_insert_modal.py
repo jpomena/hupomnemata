@@ -23,11 +23,13 @@ class WorkInsertModalComposer:
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
         search_authors: Callable[[str], list[str]] | None = None,
+        search_works: Callable[[str], list[tuple[int, str]]] | None = None,
     ):
         self.page = page
         self.config = config
         self.on_save = on_save
         self.search_authors = search_authors
+        self.search_works = search_works
         self.selected = WORK_TYPES[0]
         self.fields: dict[str, ft.Control] = {}
         self.partial_enabled = False
@@ -37,6 +39,10 @@ class WorkInsertModalComposer:
         self.author_search_field: ft.TextField | None = None
         self.author_results: ft.Row | None = None
         self.author_pills: ft.Row | None = None
+        self.parent_work_search = ""
+        self.parent_work_id: int | None = None
+        self.parent_work_field: ft.TextField | None = None
+        self.parent_work_results: ft.Column | None = None
         self.stored_values: dict[str, object] = {}
         self.type_grid = ft.GridView(
             runs_count=3,
@@ -312,6 +318,66 @@ class WorkInsertModalComposer:
         if name:
             self._select_author(name)
 
+    def _parent_work_control(self) -> ft.Control:
+        search = ft.TextField(
+            hint_text="Buscar obra-pai pelo título",
+            prefix_icon=ft.Icons.SEARCH,
+            value=self.parent_work_search,
+            on_change=self._search_parent_works,
+            expand=True,
+            **self._text_field_style(),
+        )
+        self.parent_work_field = search
+        self.parent_work_results = ft.Column(spacing=2)
+        self._refresh_parent_work_search(refresh=False)
+        return ft.Column(
+            controls=[search, self.parent_work_results],
+            spacing=4,
+            expand=True,
+        )
+
+    def _search_parent_works(self, event) -> None:
+        self.parent_work_search = event.control.value or ""
+        self.parent_work_id = None
+        self._refresh_parent_work_search()
+
+    def _refresh_parent_work_search(self, refresh: bool = True) -> None:
+        if self.parent_work_results is None:
+            return
+        results = (
+            self.search_works(self.parent_work_search)
+            if (
+                self.parent_work_search.strip()
+                and self.search_works is not None
+            )
+            else []
+        )
+        self.parent_work_results.controls = [
+            ft.TextButton(
+                content=title,
+                on_click=lambda e, work_id=work_id, title=title: (
+                    self._select_parent_work(work_id, title)
+                ),
+            )
+            for work_id, title in results
+        ]
+        self.parent_work_results.visible = bool(results)
+        if refresh:
+            self.parent_work_results.update()
+
+    def _select_parent_work(self, work_id: int, title: str) -> None:
+        self.parent_work_id = work_id
+        self.parent_work_search = title
+        if self.parent_work_field is not None:
+            self.parent_work_field.value = title
+        if self.parent_work_results is not None:
+            self.parent_work_results.controls = []
+            self.parent_work_results.visible = False
+        if self.parent_work_field is not None:
+            self.parent_work_field.update()
+        if self.parent_work_results is not None:
+            self.parent_work_results.update()
+
     def _remove_author(self, name: str) -> None:
         self.author_names.remove(name)
         self._refresh_author_search()
@@ -446,11 +512,15 @@ class WorkInsertModalComposer:
                 )
             else:
                 data[key] = getattr(control, "value", "") or ""
+        data["parent_work_id"] = self.parent_work_id
         return data
 
     def _toggle_partial(self, event) -> None:
         """Alterna campos parciais preservando os valores preenchidos."""
         self.partial_enabled = bool(event.control.value)
+        if not self.partial_enabled:
+            self.parent_work_search = ""
+            self.parent_work_id = None
         self._render()
 
     def _choose(self, spec) -> None:
@@ -533,12 +603,7 @@ class WorkInsertModalComposer:
                         ft.Row(
                             controls=[
                                 control,
-                                ft.TextField(
-                                    hint_text="Nome da obra-pai",
-                                    prefix_icon=ft.Icons.SEARCH,
-                                    expand=True,
-                                    **self._text_field_style()
-                                ),
+                                self._parent_work_control(),
                                 ft.IconButton(
                                     icon=ft.Icons.ADD,
                                     tooltip="Nova obra-pai",

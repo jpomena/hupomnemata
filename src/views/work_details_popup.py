@@ -144,7 +144,6 @@ class WorkDetailsPopup:
                     "Parte da obra", self.resource, self.RESOURCE_FIELDS
                 )
             )
-        detail_controls.extend(self._authors_section())
 
         content = ft.Column(
             controls=detail_controls,
@@ -203,7 +202,10 @@ class WorkDetailsPopup:
         self, model: object, allowed_fields: set[str] | None = None
     ) -> list[tuple[str, Any]]:
         fields = []
-        for column in inspect(model).mapper.column_attrs:
+        inspection = inspect(model)
+        if inspection is None:
+            return fields
+        for column in inspection.mapper.column_attrs:
             if column.key in self.HIDDEN_FIELDS:
                 continue
             if allowed_fields is not None and column.key not in allowed_fields:
@@ -222,15 +224,6 @@ class WorkDetailsPopup:
     MEANINGFUL_FALSE_FIELDS = {
         "is_partial", "illustrations", "published", "sound", "colorized",
     }
-
-    def _authors_section(self) -> list[ft.Control]:
-        return [
-            self._section_title("Autores"),
-            ft.ResponsiveRow(
-                controls=[self._detail_row("Autores", self._authors_value())],
-                run_spacing=self.config.ui["control_gap"],
-            ),
-        ]
 
     def _authors_value(self) -> str:
         return "; ".join(

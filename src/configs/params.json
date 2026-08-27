@@ -3,9 +3,9 @@
     "bg": "#E7E7E7",
     "surface": "#FFFFFF",
     "border": "#C4C4C7",
-    "gold": "#B59410",
+    "gold": "#cba135",
     "muted": "#86868f",
-    "text": "#000000",
+    "text": "#1D1D21",
     "black": "#101010",
     "card_hover": "#f2f2f7"
   },
@@ -15,10 +15,10 @@
       "name": "Cormorant Garamond",
       "path": "fonts/Cormorant_Garamond/CormorantGaramond-VariableFont_wght.ttf",
       "sizes": {
-        "big": 32,
-        "large": 28,
-        "medium": 24,
-        "small": 20
+        "big": 28,
+        "large": 24,
+        "medium": 20,
+        "small": 16
       },
       "weights": {
         "normal": "W_500",
@@ -55,7 +55,7 @@
       "name": "Ancient Geek",
       "path": "fonts/ancient_geek/geek.ttf",
       "sizes": {
-        "brand": 40
+        "brand": 32
       },
       "weights": {
         "normal": "W_400",
@@ -71,7 +71,7 @@
   },
 
   "UI": {
-    "sidebar_width": 400,
+    "sidebar_width": 350,
     "sidebar_padding": 20,
     "sidebar_footnote_height": 300,
     "navigation_padding": 15,
@@ -110,23 +110,23 @@
   ],
 
   "CORE_MENUS": {
-    "Obras & Livros": "book_outlined",
-    "Cadernos & Excertos": "note_outlined",
-    "Taxonomia e Conceitos": "hub_outlined",
-    "Favoritos": "bookmark",
-    "IArquivo": "analytics",
+    "Acervo": "book_outlined",
+    "Fragmentos": "note_outlined",
+    "Estruturas de Saber": "hub_outlined",
+    "Compilações": "bookmark",
+    "Nous": "analytics",
     "Configurações": "settings",
-    "Descarte": "thrash"
+    "Limbo": "thrash"
   },
 
   "MAIN_VIEW_CARDS": {
     "Inserir Nova Obra": {
-      "description": "Inserir manualmente dados de nova obra em seu acervo",
+      "description": "Inserir manualmente nova obra em seu acervo",
       "icon": "book_outlined",
       "on_click": "work_insert"
     },
     "Importar Metadados": {
-      "description": "BibTeX, ISBN, ISSN, DOI ou PDF",
+      "description": "Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF",
       "icon": "upload_file"
     },
     "Fichamento Rápido": {
@@ -134,7 +134,7 @@
       "icon": "edit_note"
     },
     "Exportar Citações": {
-      "description": "Gerar ABNT, APA e bibliografias",
+      "description": "Gerar citação no modelo ABNT de qualquer obra",
       "icon": "menu_book"
     },
     "Grafo Conceitual": {

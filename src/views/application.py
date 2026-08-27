@@ -2,11 +2,12 @@
 
 import flet as ft
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from src.views.dashboard import DashboardComposer
 from src.views.works import WorksComposer
 from src.views.sidebar import SidebarComposer
 from src.utils.types import ViewConfig
+from src.utils.types import ViewReference
 from src.views.work_insert_modal import WorkInsertModalComposer
 from src.views.general_popups import MultipleAuthors
 from src.views.work_details_popup import WorkDetailsPopup
@@ -21,11 +22,13 @@ class ApplicationComposer:
         config: ViewConfig,
         on_navigate: Callable[[str], None],
         on_work_click: Callable,
+        on_copy_reference: Callable[[ViewReference], Awaitable[None]],
     ):
         self.scale = scale
         self.config = config
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
+        self.on_copy_reference = on_copy_reference
 
     def compose_main(self) -> ft.Row:
         """Monta a barra lateral e o dashboard em uma linha principal."""
@@ -64,8 +67,8 @@ class ApplicationComposer:
     def show_view(self, destination: str, works=None):
         views = {
             "dashboard": self._compose_dashboard,
-            "Obras & Livros": lambda: self._compose_works(works),
-            "Cadernos & Excertos": self._compose_dashboard
+            "Acervo": lambda: self._compose_works(works),
+            "Fragmentos": self._compose_dashboard
         }
         view_factory = views.get(destination)
         if not view_factory:
@@ -88,6 +91,7 @@ class ApplicationComposer:
             works=works or [],
             on_navigate=self.on_navigate,
             on_work_click=self.on_work_click,
+            on_copy_reference=self.on_copy_reference,
         ).compose()
 
     @staticmethod
@@ -102,12 +106,14 @@ class ApplicationComposer:
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
         search_authors: Callable[[str], list[str]] | None = None,
+        search_works: Callable[[str], list[tuple[int, str]]] | None = None,
     ) -> ft.AlertDialog:
         return WorkInsertModalComposer(
             page=page,
             config=config,
             on_save=on_save,
             search_authors=search_authors,
+            search_works=search_works,
         ).compose()
 
     @staticmethod

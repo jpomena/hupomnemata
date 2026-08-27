@@ -2,8 +2,13 @@ import flet as ft
 
 from src.domains import BibliographicResource
 from src.strategies import MonographFormatter, PeriodicalFormatter
-from src.utils.types import ViewConfig, WORK_TYPE_LABELS
-from collections.abc import Callable
+from src.utils.types import (
+    TextStyle,
+    ViewConfig,
+    ViewReference,
+    WORK_TYPE_LABELS,
+)
+from collections.abc import Awaitable, Callable
 
 
 class WorksComposer:
@@ -14,12 +19,14 @@ class WorksComposer:
             works: list[BibliographicResource],
             on_navigate,
             on_work_click: Callable[[BibliographicResource], None],
+            on_copy_reference: Callable[[ViewReference], Awaitable[None]],
     ) -> None:
         self.scale = scale
         self.config = config
         self.works = works
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
+        self.on_copy_reference = on_copy_reference
         self.board: ft.Column | None = None
 
     def _compose_header(self) -> ft.Container:
@@ -30,7 +37,7 @@ class WorksComposer:
                     ft.Column(
                         controls=[
                             ft.Text(
-                                value="Obras & Livros",
+                                value="Acervo",
                                 weight=self.config.font_weights[
                                     "cormorant_semibold"
                                 ],
@@ -100,12 +107,19 @@ class WorksComposer:
         type_filter = ft.Dropdown(
             value=selected_type,
             options=[
-                ft.dropdown.Option(value) for value in sorted(type_options)
+                ft.dropdown.Option(value)
+                for value in [
+                    selected_type,
+                    *sorted(type_options - {selected_type}),
+                ]
             ],
             on_select=lambda e: self._filter_board(
                 e.control.value or "Todos os tipos"
             ),
             width=260,
+            filled=True,
+            fill_color=self.config.colors["surface"],
+            bgcolor=self.config.colors['surface'],
         )
         self.board = ft.Column(
             expand=True,
@@ -140,6 +154,10 @@ class WorksComposer:
                 for author in resource.authors
             )
             reference = self._format_reference(resource)
+
+            async def copy_reference(event, value=reference):
+                await self.on_copy_reference(value)
+
             cards.append(
                 ft.Container(
                     content=ft.Column(
@@ -167,7 +185,7 @@ class WorksComposer:
                                 color=self.config.colors["muted"],
                             ),
                             ft.Text(
-                                value=reference,
+                                spans=self._reference_spans(reference),
                                 size=self.config.font_sizes[
                                     "montserrat_tiny"
                                 ],
@@ -178,21 +196,35 @@ class WorksComposer:
                                 max_lines=3,
                                 overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                            ft.Text(
-                                value=(
-                                    f"{work.display_year} · "
-                                    f"{WORK_TYPE_LABELS.get(
-                                        type(work).__name__,
-                                        type(work).__name__,
-                                    )}"
+                            ft.Row(
+                                controls=[
+                                    ft.Text(
+                                        value=(
+                                            f"{work.display_year} · "
+                                            f"{WORK_TYPE_LABELS.get(
+                                                type(work).__name__,
+                                                type(work).__name__,
+                                            )}"
+                                        ),
+                                        size=self.config.font_sizes[
+                                            "montserrat_tiny"
+                                        ],
+                                        font_family=self.config.font_families[
+                                            "montserrat"
+                                        ],
+                                        color=self.config.colors["muted"],
+                                        expand=True,
+                                    ),
+                                    ft.IconButton(
+                                        icon=ft.Icons.COPY,
+                                        tooltip="Copiar referência",
+                                        on_click=copy_reference,
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                vertical_alignment=(
+                                    ft.CrossAxisAlignment.CENTER
                                 ),
-                                size=self.config.font_sizes[
-                                    "montserrat_tiny"
-                                ],
-                                font_family=self.config.font_families[
-                                    "montserrat"
-                                ],
-                                color=self.config.colors["muted"],
                             ),
                         ],
                         spacing=4,
@@ -217,11 +249,27 @@ class WorksComposer:
         if refresh:
             self.board.update()
 
-    @staticmethod
-    def _reference_text(reference) -> str:
-        return "".join(part.content for part in reference.parts).strip()
+    def _reference_spans(
+        self, reference: ViewReference
+    ) -> list[ft.TextSpan]:
+        return [
+            ft.TextSpan(
+                text=part.content,
+                style=ft.TextStyle(
+                    weight=(
+                        self.config.font_weights["cormorant_semibold"]
+                        if part.style == TextStyle.BOLD
+                        else self.config.font_weights["cormorant_normal"]
+                    ),
+                    italic=part.style == TextStyle.ITALIC,
+                ),
+            )
+            for part in reference.parts
+        ]
 
-    def _format_reference(self, resource: BibliographicResource) -> str:
+    def _format_reference(
+        self, resource: BibliographicResource
+    ) -> ViewReference:
         work_name = type(resource.specific_work).__name__
         monograph_types = {
             "EditorialMonograph",
@@ -234,12 +282,10 @@ class WorksComposer:
             "NewspaperArticle",
         }
         if work_name in monograph_types:
-            return self._reference_text(MonographFormatter.formatter(resource))
+            return MonographFormatter.formatter(resource)
         if work_name in periodical_types:
-            return self._reference_text(
-                PeriodicalFormatter.formatter(resource)
-            )
-        return "Detalhes disponíveis no popup"
+            return PeriodicalFormatter.formatter(resource)
+        return ViewReference(parts=[])
 
     def compose(self) -> ft.Container:
         """Monta a area de conteudo que ocupa o lado principal."""
