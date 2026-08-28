@@ -1,3 +1,3 @@
-from .core import CoreController
+from .core_controller import CoreController
 
 __all__ = ['CoreController']

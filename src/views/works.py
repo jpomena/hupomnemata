@@ -69,7 +69,7 @@ class WorksComposer:
                     ),
                     ft.FilledButton(
                         content=ft.Text(
-                            "+ Adicionar nova obra",
+                            "+ Inserir nova obra",
                             font_family=(
                                 self.config.font_families['montserrat']
                             ),
@@ -77,7 +77,7 @@ class WorksComposer:
                                 self.config.font_weights['montserrat_semibold']
                             ),
                             size=self.config.font_sizes['montserrat_small'],
-                            color=self.config.colors['text']
+                            color=self.config.colors['black']
                         ),
                         align=ft.Alignment.CENTER_RIGHT,
                         on_click=lambda e: self.on_navigate("work_insert"),
@@ -121,7 +121,8 @@ class WorksComposer:
                         font_family=self.config.font_families[
                             "montserrat"
                         ],
-                        size=self.config.font_sizes["montserrat_tiny"]
+                        size=self.config.font_sizes["montserrat_tiny"],
+                        color=self.config.colors['text']
                     )
                 )
                 for value in [
@@ -137,21 +138,21 @@ class WorksComposer:
             fill_color=self.config.colors["surface"],
             bgcolor=self.config.colors['surface'],
             hint_style=ft.TextStyle(
-                color=self.config.colors["muted"],
+                color=self.config.colors["text"],
                 weight=self.config.font_weights["montserrat_normal"],
                 font_family=self.config.font_families["montserrat"],
                 letter_spacing=2,
                 size=12
             ),
             label_style=ft.TextStyle(
-                color=self.config.colors["muted"],
+                color=self.config.colors["text"],
                 weight=self.config.font_weights["montserrat_normal"],
                 font_family=self.config.font_families["montserrat"],
                 letter_spacing=2,
                 size=12
             ),
             text_style=ft.TextStyle(
-                color=self.config.colors["muted"],
+                color=self.config.colors["text"],
                 weight=self.config.font_weights["montserrat_normal"],
                 font_family=self.config.font_families["montserrat"],
                 letter_spacing=2,
@@ -228,6 +229,7 @@ class WorksComposer:
                                         weight=self.config.font_weights[
                                             "cormorant_semibold"
                                         ],
+                                        color=self.config.colors['gold']
                                     ),
                                     ft.Text(
                                         value=authors or "Autor não informado",
@@ -250,6 +252,7 @@ class WorksComposer:
                                         color=self.config.colors["text"],
                                         max_lines=3,
                                         overflow=ft.TextOverflow.ELLIPSIS,
+                                        text_align=ft.TextAlign.LEFT,
                                     ),
                                 ],
                                 spacing=4,
@@ -264,6 +267,8 @@ class WorksComposer:
                                         icon=ft.Icons.COPY,
                                         tooltip="Copiar referência",
                                         on_click=copy_reference,
+                                        icon_size=20,
+                                        icon_color=self.config.colors['text']
                                     ),
                                     ft.IconButton(
                                         icon=ft.Icons.DELETE_OUTLINE,
@@ -272,6 +277,7 @@ class WorksComposer:
                                         on_click=lambda e, resource=resource: (
                                             self.on_delete_work(resource)
                                         ),
+                                        icon_size=24
                                     ),
                                 ],
                                 spacing=0,

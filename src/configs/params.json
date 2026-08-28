@@ -1,5 +1,16 @@
 {
   "COLORS": {
+    "bg": "#0c0c0e",
+    "surface": "#141417",
+    "border": "#232328",
+    "gold": "#c5a059",
+    "muted": "#A09EA8",
+    "text": "#e2e1e8",
+    "black": "#101010",
+    "card_hover": "#1a1a1f"
+  },
+
+  "COLORS_ALT": {
     "bg": "#E7E7E7",
     "surface": "#FFFFFF",
     "border": "#C4C4C7",
@@ -44,18 +55,50 @@
     },
     "mono": {
       "name": "JetBrains Mono",
-        "path": "fonts/JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf",
-        "weights": {
-          "normal": "W_400",
-          "semibold": "W_600",
-          "bold": "W_700"
-        }
+      "path": "fonts/JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf",
+      "weights": {
+        "normal": "W_400",
+        "semibold": "W_600",
+        "bold": "W_700"
+      }
     },
     "greek": {
       "name": "Ancient Geek",
       "path": "fonts/ancient_geek/geek.ttf",
       "sizes": {
         "brand": 32
+      },
+      "weights": {
+        "normal": "W_400",
+        "semibold": "W_600",
+        "bold": "W_700"
+      }
+    },
+    "bodoni": {
+      "name": "Bodoni Moda",
+      "path": "fonts/Bodoni_Moda/BodoniModa-VariableFont_opsz,wght.ttf",
+      "sizes": {
+        "big": 28,
+        "large": 24,
+        "medium": 20,
+        "small": 16
+      },
+      "weights": {
+        "normal": "W_400",
+        "semibold": "W_600",
+        "bold": "W_700",
+        "extrabold": "W_800"
+      }
+    },
+    "jost": {
+      "name": "Jost",
+      "path": "fonts/Jost/Jost-VariableFont_wght.ttf",
+      "sizes": {
+        "large": 16,
+        "medium": 14,
+        "small": 13,
+        "tiny": 12,
+        "micro": 11
       },
       "weights": {
         "normal": "W_400",

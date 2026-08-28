@@ -1,5 +1,5 @@
 from datetime import date
-from .core import WorkMixin
+from .core_domain import WorkMixin
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 

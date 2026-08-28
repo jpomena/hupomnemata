@@ -34,7 +34,7 @@ class SidebarComposer:
                             color=self.config.colors["text"],
                             font_family=self.config.font_families["greek"],
                             style=ft.TextStyle(letter_spacing=4),
-                            align=ft.Alignment.CENTER
+                            text_align=ft.TextAlign.CENTER
                         ),
                         on_click=lambda e: self.on_navigate("dashboard")
                     ),

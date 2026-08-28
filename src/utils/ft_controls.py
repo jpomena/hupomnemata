@@ -144,7 +144,7 @@ class ControlsUtils:
                     left=ft.BorderSide(1, config.colors["text"]),
                     top=ft.BorderSide(1, config.colors["text"]),
                     right=ft.BorderSide(1, config.colors["text"]),
-                    bottom=ft.BorderSide(4, config.colors["text"]),
+                    bottom=ft.BorderSide(8, config.colors["text"]),
                 )
                 icon.color = config.colors["text"]
             else:

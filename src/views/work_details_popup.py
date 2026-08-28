@@ -153,12 +153,13 @@ class WorkDetailsPopup:
             height=650,
         )
         return ft.AlertDialog(
-            modal=True,
+            modal=False,
             title=ft.Text(
                 work.title,
                 size=self.config.font_sizes["cormorant_large"],
                 weight=self.config.font_weights["cormorant_bold"],
                 font_family=self.config.font_families["cormorant"],
+                color=self.config.colors['gold']
             ),
             content=content,
             bgcolor=self.config.colors["bg"],
@@ -252,6 +253,7 @@ class WorkDetailsPopup:
                         weight=self.config.font_weights["montserrat_semibold"],
                         color=self.config.colors["muted"],
                         font_family=self.config.font_families["montserrat"],
+                        text_align=ft.TextAlign.JUSTIFY,
                     ),
                     ft.Text(
                         self._format_value(value),
