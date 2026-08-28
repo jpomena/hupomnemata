@@ -30,7 +30,7 @@ class ABNTUtils:
 
                 if a.jurisdiction:
                     authors_strs.append(
-                        f'{a.jurisdiction.upper()}. {full_name}.'
+                        f'{a.jurisdiction.given_names.upper()}. {full_name}.'
                     )
                 else:
                     authors_strs.append(full_name.upper())
@@ -107,3 +107,22 @@ class ABNTUtils:
         year = date.strftime('%Y')
 
         return f'{day} {month} {year}'
+
+    @staticmethod
+    def format_full_date(
+            date: date | datetime | None
+    ) -> str:
+        if date is None:
+            return '[s.d.]'
+
+        MESES = {
+            1: 'janeiro', 2: 'fevereiro', 3: 'março', 4: 'abril',
+            5: 'maio', 6: 'junho', 7: 'julho', 8: 'agosto',
+            9: 'setembro', 10: 'outubro', 11: 'novembro', 12: 'dezembro'
+        }
+        day = date.day
+        month_raw = date.month
+        month = MESES[month_raw]
+        year = date.strftime('%Y')
+
+        return f'{day} de {month} de {year}'

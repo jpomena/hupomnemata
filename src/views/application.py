@@ -1,6 +1,7 @@
 """Composer da tela principal da aplicacao."""
 
 import flet as ft
+from src.repositories import AuthorSearchResult
 
 from collections.abc import Awaitable, Callable
 from src.views.dashboard import DashboardComposer
@@ -112,7 +113,9 @@ class ApplicationComposer:
         page: ft.Page,
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
-        search_authors: Callable[[str], list[str]] | None = None,
+        search_authors: (
+            Callable[[str], list[AuthorSearchResult]] | None
+        ) = None,
         search_works: Callable[[str], list[tuple[int, str]]] | None = None,
         on_create_parent_work: Callable[
             [Callable[[int, str], None]], None

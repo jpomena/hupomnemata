@@ -18,7 +18,6 @@ from src.configs.settings import (
 from src.db.db import init_db
 from src.db.db import SessionLocal
 from src.domains import (
-    AdministrativeAct,
     AudiovisualDocument,
     AudioDocument,
     CaseLaw,
@@ -40,7 +39,12 @@ from src.domains import (
     DatePrecision,
     WorkMixin,
 )
-from src.repositories import WorkCreationPayload, WorkRepository
+from src.repositories import (
+    AuthorReference,
+    AuthorSearchResult,
+    WorkCreationPayload,
+    WorkRepository,
+)
 from src.strategies import CoreNormalizer
 from src.utils.ft_responsiveness import Responsive
 from src.views.application import ApplicationComposer
@@ -190,7 +194,7 @@ class CoreController:
         modal.open = False
         self.page.update()
 
-    def search_authors(self, query: str) -> list[str]:
+    def search_authors(self, query: str) -> list[AuthorSearchResult]:
         """Retorna autores existentes para a busca do modal."""
         with SessionLocal() as session:
             return WorkRepository(session).search_authors(query)
@@ -213,8 +217,8 @@ class CoreController:
     ) -> bool:
         """Normaliza a entrada e coordena sua persistência."""
         title = str(form_data.get('title', '')).strip()
-        authors = str(form_data.get('authors', '')).strip()
-        if not title or not authors:
+        authors = form_data.get('authors', [])
+        if not title or not self._author_references(authors):
             self.show_message(
                 'Os campos Título e Autor são obrigatórios!',
                 COLORS['text'],
@@ -246,7 +250,7 @@ class CoreController:
         try:
             with SessionLocal() as session:
                 repository = WorkRepository(session, self.normalizer)
-                for index, author_name in enumerate(
+                for index, author_reference in enumerate(
                     self._pending_payload['author_names']
                 ):
                     if (
@@ -254,8 +258,10 @@ class CoreController:
                         or index in self._new_author_indexes
                     ):
                         continue
+                    if author_reference['id'] is not None:
+                        continue
                     candidates = repository.find_possible_duplicate_authors(
-                        author_name
+                        author_reference['name']
                     )
                     if candidates:
                         self._show_multiple_authors_modal(index, candidates)
@@ -326,7 +332,7 @@ class CoreController:
         self, form_data: dict[str, object]
     ) -> WorkCreationPayload:
         model = self.work_model_for(str(form_data.get('work_type', '')))
-        authors = str(form_data.get('authors', ''))
+        authors = form_data.get('authors', [])
         date_precision = self.parse_date_precision(
             str(form_data.get('date_precision') or 'Data exata')
         )
@@ -374,14 +380,52 @@ class CoreController:
         return {
             'work_model': model,
             'relationship_name': model.__tablename__.removesuffix('s'),
-            'author_names': [
-                name.strip()
-                for name in authors.replace(',', ';').split(';')
-                if name.strip()
-            ],
+            'author_names': self._author_references(authors),
             'resource_data': resource_data,
             'work_data': work_data,
         }
+
+    @staticmethod
+    def _author_references(value: object) -> list[AuthorReference]:
+        if isinstance(value, list):
+            references: list[AuthorReference] = []
+            for item in value:
+                if isinstance(item, dict):
+                    name = str(item.get('name', '')).strip()
+                    if name:
+                        references.append({
+                            'name': name,
+                            'id': (
+                                int(item['id'])
+                                if item.get('id') is not None else None
+                            ),
+                            'corporation': bool(
+                                item.get('corporation', False)
+                            ),
+                            'acronym': (
+                                str(item['acronym']).strip().upper()
+                                if item.get('acronym') else None
+                            ),
+                        })
+                elif str(item).strip():
+                    references.append({
+                        'name': str(item).strip(),
+                        'id': None,
+                        'corporation': False,
+                        'acronym': None,
+                    })
+            return references
+
+        return [
+            {
+                'name': name.strip(),
+                'id': None,
+                'corporation': False,
+                'acronym': None,
+            }
+            for name in str(value).replace(',', ';').split(';')
+            if name.strip()
+        ]
 
     @staticmethod
     def work_model_for(work_type: str) -> type[WorkMixin]:
@@ -397,7 +441,6 @@ class CoreController:
             'patent': Patent,
             'statute': Statute,
             'caselaw': CaseLaw,
-            'administrative_act': AdministrativeAct,
             'miscellaneous_digital_document': MiscellaneousDigitalDocument,
             'audiovisual_document': AudiovisualDocument,
             'audio_document': AudioDocument,

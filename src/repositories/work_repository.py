@@ -8,10 +8,24 @@ from src.domains import Author, Authorship, BibliographicResource, WorkMixin
 from src.strategies import CoreNormalizer
 
 
+class AuthorReference(TypedDict):
+    name: str
+    id: int | None
+    corporation: bool
+    acronym: str | None
+
+
+class AuthorSearchResult(TypedDict):
+    id: int
+    name: str
+    corporation: bool
+    acronym: str | None
+
+
 class WorkCreationPayload(TypedDict):
     work_model: type[WorkMixin]
     relationship_name: str
-    author_names: list[str]
+    author_names: list[AuthorReference]
     resource_data: dict[str, object]
     work_data: dict[str, object]
 
@@ -44,12 +58,14 @@ class WorkRepository:
         self.session.add(resource)
 
         attached_author_ids: set[int] = set()
-        for index, author_name in enumerate(author_names):
+        for index, author_reference in enumerate(author_names):
             author_id = (author_ids or {}).get(index)
+            if author_reference['id'] is not None:
+                author_id = author_reference['id']
             author = (
                 self._author_by_id(author_id)
                 if author_id is not None
-                else self._find_or_create_author(author_name)
+                else self._find_or_create_author(author_reference)
             )
             if author.id in attached_author_ids:
                 continue
@@ -64,21 +80,40 @@ class WorkRepository:
         self.session.refresh(resource)
         return resource
 
-    def _find_or_create_author(self, name: str) -> Author:
-        elements = self.normalizer.natural_name_parser(name)
+    def _find_or_create_author(self, reference: AuthorReference) -> Author:
+        if reference['corporation']:
+            name = self.normalizer.legal_entity_name_normalizer(
+                reference['name']
+            )
+            elements = {
+                'given_names': name,
+                'last_name': name,
+                'given_names_initials': '',
+                'last_name_initial': '',
+            }
+        else:
+            parsed = self.normalizer.natural_name_parser(reference['name'])
+            elements = {
+                'given_names': parsed.given_names,
+                'last_name': parsed.last_name,
+                'given_names_initials': parsed.given_names_initials,
+                'last_name_initial': parsed.last_name_initial,
+            }
         statement = select(Author).where(
-            Author.given_names == elements.given_names,
-            Author.last_name == elements.last_name,
+            Author.given_names == elements['given_names'],
+            Author.last_name == elements['last_name'],
         )
         author = self.session.scalars(statement).first()
         if author is not None:
             return author
 
         author = Author(
-            given_names=elements.given_names,
-            last_name=elements.last_name,
-            given_names_initials=elements.given_names_initials,
-            last_name_initial=elements.last_name_initial,
+            given_names=elements['given_names'],
+            last_name=elements['last_name'],
+            given_names_initials=elements['given_names_initials'],
+            last_name_initial=elements['last_name_initial'],
+            corporation=reference['corporation'],
+            acronym=reference['acronym'],
         )
         self.session.add(author)
         self.session.flush()
@@ -100,7 +135,9 @@ class WorkRepository:
         ).order_by(Author.given_names)
         return list(self.session.scalars(statement))
 
-    def search_authors(self, query: str, limit: int = 8) -> list[str]:
+    def search_authors(
+        self, query: str, limit: int = 8
+    ) -> list[AuthorSearchResult]:
         """Busca autores existentes pelo nome para o formulario."""
         query = query.strip()
         if not query:
@@ -111,13 +148,19 @@ class WorkRepository:
                 or_(
                     Author.given_names.ilike(f"%{query}%"),
                     Author.last_name.ilike(f"%{query}%"),
+                    Author.acronym.ilike(f"%{query}%"),
                 )
             )
             .order_by(Author.last_name, Author.given_names)
             .limit(limit)
         )
         return [
-            f"{author.given_names} {author.last_name}"
+            {
+                'id': author.id,
+                'name': f"{author.given_names} {author.last_name}",
+                'corporation': author.corporation,
+                'acronym': author.acronym,
+            }
             for author in self.session.scalars(statement)
         ]
 
