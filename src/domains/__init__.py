@@ -1,4 +1,4 @@
-from .core import (
+from .core_domain import (
     DatePrecision, BibliographicResource, WorkMixin, Author, Authorship
 )
 from .digital import MiscellaneousDigitalDocument

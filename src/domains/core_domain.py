@@ -259,8 +259,11 @@ class Author(Base):
     last_name_initial: Mapped[str] = mapped_column(String(10), nullable=False)
     corporation: Mapped[bool] = mapped_column(nullable=False, default=False)
     acronym: Mapped[str] = mapped_column(String(10), nullable=True)
-    jurisdiction: Mapped[str] = mapped_column(
-        String(150), nullable=True
+    jurisdiction_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "Author.id",
+            ondelete="SET NULL"
+        ), nullable=True
     )
 
     authorships: Mapped[list['Authorship']] = relationship(
@@ -268,6 +271,9 @@ class Author(Base):
     )
     bibliographic_resources = association_proxy(
         target_collection='authorships', attr='bibliographic_resource',
+    )
+    jurisdiction: Mapped['Author'] = relationship(
+        'Author', remote_side=[id]
     )
 
 

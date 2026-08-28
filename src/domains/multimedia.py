@@ -1,4 +1,4 @@
-from .core import WorkMixin
+from .core_domain import WorkMixin
 from sqlalchemy import String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Dict
