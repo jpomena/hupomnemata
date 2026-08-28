@@ -16,7 +16,6 @@ WORK_TYPE_LABELS = {
     "Patent": "Patente",
     "Statute": "Legislação",
     "CaseLaw": "Jurisprudência",
-    "AdministrativeAct": "Ato administrativo",
     "MiscellaneousDigitalDocument": "Documento digital",
     "AudiovisualDocument": "Audiovisual",
     "AudioDocument": "Áudio",

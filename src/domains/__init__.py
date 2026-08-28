@@ -8,7 +8,7 @@ from .monographs import (
 from .periodicals import PeriodicalCollection, JournalArticle, NewspaperArticle
 from .proceedings import MonographicProceedings, PeriodicalProceedings
 from .patent import Patent
-from .legal_documents import Statute, CaseLaw, AdministrativeAct
+from .legal_documents import Statute, CaseLaw
 from .multimedia import AudiovisualDocument, AudioDocument, VisualDocument, ThreeDimensionalDocument, CartographicDocument, MusicalScore  # noqa: E501
 
 __all__ = [
@@ -28,7 +28,6 @@ __all__ = [
     'Patent',
     'Statute',
     'CaseLaw',
-    'AdministrativeAct',
     'AudiovisualDocument',
     'AudioDocument',
     'VisualDocument',

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 import re
+from typing import TypedDict, cast
 
 import flet as ft
 
@@ -12,6 +13,22 @@ from src.views.work_insert_specs import (
     FieldSpec,
 )
 from src.utils.types import ViewConfig
+from src.repositories.work_repository import (
+    AuthorReference,
+    AuthorSearchResult,
+)
+
+
+class DropdownStyle(TypedDict):
+    border_color: str
+    focused_border_color: str
+    color: str
+    label_style: ft.TextStyle
+    border_radius: int | float
+    content_padding: int | float
+    bgcolor: str
+    border_width: int | float
+    text_style: ft.TextStyle
 
 
 class WorkInsertModalComposer:
@@ -22,7 +39,9 @@ class WorkInsertModalComposer:
         page: ft.Page,
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
-        search_authors: Callable[[str], list[str]] | None = None,
+        search_authors: (
+            Callable[[str], list[AuthorSearchResult]] | None
+        ) = None,
         search_works: Callable[[str], list[tuple[int, str]]] | None = None,
         on_create_parent_work: Callable[
             [Callable[[int, str], None]], None
@@ -37,7 +56,7 @@ class WorkInsertModalComposer:
         self.selected = WORK_TYPES[0]
         self.fields: dict[str, ft.Control] = {}
         self.partial_enabled = False
-        self.author_names: list[str] = []
+        self.author_references: list[AuthorReference] = []
         self.author_search = ""
         self.author_control: ft.Column | None = None
         self.author_search_field: ft.TextField | None = None
@@ -81,30 +100,46 @@ class WorkInsertModalComposer:
             "border_width": 2
         }
 
-    def _dropdown_style(self):
+    def _dropdown_style(
+        self, theme: str | None = "dark"
+    ) -> DropdownStyle:
         """Retorna o estilo dos menus suspensos."""
-        style = self._style()
-        style["text_style"] = ft.TextStyle(
-            color=self.config.colors["muted"],
+        text_color = (
+            self.config.colors["black"]
+            if theme == "light"
+            else self.config.colors["muted"]
+        )
+        text_style = ft.TextStyle(
+            color=text_color,
             weight=self.config.font_weights["montserrat_normal"],
             font_family=self.config.font_families["montserrat"],
             letter_spacing=2,
             size=12
         )
-        style["label_style"] = ft.TextStyle(
-            color=self.config.colors["muted"],
+        label_style = ft.TextStyle(
+            color=text_color,
             weight=self.config.font_weights["montserrat_normal"],
             font_family=self.config.font_families["montserrat"],
             letter_spacing=2,
             size=12
         )
-        style.pop("cursor_color")
-        return style
+        return {
+            "border_color": self.config.colors["border"],
+            "focused_border_color": self.config.colors["gold"],
+            "color": self.config.colors["text"],
+            "label_style": label_style,
+            "border_radius": self.config.ui["card_radius"],
+            "content_padding": self.config.ui["card_padding"],
+            "bgcolor": self.config.colors["surface"],
+            "border_width": 2,
+            "text_style": text_style,
+        }
 
     def _text_field_style(self):
         """Retorna a tipografia e as cores dos campos de texto."""
         style = self._style()
         style["text_style"] = ft.TextStyle(
+            color=self.config.colors["text"],
             size=self.config.font_sizes["cormorant_small"],
             weight=self.config.font_weights["cormorant_semibold"],
             font_family=self.config.font_families["cormorant"],
@@ -284,34 +319,59 @@ class WorkInsertModalComposer:
             or self.author_pills is None
         ):
             return
-        names = (
+        results = (
             self.search_authors(self.author_search)
             if self.author_search and self.search_authors is not None
             else []
         )
         self.author_results.controls = [
             ft.TextButton(
-                content=name,
-                on_click=lambda e, name=name: self._select_author(name),
+                content=result['name'],
+                on_click=lambda e, result=result: self._select_author(result),
             )
-            for name in names
-            if name not in self.author_names
+            for result in results
+            if not any(
+                reference['id'] == result['id']
+                for reference in self.author_references
+            )
         ]
         self.author_results.visible = bool(self.author_results.controls)
         self.author_pills.controls = [
             ft.Chip(
-                label=ft.Text(name),
-                on_delete=lambda e, name=name: self._remove_author(name),
+                label=ft.Text(reference['name']),
+                on_delete=lambda e, reference=reference: (
+                    self._remove_author(reference)
+                ),
             )
-            for name in self.author_names
+            for reference in self.author_references
         ]
         self.author_pills.visible = bool(self.author_pills.controls)
         if refresh:
             self.author_control.update()
 
-    def _select_author(self, name: str) -> None:
-        if name not in self.author_names:
-            self.author_names.append(name)
+    def _select_author(
+        self, result: AuthorSearchResult | AuthorReference | str
+    ) -> None:
+        if isinstance(result, str):
+            reference: AuthorReference = {
+                'name': result.strip(),
+                'id': None,
+                'corporation': False,
+                'acronym': None,
+            }
+        else:
+            reference = {
+                'name': result['name'],
+                'id': result['id'],
+                'corporation': result['corporation'],
+                'acronym': result['acronym'],
+            }
+        if not any(
+            reference['id'] == selected['id']
+            and reference['name'] == selected['name']
+            for selected in self.author_references
+        ):
+            self.author_references.append(reference)
         self.author_search = ""
         if self.author_search_field is not None:
             self.author_search_field.value = ""
@@ -320,7 +380,102 @@ class WorkInsertModalComposer:
     def _add_author_from_search(self, event) -> None:
         name = self.author_search.strip()
         if name:
-            self._select_author(name)
+            self._show_new_author_dialog(name)
+
+    def _show_new_author_dialog(self, name: str) -> None:
+        acronym = ft.TextField(
+            label="Acrônimo ou sigla (opcional)",
+            visible=False,
+            **self._text_field_style(),
+        )
+
+        def change_type(event) -> None:
+            acronym.visible = author_type.value == "corporation"
+            acronym.update()
+
+        author_type = ft.Dropdown(
+            label="Tipo de autor",
+            value="person",
+            options=[
+                ft.dropdown.Option(
+                    key="person",
+                    text="Pessoa",
+                    content=ft.Text(
+                        value="Pessoa",
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families["montserrat"],
+                        size=self.config.font_sizes["montserrat_tiny"],
+                    ),
+                ),
+                ft.dropdown.Option(
+                    key="corporation",
+                    text="Instituição",
+                    content=ft.Text(
+                        value="Instituição",
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families["montserrat"],
+                        size=self.config.font_sizes["montserrat_tiny"],
+                    ),
+                ),
+            ],
+            on_select=change_type,
+            **self._dropdown_style("dark"),
+        )
+
+        def confirm(event) -> None:
+            reference: AuthorReference = {
+                'name': name,
+                'id': None,
+                'corporation': author_type.value == "corporation",
+                'acronym': (
+                    acronym.value.strip().upper()
+                    if acronym.value and author_type.value == "corporation"
+                    else None
+                ),
+            }
+            self._select_author(reference)
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            bgcolor=self.config.colors["surface"],
+            title=ft.Text(
+                "Classificar autor",
+                color=self.config.colors["text"],
+                font_family=self.config.font_families["cormorant"],
+                weight=self.config.font_weights["cormorant_bold"],
+            ),
+            content=ft.Column(
+                controls=[author_type, acronym],
+                tight=True,
+                width=360,
+            ),
+            actions=[
+                ft.TextButton(
+                    content=ft.Text(
+                        "Cancelar",
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families["montserrat"],
+                    ),
+                    on_click=lambda event: self._close_author_dialog(dialog),
+                ),
+                ft.ElevatedButton(
+                    content=ft.Text(
+                        "Adicionar",
+                        color=self.config.colors["surface"],
+                        font_family=self.config.font_families["montserrat"],
+                    ),
+                    on_click=confirm,
+                    bgcolor=self.config.colors["gold"],
+                ),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def _close_author_dialog(self, dialog: ft.AlertDialog) -> None:
+        dialog.open = False
+        self.page.update()
 
     def _parent_work_control(self) -> ft.Control:
         search = ft.TextField(
@@ -387,8 +542,8 @@ class WorkInsertModalComposer:
         if self.on_create_parent_work is not None:
             self.on_create_parent_work(self._select_parent_work)
 
-    def _remove_author(self, name: str) -> None:
-        self.author_names.remove(name)
+    def _remove_author(self, reference: AuthorReference) -> None:
+        self.author_references.remove(reference)
         self._refresh_author_search()
 
     @staticmethod
@@ -503,7 +658,7 @@ class WorkInsertModalComposer:
         data: dict[str, object] = {"work_type": self.selected.key}
         for key, control in self.fields.items():
             if key == "authors":
-                data[key] = "; ".join(self.author_names)
+                data[key] = list(self.author_references)
                 continue
             if isinstance(control, ft.Checkbox):
                 data[key] = control.value
@@ -536,7 +691,7 @@ class WorkInsertModalComposer:
         """Seleciona um tipo novo e reinicia seus valores."""
         self.selected = spec
         self.partial_enabled = False
-        self.author_names.clear()
+        self.author_references.clear()
         self.author_search = ""
         if self.author_search_field is not None:
             self.author_search_field.value = ""
@@ -674,6 +829,7 @@ class WorkInsertModalComposer:
         """Limpa o formulário e restaura seu estado inicial."""
         self.selected = WORK_TYPES[0]
         self.partial_enabled = False
+        self.author_references.clear()
         self.stored_values.clear()
         self.fields.clear()
         self._render(update_page=False)
@@ -701,20 +857,20 @@ class WorkInsertModalComposer:
             shape=ft.RoundedRectangleBorder(radius=8),
             content_padding=self.config.ui["modal_content_padding"],
             content=ft.Column(
-                controls=[
-                    ft.Text(
+                controls=cast(list[ft.Control], [
+                    cast(ft.Control, ft.Text(
                         value="Cadastrar nova obra".title(),
                         size=self.config.font_sizes["cormorant_large"],
                         color=self.config.colors["text"],
                         font_family=self.config.font_families["cormorant"],
                         weight=self.config.font_weights["cormorant_bold"],
-                    ),
-                    ft.Row(
-                        controls=[
-                            ft.Container(
+                    )),
+                    cast(ft.Control, ft.Row(
+                        controls=cast(list[ft.Control], [
+                            cast(ft.Control, ft.Container(
                                 content=ft.Column(
-                                    controls=[
-                                        ft.Text(
+                                    controls=cast(list[ft.Control], [
+                                        cast(ft.Control, ft.Text(
                                             value="Tipo de obra",
                                             size=self.config.font_sizes[
                                                 "montserrat_large"
@@ -728,28 +884,28 @@ class WorkInsertModalComposer:
                                             weight=self.config.font_weights[
                                                 "montserrat_semibold"
                                             ],
-                                        ),
-                                        self.type_grid,
-                                    ],
+                                        )),
+                                        cast(ft.Control, self.type_grid),
+                                    ]),
                                     spacing=self.config.ui["modal_gap"],
                                     expand=True,
                                 ),
                                 width=self.config.ui["modal_type_panel_width"],
                                 expand=False
-                            ),
-                            ft.VerticalDivider(
+                            )),
+                            cast(ft.Control, ft.VerticalDivider(
                                 width=1,
                                 color=self.config.colors["border"],
-                            ),
-                            ft.Container(
+                            )),
+                            cast(ft.Control, ft.Container(
                                 content=self.form, expand=True
-                            ),
-                        ],
+                            )),
+                        ]),
                         spacing=self.config.ui["control_gap"] + 6,
                         expand=True,
                         vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-                    ),
-                ],
+                    )),
+                ]),
                 width=self.config.ui["modal_width"],
                 height=self.config.ui["modal_height"],
                 spacing=self.config.ui["modal_gap"],

@@ -465,13 +465,6 @@ WORK_TYPES = (
         FieldSpec(key="additional_notes", label="Notas adicionais"),
     ),
     _spec(
-        "administrative_act",
-        "Ato administrativo",
-        "Portaria, edital ou parecer",
-        ft.Icons.ACCOUNT_BALANCE_OUTLINED,
-        FieldSpec(key="additional_notes", label="Notas adicionais"),
-    ),
-    _spec(
         "miscellaneous_digital_document",
         "Documento digital",
         "Documento digital diverso",

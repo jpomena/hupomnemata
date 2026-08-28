@@ -40,7 +40,6 @@ if TYPE_CHECKING:
     from .legal_documents import (
         Statute,
         CaseLaw,
-        AdministrativeAct
     )
     from .multimedia import (
         AudiovisualDocument,
@@ -134,9 +133,6 @@ class BibliographicResource(Base):
     )
     caselaw: Mapped['CaseLaw'] = relationship(
         'CaseLaw', back_populates='bibliographic_resource'
-    )
-    administrative_act: Mapped['AdministrativeAct'] = relationship(
-        'AdministrativeAct', back_populates='bibliographic_resource'
     )
     audiovisual_document: Mapped['AudiovisualDocument'] = relationship(
         'AudiovisualDocument', back_populates='bibliographic_resource'
@@ -261,7 +257,7 @@ class Author(Base):
     acronym: Mapped[str] = mapped_column(String(10), nullable=True)
     jurisdiction_id: Mapped[int] = mapped_column(
         ForeignKey(
-            "Author.id",
+            "authors.id",
             ondelete="SET NULL"
         ), nullable=True
     )
