@@ -9,7 +9,7 @@ class AudiovisualDocument(WorkMixin):
 
     __tablename__ = 'audiovisual_documents'
 
-    responsabilities: Mapped[Dict[str, str]] = mapped_column(
+    responsibilities: Mapped[Dict[str, str]] = mapped_column(
         JSON, nullable=False
     )
     publication_place: Mapped[str] = mapped_column(
@@ -32,7 +32,7 @@ class AudioDocument(WorkMixin):
 
     __tablename__ = 'audio_documents'
 
-    responsabilities: Mapped[Dict[str, str]] = mapped_column(
+    responsibilities: Mapped[Dict[str, str]] = mapped_column(
         JSON, nullable=False
     )
     publication_place: Mapped[str] = mapped_column(
@@ -43,7 +43,7 @@ class AudioDocument(WorkMixin):
     )
     carrier_type: Mapped[str] = mapped_column(String(15), nullable=False)
     is_part: Mapped[bool] = mapped_column(nullable=False, default=False)
-    part_responsabilities: Mapped[Dict[str, str]] = mapped_column(
+    part_responsibilities: Mapped[Dict[str, str]] = mapped_column(
         JSON, nullable=False
     )
     part_identifier: Mapped[str] = mapped_column(String(15), nullable=False)
@@ -82,7 +82,7 @@ class CartographicDocument(WorkMixin):
 class ThreeDimensionalDocument(WorkMixin):
     __tablename__ = 'three_dimensional_documents'
 
-    responsability_type: Mapped[str] = mapped_column(
+    responsiblity_type: Mapped[str] = mapped_column(
         String(15), nullable=False
     )
     manufacturing_place: Mapped[str] = mapped_column(

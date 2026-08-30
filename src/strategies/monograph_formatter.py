@@ -52,9 +52,13 @@ class MonographFormatter:
     @staticmethod
     def _handle_partial_resource(bibliographic_resource, parts):
         partial_bibliographic_resource = None
-        if bibliographic_resource.is_partial is True:
+        work = bibliographic_resource.specific_work
+        if work is not None and work.is_partial is True:
             partial_bibliographic_resource = bibliographic_resource
-            bibliographic_resource = partial_bibliographic_resource.parent_work
+            bibliographic_resource = (
+                partial_bibliographic_resource
+                .specific_work.parent_bibliographic_resource
+            )
 
             for content, style in Utils.format_part_header(
                 partial_bibliographic_resource
@@ -78,7 +82,7 @@ class MonographFormatter:
     def _append_authors_and_title(bibliographic_resource, parts):
         parts.append(
             ReferencePart(
-                content=Utils.format_authors(bibliographic_resource.authors)
+                content=Utils.fmt_authors(bibliographic_resource.authors)
             )
         )
         for content, style in Utils.format_title_and_subtitle(
@@ -116,10 +120,9 @@ class MonographFormatter:
         bibliographic_resource, partial_bibliographic_resource, parts
     ):
         if partial_bibliographic_resource:
+            partial_work = partial_bibliographic_resource.specific_work
             parts.extend(
-                MonographFormatter._format_part_details(
-                    partial_bibliographic_resource
-                )
+                MonographFormatter._format_part_details(partial_work)
             )
 
         work = bibliographic_resource.specific_work
@@ -153,10 +156,10 @@ class MonographFormatter:
         '''
         parts = []
 
-        if monograph.responsabilities:
+        if monograph.responsibilities:
             parts.extend(
                 ReferencePart(content=f' {k}: {v}.')
-                for k, v in monograph.responsabilities.items()
+                for k, v in monograph.responsibilities.items()
             )
 
         if monograph.edition:
@@ -226,10 +229,10 @@ class MonographFormatter:
     ) -> ReferencePart:
         return ReferencePart(
             content=(
-                f' {monograph.display_year}. {monograph. page_quantity} f.'
+                f' {monograph.display_year}. {monograph.page_quantity} f.'
                 f' {monograph.thesis_type} ({monograph.education_level} em'
                 f' {monograph.course}) — {monograph.faculty},'
-                f' {monograph.publication_place}, {monograph.defense_year}.'
+                f' {monograph.publication_place}, {monograph.defense_year}'
             )
         )
 

@@ -6,8 +6,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class LegalMixin(Base):
+    __abstract__ = True
 
     publication_media: Mapped[str] = mapped_column(String(100), nullable=False)
+    publication_place: Mapped[str] = mapped_column(String(150), nullable=True)
     publication_number: Mapped[int] = mapped_column(nullable=True)
     additional_notes: Mapped[str] = mapped_column(String(500), nullable=True)
 
@@ -25,6 +27,8 @@ class Statute(WorkMixin, LegalMixin):
     documentos.'''
 
     __tablename__ = 'statutes'
+
+    promulgation_date: Mapped[date] = mapped_column(nullable=False)
 
 
 class CaseLaw(WorkMixin, LegalMixin):

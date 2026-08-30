@@ -16,12 +16,12 @@ class WorkDetailsPopup:
         "date_precision", "url", "viewed_at",
     }
     RESOURCE_FIELDS = {
-        "is_partial", "part_start_page", "part_end_page", "part_volume",
+        "part_start_page", "part_end_page", "part_volume",
         "part_chapter", "consult_start_year", "consult_end_year",
     }
     HIDDEN_FIELDS = {
-        "id", "bib_res_id", "parent_work_id", "created_at", "updated_at",
-        "date_anchor", "date_precision",
+        "id", "bib_res_id", "parent_bibliographic_resource_id",
+        "created_at", "updated_at", "date_anchor", "date_precision",
     }
     LABELS = {
         "id": "Identificador",
@@ -37,7 +37,7 @@ class WorkDetailsPopup:
         "created_at": "Cadastrado em",
         "updated_at": "Atualizado em",
         "is_partial": "É parte de outra obra",
-        "parent_work_id": "Obra principal",
+        "parent_bibliographic_resource_id": "Obra principal",
         "part_start_page": "Página inicial da parte",
         "part_end_page": "Página final da parte",
         "part_volume": "Volume da parte",
@@ -56,8 +56,8 @@ class WorkDetailsPopup:
         "translation_notes": "Notas de tradução",
         "original_full_title": "Título original completo",
         "additional_notes": "Notas adicionais",
-        "responsabilities": "Notas de responsabilidade",
-        "part_responsabilities": "Notas de responsabilidade da parte",
+        "responsibilities": "Notas de responsabilidade",
+        "part_responsibilities": "Notas de responsabilidade da parte",
         "isbn": "ISBN",
         "issn": "ISSN",
         "journal_title": "Título do periódico",
@@ -90,7 +90,7 @@ class WorkDetailsPopup:
         "filing_date": "Data de depósito",
         "grant_date": "Data de concessão",
         "instrumentation": "Instrumentação",
-        "responsability_type": "Tipo de responsabilidade",
+        "responsiblity_type": "Tipo de responsabilidade",
         "manufacturing_place": "Local de fabricação",
         "manufacturer": "Fabricante",
     }
@@ -129,7 +129,7 @@ class WorkDetailsPopup:
         detail_controls.append(self._section_title("Visão geral"))
         detail_controls.append(
             ft.ResponsiveRow(
-                controls=overview_controls,
+                overview_controls,
                 spacing=self.config.ui["control_gap"],
                 run_spacing=self.config.ui["control_gap"],
             )
@@ -146,7 +146,7 @@ class WorkDetailsPopup:
             )
 
         content = ft.Column(
-            controls=detail_controls,
+            detail_controls,
             tight=True,
             scroll=ft.ScrollMode.AUTO,
             width=760,
@@ -161,7 +161,10 @@ class WorkDetailsPopup:
                 font_family=self.config.font_families["cormorant"],
                 color=self.config.colors['gold']
             ),
-            content=content,
+            content=ft.Container(
+                content=content,
+                animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            ),
             bgcolor=self.config.colors["bg"],
             actions=[
                 ft.TextButton(
@@ -227,10 +230,26 @@ class WorkDetailsPopup:
     }
 
     def _authors_value(self) -> str:
-        return "; ".join(
-            f"{author.given_names} {author.last_name}"
-            for author in self.resource.authors
-        ) or "Não informado"
+        names: list[str] = []
+        for author in self.resource.authors:
+            if author.corporation:
+                legal_name = (
+                    author.given_names or author.last_name or ''
+                ).strip()
+                if not legal_name:
+                    continue
+                if author.jurisdiction:
+                    jurisdiction_name = (
+                        author.jurisdiction.given_names
+                        or author.jurisdiction.last_name
+                        or ''
+                    ).strip()
+                    if jurisdiction_name and jurisdiction_name != legal_name:
+                        legal_name = f"{jurisdiction_name}. {legal_name}"
+                names.append(legal_name)
+                continue
+            names.append(f"{author.given_names} {author.last_name}".strip())
+        return "; ".join(names) or "Não informado"
 
     def _section_title(self, title: str) -> ft.Control:
         return ft.Text(
@@ -244,6 +263,36 @@ class WorkDetailsPopup:
     def _detail_row(
         self, label: str, value: object, full_width: bool = False
     ) -> ft.Control:
+        text_value = self._format_value(value)
+        value_control: ft.Control
+
+        if label == "url" and isinstance(value, str) and value:
+            value_control = ft.Text(
+                value="",
+                size=self.config.font_sizes["montserrat_small"],
+                color=self.config.colors["gold"],
+                font_family=self.config.font_families["montserrat"],
+                selectable=True,
+                spans=[
+                    ft.TextSpan(
+                        text=text_value,
+                        url=value,
+                        style=ft.TextStyle(
+                            color=self.config.colors["gold"],
+                            decoration=ft.TextDecoration.UNDERLINE,
+                        ),
+                    )
+                ],
+            )
+        else:
+            value_control = ft.Text(
+                text_value,
+                size=self.config.font_sizes["montserrat_small"],
+                color=self.config.colors["text"],
+                font_family=self.config.font_families["montserrat"],
+                selectable=True,
+            )
+
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -255,13 +304,7 @@ class WorkDetailsPopup:
                         font_family=self.config.font_families["montserrat"],
                         text_align=ft.TextAlign.JUSTIFY,
                     ),
-                    ft.Text(
-                        self._format_value(value),
-                        size=self.config.font_sizes["montserrat_small"],
-                        color=self.config.colors["text"],
-                        font_family=self.config.font_families["montserrat"],
-                        selectable=True,
-                    ),
+                    value_control,
                 ],
                 spacing=4,
             ),

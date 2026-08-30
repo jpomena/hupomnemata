@@ -11,14 +11,9 @@ class LegalDocsFormatter:
         work: Statute | CaseLaw
     ) -> List[ReferencePart]:
         authors = work.authors
-        jurisdictions = [author.jurisdiction.name for author in authors]
         parts = []
 
-        if len(jurisdictions) >= 1:
-            jurisdictions_str = '; '.join(jurisdictions).upper()
-            parts.append(ReferencePart(f'{jurisdictions_str}.'))
-
-        parts.append(ReferencePart(f' {Utils.format_authors(authors)}'))
+        parts.append(ReferencePart(f' {Utils.fmt_authors(authors)}'))
         if isinstance(work, CaseLaw) and (
             work.region or work.panel
         ):
@@ -39,7 +34,7 @@ class LegalDocsFormatter:
     ) -> List[ReferencePart]:
         parts = []
         parts.append(ReferencePart(
-            f' {work.title}, de {Utils.format_full_date(work.date_anchor)}.'
+            f' {work.title}, de {Utils.fmt_full_date(work.promulgation_date)}.'
             f' {work.abstract}.'
         ))
 
@@ -66,6 +61,7 @@ class LegalDocsFormatter:
         work: CaseLaw | Statute
     ) -> List[ReferencePart]:
         parts = []
+        publication_date = work.date_anchor
 
         parts.append(ReferencePart(
             f' {work.publication_media}', TextStyle.BOLD
@@ -73,18 +69,8 @@ class LegalDocsFormatter:
         if work.publication_number:
             parts.append(ReferencePart(f', {work.publication_number}'))
 
-        br = work.bibliographic_resource
-        if br.part_start_page:
-            if br.part_end_page and br.part_start_page != br.part_end_page:
-                parts.append(ReferencePart(
-                    f', p. {br.part_start_page}'
-                    f'–{br.part_end_page},'
-                ))
-            else:
-                parts.append(ReferencePart(f', p. {br.part_start_page}'))
-
         parts.append(ReferencePart(
-            f', {Utils.format_abbrev_date(work.date_anchor)}.'
+            f', {Utils.format_abbrev_date(publication_date)}.'
         ))
 
         return parts

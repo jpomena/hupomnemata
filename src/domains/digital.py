@@ -3,7 +3,7 @@ from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
 
-class MiscellaneousDigitalDocument(WorkMixin):
+class MiscDigitalDocument(WorkMixin):
     __tablename__ = 'miscellaneous_digital_documents'
 
     version: Mapped[int] = mapped_column(nullable=True)

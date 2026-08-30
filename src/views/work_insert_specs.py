@@ -69,6 +69,17 @@ COMMON = (
     ),
 )
 
+PARTIAL_WORK_TYPES = {
+    "editorial_monograph",
+    "academic_monograph",
+    "correspondence_monograph",
+    "periodical_collection",
+    "journal_article",
+    "newspaper_article",
+    "monographic_proceedings",
+    "periodical_proceedings",
+}
+
 PARTIAL = (
     FieldSpec(
         key="is_partial",
@@ -108,6 +119,36 @@ PARTIAL = (
         kind="number",
     ),
 )
+
+INHERITED_FROM_PARENT_FIELDS = {
+    "publication_place",
+    "publisher",
+    "edition",
+    "volumes",
+    "illustrations",
+    "dimensions",
+    "collection_name",
+    "collection_number",
+    "translation_notes",
+    "original_full_title",
+    "isbn",
+    "journal_title",
+    "journal_subtitle",
+    "volume",
+    "year_season",
+    "number",
+    "issn",
+    "event_name",
+    "event_number",
+    "event_year",
+    "event_place",
+    "publication_year",
+    "page_quantity",
+    "section",
+    "start_page",
+    "end_page",
+    "vol_or_year",
+}
 
 PUBLICATION = (
     FieldSpec(
@@ -161,14 +202,67 @@ DEFAULTED_FIELDS = {
 
 def _spec(key, label, description, icon, *fields):
     date_kind = (
-        "date" if key in {"journal_article", "newspaper_article"} else "year"
+        "date"
+        if key in {
+            "journal_article",
+            "newspaper_article",
+            "statute",
+            "caselaw",
+        }
+        else "year"
     )
+    partial_fields = PARTIAL if key in PARTIAL_WORK_TYPES else ()
+    if key == "statute":
+        statute_fields = tuple(
+            field for field in COMMON if field.key != "date_anchor"
+        ) + (
+            FieldSpec(
+                key="promulgation_date",
+                label="Data de promulgação",
+                hint="DD/MM/AAAA",
+                kind="date",
+                required=True,
+            ),
+            FieldSpec(
+                key="publication_media",
+                label="Veículo / mídia de publicação",
+                hint="Ex.: Diário Oficial da União",
+                required=True,
+            ),
+            FieldSpec(
+                key="publication_place",
+                label="Local de publicação",
+                hint="Ex.: Brasília",
+            ),
+            FieldSpec(
+                key="date_anchor",
+                label="Data de publicação",
+                hint="DD/MM/AAAA",
+                kind="date",
+                required=True,
+            ),
+            FieldSpec(
+                key="publication_number",
+                label="Número da publicação",
+                hint="Ex.: 123",
+                kind="number",
+            ),
+            FieldSpec(key="additional_notes", label="Notas adicionais"),
+        )
+        return WorkTypeSpec(
+            key=key,
+            label=label,
+            description=description,
+            icon=icon,
+            fields=statute_fields,
+            date_kind=date_kind,
+        )
     return WorkTypeSpec(
         key=key,
         label=label,
         description=description,
         icon=icon,
-        fields=COMMON + PARTIAL + fields,
+        fields=COMMON + partial_fields + fields,
         date_kind=date_kind,
     )
 
@@ -232,9 +326,9 @@ WORK_TYPES = (
         ),
         FieldSpec(key="isbn", label="ISBN", hint="Ex.: 978-85-7559-484-1"),
         FieldSpec(
-            key="responsabilities",
+            key="responsibilities",
             label="Notas de responsabilidade:",
-            kind="responsabilities",
+            kind="responsibilities",
         )
     ),
     _spec(
@@ -435,13 +529,33 @@ WORK_TYPES = (
         "Legislação",
         "Lei, decreto ou norma",
         ft.Icons.GAVEL,
-        FieldSpec(key="additional_notes", label="Notas adicionais"),
     ),
     _spec(
         "caselaw",
         "Jurisprudência",
         "Acórdão, sentença ou decisão",
         ft.Icons.ACCOUNT_BALANCE,
+        FieldSpec(
+            key="publication_media",
+            label="Veículo / mídia de publicação",
+            hint="Ex.: Tribunal Regional Federal",
+            required=True,
+        ),
+        FieldSpec(
+            key="publication_place",
+            label="Local de publicação",
+            hint="Ex.: São Paulo",
+        ),
+        FieldSpec(
+            key="panel",
+            label="Tribunal / órgão julgador",
+            hint="Ex.: Segunda Turma",
+        ),
+        FieldSpec(
+            key="region",
+            label="Região / instância",
+            hint="Ex.: Tribunal Regional Federal 4ª Região",
+        ),
         FieldSpec(
             key="decision_type",
             label="Tipo de decisão",
@@ -497,9 +611,9 @@ WORK_TYPES = (
         FieldSpec(key="colorized", label="Colorizado", kind="checkbox"),
         *PUBLICATION,
         FieldSpec(
-            key="responsabilities",
+            key="responsibilities",
             label="Responsabilidades",
-            kind="responsabilities",
+            kind="responsibilities",
         ),
         FieldSpec(key="additional_notes", label="Notas adicionais")
     ),
@@ -513,10 +627,10 @@ WORK_TYPES = (
             key="is_part", label="É parte de uma obra sonora", kind="checkbox"
         ),
         FieldSpec(
-            key="part_responsabilities",
+            key="part_responsibilities",
             label="Responsabilidades da parte",
             hint="Ex.: intérprete Maria Bethânia",
-            kind="responsabilities",
+            kind="responsibilities",
         ),
         FieldSpec(
             key="part_identifier",
@@ -525,9 +639,9 @@ WORK_TYPES = (
             required=True,
         ),
         FieldSpec(
-            key="responsabilities",
+            key="responsibilities",
             label="Responsabilidades",
-            kind="responsabilities",
+            kind="responsibilities",
         ),
         *PUBLICATION
     ),
@@ -651,7 +765,7 @@ WORK_TYPES = (
         "Objeto tridimensional",
         ft.Icons.VIEW_IN_AR,
         FieldSpec(
-            key="responsability_type",
+            key="responsiblity_type",
             label="Tipo de responsabilidade",
             hint="Ex.: fabricante",
             required=True,

@@ -1,4 +1,4 @@
-from .core_domain import WorkMixin
+from .core_domain import WorkMixin, PartialWorkMixin
 from sqlalchemy import String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Dict
@@ -9,7 +9,7 @@ livros; folhetos; obras traduzidas; trabalhos acadêmicos; enciclopédias;
 catálogos de exposição; correspondências, anuários, apostilas etc.'''
 
 
-class EditorialMonograph(WorkMixin):
+class EditorialMonograph(PartialWorkMixin, WorkMixin):
     '''Documentos monográficos que receberam tratamento
     editorial, e.g.: livros, enciclopédias, dicionários.'''
 
@@ -20,8 +20,8 @@ class EditorialMonograph(WorkMixin):
         String(150), nullable=False, default='[s.l.]'
     )
     additional_notes: Mapped[str] = mapped_column(String(500), nullable=True)
-    responsabilities: Mapped[Dict[str, str]] = mapped_column(
-        JSON, nullable=False
+    responsibilities: Mapped[Dict[str, str]] = mapped_column(
+        JSON, nullable=True
     )
     edition: Mapped[int] = mapped_column(nullable=True)
     publisher: Mapped[str] = mapped_column(
@@ -39,7 +39,7 @@ class EditorialMonograph(WorkMixin):
     isbn: Mapped[str] = mapped_column(String(13), nullable=True)
 
 
-class AcademicMonograph(WorkMixin):
+class AcademicMonograph(PartialWorkMixin, WorkMixin):
     '''Documentos monográficos que não receberam tratamento
     editorial, e.g.: TCC's, dissertações, teses.'''
 
@@ -57,7 +57,7 @@ class AcademicMonograph(WorkMixin):
     defense_year: Mapped[int] = mapped_column(nullable=False)
 
 
-class CorrespondenceMonograph(WorkMixin):
+class CorrespondenceMonograph(PartialWorkMixin, WorkMixin):
     '''Documentos monográficos de correspondência entre
     duas ou mais pessoas, e.g.: cartas, telegramas, e-mails.'''
 

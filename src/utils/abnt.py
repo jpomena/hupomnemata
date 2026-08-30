@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class ABNTUtils:
     @staticmethod
-    def format_authors(authors: Iterable['Author']) -> str:
+    def fmt_authors(authors: Iterable['Author']) -> str:
         '''
         Padroniza a lista de autores para qualquer referência ABNT.
         Ex: SILVA, J.; SANTOS, M.
@@ -26,7 +26,7 @@ class ABNTUtils:
                     f'{a.last_name.upper()}, {a.given_names_initials}'
                 )
             else:
-                full_name = f'{a.given_names} {a.last_name}'.strip()
+                full_name = f'{a.given_names}'.strip()
 
                 if a.jurisdiction:
                     authors_strs.append(
@@ -53,7 +53,7 @@ class ABNTUtils:
 
         parts = []
         parts.append((
-                ABNTUtils.format_authors(
+                ABNTUtils.fmt_authors(
                     partial_bibliographic_resource.authors
                 ),
                 TextStyle.NORMAL
@@ -80,11 +80,16 @@ class ABNTUtils:
         (negrito na obra principal, normal na parte).
         O subtítulo, segundo a ABNT, nunca recebe destaque (sempre normal).
         '''
-        parts = []
-        parts.append((f' {title}', title_style))
+        title_text = title.strip().lower()
+        if title_text:
+            title_text = title_text.capitalize()
+        subtitle_text = subtitle.strip() if subtitle else ''
 
-        if subtitle:
-            parts.append((f': {subtitle}', TextStyle.NORMAL))
+        parts = []
+        parts.append((f' {title_text}', title_style))
+
+        if subtitle_text:
+            parts.append((f': {subtitle_text}', TextStyle.NORMAL))
         parts.append(('.', TextStyle.NORMAL))
 
         return parts
@@ -109,7 +114,7 @@ class ABNTUtils:
         return f'{day} {month} {year}'
 
     @staticmethod
-    def format_full_date(
+    def fmt_full_date(
             date: date | datetime | None
     ) -> str:
         if date is None:

@@ -32,7 +32,11 @@ class CoreNormalizer:
 
     def natural_name_parser(self, name_string: str) -> NameElements:
         name_parts = [
-            part if part in NAME_PARTICLES else part.title()
+            part if (
+                part in NAME_PARTICLES and (
+                    name_string.lower().strip().split().index(part)
+                ) != 0
+            ) else part.title()
             for part in name_string.lower().strip().split()
         ]
         last_name = name_parts[-1]
@@ -57,7 +61,11 @@ class CoreNormalizer:
 
     def legal_entity_name_normalizer(self, name_string: str) -> str:
         name_parts = [
-            part if part in NAME_PARTICLES else part.title()
+            part if (
+                part in NAME_PARTICLES and (
+                    name_string.lower().strip().split().index(part) != 0
+                )
+            ) else part.title()
             for part in name_string.lower().strip().split()
         ]
         name = ' '.join(name_parts)
@@ -66,7 +74,11 @@ class CoreNormalizer:
 
     def title_normalizer(self, title_string: str) -> str:
         name_parts = [
-            part if part in NAME_PARTICLES else part.title()
+            part if (
+                part in NAME_PARTICLES and (
+                    title_string.lower().strip().split().index(part) != 0
+                )
+            ) else part.title()
             for part in title_string.lower().strip().split()
         ]
         name = ' '.join(name_parts)

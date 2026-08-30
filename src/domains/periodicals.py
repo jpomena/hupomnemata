@@ -1,4 +1,4 @@
-from .core_domain import WorkMixin
+from .core_domain import WorkMixin, PartialWorkMixin
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,7 @@ assuntos variados, de acordo com um plano definido.
 '''
 
 
-class PeriodicalCollection(WorkMixin):
+class PeriodicalCollection(PartialWorkMixin, WorkMixin):
     '''Coleção completa ou parcial de uma publicação periódica.'''
 
     __tablename__ = 'periodical_collections'
@@ -30,7 +30,7 @@ class PeriodicalCollection(WorkMixin):
     additional_notes: Mapped[str] = mapped_column(String(500), nullable=True)
 
 
-class JournalArticle(WorkMixin):
+class JournalArticle(PartialWorkMixin, WorkMixin):
     '''Compreende partes de uma publicação periódica, como artigo,
     comunicação, editorial, suplemento, entrevista, recensão, resenha,
     reportagem, entre outras.'''
@@ -52,7 +52,7 @@ class JournalArticle(WorkMixin):
     number: Mapped[int] = mapped_column(nullable=False)
 
 
-class NewspaperArticle(WorkMixin):
+class NewspaperArticle(PartialWorkMixin, WorkMixin):
     '''Compreende partes de um jornal, como reportagem, entrevista,
     editorial, entre outras.'''
 

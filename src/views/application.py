@@ -19,6 +19,7 @@ class ApplicationComposer:
 
     def __init__(
         self,
+        page: ft.Page,
         scale: float,
         config: ViewConfig,
         on_navigate: Callable[[str], None],
@@ -29,6 +30,7 @@ class ApplicationComposer:
             [Callable[[int, str], None]], None
         ],
     ):
+        self.page = page
         self.scale = scale
         self.config = config
         self.on_navigate = on_navigate
@@ -37,7 +39,88 @@ class ApplicationComposer:
         self.on_delete_work = on_delete_work
         self.on_create_parent_work = on_create_parent_work
 
-    def compose_main(self) -> ft.Row:
+    def _window_control_button(
+        self,
+        icon: ft.IconData | ft.Control | None,
+        on_click: Callable[..., object] | None,
+        color: str,
+    ) -> ft.IconButton:
+        return ft.IconButton(
+            icon=icon,
+            icon_color=color,
+            icon_size=16,
+            on_click=on_click,
+            style=ft.ButtonStyle(
+                shape=ft.CircleBorder(),
+                padding=4,
+            ),
+        )
+
+    def _compose_custom_title_bar(self) -> ft.WindowDragArea:
+        def minimize_window(_):
+            self.page.window.minimized = True
+            self.page.update()
+
+        def toggle_maximize_window(_):
+            self.page.window.maximized = not self.page.window.maximized
+            self.page.update()
+
+        async def close_window(_):
+            await self.page.window.close()
+
+        title_controls: list[ft.Control] = [
+            ft.Text(
+                value=self.config.texts["app"]["name"],
+                size=self.config.font_sizes["montserrat_medium"],
+                weight=self.config.font_weights["montserrat_semibold"],
+                color=self.config.colors["gold"],
+                font_family=self.config.font_families["montserrat"],
+            ),
+        ]
+        toolbar_controls: list[ft.Control] = [
+            self._window_control_button(
+                icon=ft.Icons.REMOVE,
+                on_click=minimize_window,
+                color=self.config.colors["text"],
+            ),
+            self._window_control_button(
+                icon=ft.Icons.CROP_SQUARE,
+                on_click=toggle_maximize_window,
+                color=self.config.colors["text"],
+            ),
+            self._window_control_button(
+                icon=ft.Icons.CLOSE,
+                on_click=close_window,
+                color=self.config.colors["text"],
+            ),
+        ]
+
+        row_content = ft.Row(
+            controls=title_controls + [
+                ft.Row(
+                    controls=toolbar_controls,
+                    spacing=4,
+                )
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        return ft.WindowDragArea(
+            content=ft.Container(
+                content=row_content,
+                bgcolor=self.config.colors["surface"],
+                padding=ft.Padding.only(
+                    left=16, right=12, top=8, bottom=8
+                ),
+                border=ft.Border.only(
+                    bottom=ft.BorderSide(1, self.config.colors["border"])
+                ),
+                height=52,
+            )
+        )
+
+    def compose_main(self) -> ft.Column:
         """Monta a barra lateral e o dashboard em uma linha principal."""
         self.content = (
             ft.AnimatedSwitcher(
@@ -57,18 +140,25 @@ class ApplicationComposer:
             )
         )
 
-        return ft.Row(
+        return ft.Column(
             controls=[
-                SidebarComposer(
-                    scale=self.scale,
-                    config=self.config,
-                    on_navigate=self.on_navigate
-                ).compose(),
-                self.content,
+                self._compose_custom_title_bar(),
+                ft.Row(
+                    controls=[
+                        SidebarComposer(
+                            scale=self.scale,
+                            config=self.config,
+                            on_navigate=self.on_navigate
+                        ).compose(),
+                        self.content,
+                    ],
+                    expand=True,
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
             ],
             expand=True,
             spacing=0,
-            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def show_view(self, destination: str, works=None):
@@ -118,8 +208,10 @@ class ApplicationComposer:
         ) = None,
         search_works: Callable[[str], list[tuple[int, str]]] | None = None,
         on_create_parent_work: Callable[
-            [Callable[[int, str], None]], None
+            [Callable[[int, str], None], str | None], None
         ] | None = None,
+        initial_work_type: str | None = None,
+        parent_mode: bool = False,
     ) -> ft.AlertDialog:
         return WorkInsertModalComposer(
             page=page,
@@ -128,6 +220,8 @@ class ApplicationComposer:
             search_authors=search_authors,
             search_works=search_works,
             on_create_parent_work=on_create_parent_work,
+            initial_work_type=initial_work_type,
+            parent_mode=parent_mode,
         ).compose()
 
     @staticmethod
