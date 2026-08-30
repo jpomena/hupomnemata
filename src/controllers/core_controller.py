@@ -16,8 +16,8 @@ from src.configs.settings import (
     UI,
 )
 from src.db.db import init_db
-from src.db.db import SessionLocal
 from src.domains import (
+    Author,
     AudiovisualDocument,
     AudioDocument,
     CaseLaw,
@@ -25,7 +25,7 @@ from src.domains import (
     CorrespondenceMonograph,
     EditorialMonograph,
     JournalArticle,
-    MiscellaneousDigitalDocument,
+    MiscDigitalDocument,
     MonographicProceedings,
     MusicalScore,
     NewspaperArticle,
@@ -39,12 +39,14 @@ from src.domains import (
     DatePrecision,
     WorkMixin,
 )
+from typing import cast
+
 from src.repositories import (
     AuthorReference,
     AuthorSearchResult,
     WorkCreationPayload,
-    WorkRepository,
 )
+from src.services import WorkService
 from src.strategies import CoreNormalizer
 from src.utils.ft_responsiveness import Responsive
 from src.views.application import ApplicationComposer
@@ -66,6 +68,7 @@ class CoreController:
         self._pending_on_created: Callable[[int, str], None] | None = None
         self._pending_on_deferred_close: Callable[[], None] | None = None
         self.normalizer = CoreNormalizer()
+        self.service = WorkService(self.normalizer)
         self.view_config = ViewConfig(
             colors=COLORS,
             page_fonts=PAGE_FONTS,
@@ -99,8 +102,7 @@ class CoreController:
         if destination == "work_insert":
             self.open_insert_work()
         if destination == "Acervo":
-            with SessionLocal() as session:
-                works = WorkRepository(session).list_works()
+            works = self.service.list_works()
             self.application.show_view("Acervo", works)
         if destination == "Fragmentos":
             self.application.show_view("Fragmentos")
@@ -119,6 +121,7 @@ class CoreController:
         )
         self.multiple_authors_modal: ft.AlertDialog | None = None
         self.application = ApplicationComposer(
+            page=self.page,
             scale=scale,
             config=self.view_config,
             on_navigate=self.navigate,
@@ -142,7 +145,9 @@ class CoreController:
         self.page.show_dialog(modal)
 
     def open_parent_work(
-        self, on_created: Callable[[int, str], None]
+        self,
+        on_created: Callable[[int, str], None],
+        work_type: str | None = None,
     ) -> None:
         """Abre um cadastro auxiliar e devolve a obra-pai recém-criada."""
         parent_modal: ft.AlertDialog | None = None
@@ -165,8 +170,16 @@ class CoreController:
             search_authors=self.search_authors,
             search_works=self.search_works,
             on_create_parent_work=self.open_parent_work,
+            initial_work_type=work_type,
+            parent_mode=True,
         )
+        content = cast(ft.Container, parent_modal.content)
+        content.opacity = 0.92
+        content.scale = 0.96
         self.page.show_dialog(parent_modal)
+        content.opacity = 1
+        content.scale = 1
+        parent_modal.update()
 
     async def copy_reference(self, reference: ViewReference) -> None:
         """Copia uma referencia formatada para a area de transferencia."""
@@ -179,8 +192,7 @@ class CoreController:
     def delete_work(self, resource) -> None:
         """Remove uma obra do acervo e atualiza a listagem."""
         try:
-            with SessionLocal() as session:
-                WorkRepository(session).remove_work(resource)
+            self.service.remove_work(resource)
         except Exception as error:
             self.show_message(
                 f'Não foi possível excluir a obra.\n\n{error}', COLORS['text']
@@ -196,18 +208,11 @@ class CoreController:
 
     def search_authors(self, query: str) -> list[AuthorSearchResult]:
         """Retorna autores existentes para a busca do modal."""
-        with SessionLocal() as session:
-            return WorkRepository(session).search_authors(query)
+        return self.service.search_authors(query)
 
     def search_works(self, query: str) -> list[tuple[int, str]]:
         """Retorna obras encontradas para seletores relacionados."""
-        with SessionLocal() as session:
-            resources = WorkRepository(session).search_works(query)
-        return [
-            (resource.id, resource.specific_work.title)
-            for resource in resources
-            if resource.specific_work is not None
-        ]
+        return self.service.search_works(query)
 
     def handle_work_submission(
         self,
@@ -248,33 +253,41 @@ class CoreController:
 
         created_work: tuple[int, str] | None = None
         try:
-            with SessionLocal() as session:
-                repository = WorkRepository(session, self.normalizer)
-                for index, author_reference in enumerate(
-                    self._pending_payload['author_names']
-                ):
-                    if (
-                        index in self._pending_author_ids
-                        or index in self._new_author_indexes
-                    ):
-                        continue
-                    if author_reference['id'] is not None:
-                        continue
-                    candidates = repository.find_possible_duplicate_authors(
-                        author_reference['name']
-                    )
-                    if candidates:
-                        self._show_multiple_authors_modal(index, candidates)
-                        return False
-
-                resource = repository.create(
-                    self._pending_payload,
-                    author_ids=self._pending_author_ids,
+            result = self.service.resolve_and_create(
+                self._pending_payload,
+                author_ids=self._pending_author_ids,
+                new_author_indexes=self._new_author_indexes,
+            )
+            if result.get('requires_choice') is True:
+                choice_result = cast(
+                    dict[str, object],
+                    result,
                 )
-                work = resource.specific_work
-                if work is None:
-                    raise ValueError('A obra cadastrada não possui detalhes.')
-                created_work = (resource.id, work.title)
+                choice_index = choice_result['index']
+                choice_candidates = choice_result['candidates']
+                if not isinstance(choice_index, int):
+                    choice_index = int(str(choice_index))
+                if not isinstance(choice_candidates, list):
+                    raise TypeError('Lista de autores duplicados inválida.')
+                authors_candidates = [
+                    candidate
+                    for candidate in choice_candidates
+                    if isinstance(candidate, Author)
+                ]
+                self._show_multiple_authors_modal(
+                    choice_index,
+                    authors_candidates,
+                )
+                return False
+
+            created_result = cast(dict[str, object], result)
+            resource_id = created_result['resource_id']
+            work_title = created_result['work_title']
+            if not isinstance(resource_id, int):
+                resource_id = int(str(resource_id))
+            if not isinstance(work_title, str):
+                work_title = str(work_title)
+            created_work = (resource_id, work_title)
         except (ValueError, TypeError) as error:
             self._clear_pending_submission()
             self.show_message(str(error), COLORS['text'])
@@ -299,7 +312,9 @@ class CoreController:
         self.show_message('Obra adicionada ao acervo.', COLORS['gold'])
         return True
 
-    def _show_multiple_authors_modal(self, index: int, candidates) -> None:
+    def _show_multiple_authors_modal(
+        self, index: int, candidates: list[Author]
+    ) -> None:
         self.multiple_authors_modal = (
             ApplicationComposer.compose_multiple_authors_modal(
                 authors=candidates,
@@ -331,28 +346,42 @@ class CoreController:
     def prepare_work_payload(
         self, form_data: dict[str, object]
     ) -> WorkCreationPayload:
-        model = self.work_model_for(str(form_data.get('work_type', '')))
+        model = self.service.work_model_for(
+            str(form_data.get('work_type', ''))
+        )
         authors = form_data.get('authors', [])
-        date_precision = self.parse_date_precision(
+        date_precision = self.service.parse_date_precision(
             str(form_data.get('date_precision') or 'Data exata')
         )
-        date_anchor = self.parse_date(
-            str(form_data.get('date_anchor', '')),
-            year_only=True,
+        form_data = dict(form_data)
+        raw_date_anchor = str(form_data.get('date_anchor', '')).strip()
+        work_type = str(form_data.get('work_type', ''))
+        if work_type == 'statute':
+            raw_promulgation = str(
+                form_data.get('promulgation_date', '')
+            ).strip()
+            if not raw_promulgation and raw_date_anchor:
+                form_data['promulgation_date'] = raw_date_anchor
+        elif work_type == 'caselaw':
+            raw_decision = str(form_data.get('decision_date', '')).strip()
+            if not raw_decision and raw_date_anchor:
+                form_data['decision_date'] = raw_date_anchor
+
+        complete_date = (
+            '/' in raw_date_anchor
+            or work_type in {
+                'journal_article', 'newspaper_article', 'statute', 'caselaw'
+            }
+        )
+        date_anchor = self.service.parse_date(
+            raw_date_anchor,
+            year_only=not complete_date,
             unknown=(
                 str(form_data.get('date_precision', ''))
                 == 'Data desconhecida'
             ),
         )
-        if str(form_data.get('work_type', '')) in {
-            'journal_article', 'newspaper_article'
-        }:
-            date_anchor = self.parse_date(
-                str(form_data.get('date_anchor', '')),
-                year_only=False,
-            )
-
-        converted = self.convert_model_values(form_data)
+        converted = self.service.convert_model_values(form_data)
         if 'title' in converted:
             converted['title'] = self.normalizer.title_normalizer(
                 str(converted['title'])
@@ -362,25 +391,28 @@ class CoreController:
         converted['display_year'] = self.normalizer.display_year_normalizer(
             date_precision, date_anchor
         )
-        resource_keys = {
-            'is_partial',
-            'parent_work_id',
+        partial_keys = {
             'part_volume', 'part_chapter', 'part_start_page', 'part_end_page',
             'consult_start_year', 'consult_end_year',
+            'is_partial', 'parent_bibliographic_resource_id',
         }
-        resource_data = {
-            key: converted[key]
-            for key in resource_keys
-            if key in converted
-        }
+        resource_data = {}
         work_data = {
             key: value for key, value in converted.items()
-            if key not in resource_keys
+            if key not in partial_keys
         }
+        work_data.update({
+            key: converted[key]
+            for key in partial_keys
+            if key in converted
+        })
         return {
             'work_model': model,
             'relationship_name': model.__tablename__.removesuffix('s'),
-            'author_names': self._author_references(authors),
+            'author_names': cast(
+                list[AuthorReference],
+                self.service.author_references(authors),
+            ),
             'resource_data': resource_data,
             'work_data': work_data,
         }
@@ -406,6 +438,16 @@ class CoreController:
                                 str(item['acronym']).strip().upper()
                                 if item.get('acronym') else None
                             ),
+                            'jurisdiction_id': (
+                                int(item['jurisdiction_id'])
+                                if item.get('jurisdiction_id') is not None
+                                else None
+                            ),
+                            'jurisdiction_name': (
+                                str(item['jurisdiction_name']).strip()
+                                if item.get('jurisdiction_name')
+                                else None
+                            ),
                         })
                 elif str(item).strip():
                     references.append({
@@ -413,6 +455,8 @@ class CoreController:
                         'id': None,
                         'corporation': False,
                         'acronym': None,
+                        'jurisdiction_id': None,
+                        'jurisdiction_name': None,
                     })
             return references
 
@@ -422,6 +466,8 @@ class CoreController:
                 'id': None,
                 'corporation': False,
                 'acronym': None,
+                'jurisdiction_id': None,
+                'jurisdiction_name': None,
             }
             for name in str(value).replace(',', ';').split(';')
             if name.strip()
@@ -441,7 +487,7 @@ class CoreController:
             'patent': Patent,
             'statute': Statute,
             'caselaw': CaseLaw,
-            'miscellaneous_digital_document': MiscellaneousDigitalDocument,
+            'miscellaneous_digital_document': MiscDigitalDocument,
             'audiovisual_document': AudiovisualDocument,
             'audio_document': AudioDocument,
             'musical_score': MusicalScore,
@@ -518,13 +564,12 @@ class CoreController:
             else:
                 result[key] = value
         if form_data.get('work_type') in {
-            'editorial_monograph',
             'audiovisual_document',
             'audio_document',
         }:
-            result.setdefault('responsabilities', {})
+            result.setdefault('responsibilities', {})
         if form_data.get('work_type') == 'audio_document':
-            result.setdefault('part_responsabilities', {})
+            result.setdefault('part_responsibilities', {})
         return result
 
     def close_insert_work(self) -> None:

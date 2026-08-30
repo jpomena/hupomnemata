@@ -75,11 +75,14 @@ class MultipleAuthors:
                 align=ft.Alignment.CENTER
             ),
             bgcolor=config.colors['bg'],
-            content=ft.Column(
-                controls=content_controls,
-                tight=True,
-                height=300,
-                width=300*1.618
+            content=ft.Container(
+                content=ft.Column(
+                    controls=content_controls,
+                    tight=True,
+                    height=300,
+                    width=300*1.618
+                ),
+                animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
             ),
             actions=[
                 ft.TextButton(

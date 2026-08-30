@@ -67,7 +67,7 @@ class PeriodicalFormatter:
 
         parts.append(
             ReferencePart(
-                content=Utils.format_authors(
+                content=Utils.fmt_authors(
                     bibliographic_resource.authors
                 )
             )
@@ -165,10 +165,12 @@ class PeriodicalFormatter:
             )
         parts.append(ReferencePart(content='.'))
 
-        br = collection.bibliographic_resource
-        if br.is_partial:
+        if collection.is_partial:
             parts.append(ReferencePart(
-                content=f' {br.consult_start_year}–{br.consult_end_year}.'
+                content=(
+                    f' {collection.consult_start_year}'
+                    f'–{collection.consult_end_year}.'
+                )
             ))
 
         if collection.issn:
@@ -202,10 +204,12 @@ class PeriodicalFormatter:
                 content=f' n. {article.number},'
             ))
 
-        br = article.bibliographic_resource
-        if br.is_partial:
+        if article.is_partial:
             parts.append(ReferencePart(
-                content=f' p. {br.part_start_page}–{br.part_end_page},'
+                content=(
+                    f' p. {article.part_start_page}'
+                    f'–{article.part_end_page},'
+                )
             ))
 
         date = Utils.format_abbrev_date(article.date_anchor)

@@ -14,7 +14,7 @@
     "bg": "#E7E7E7",
     "surface": "#FFFFFF",
     "border": "#C4C4C7",
-    "gold": "#cba135",
+    "gold": "#896200",
     "muted": "#86868f",
     "text": "#1D1D21",
     "black": "#101010",
@@ -48,7 +48,7 @@
         "micro": 11
       },
       "weights": {
-        "normal": "W_400",
+        "normal": "W_500",
         "semibold": "W_600",
         "bold": "W_700"
       }

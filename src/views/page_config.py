@@ -34,3 +34,9 @@ class PageConfigurator:
         page.window.width = 1350
         page.window.height = 870
         page.window.resizable = True
+        page.window.frameless = True
+        page.window.title_bar_hidden = True
+        page.window.title_bar_buttons_hidden = True
+        page.window.maximizable = True
+        page.window.minimizable = True
+        page.window.prevent_close = False

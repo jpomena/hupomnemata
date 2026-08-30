@@ -31,14 +31,13 @@ class ControlsUtils:
             weight=config.font_weights["cormorant_semibold"],
         )
         row_content = ft.Row(
-            controls=[
-                ft.Row(
-                    controls=[icon, label],
-                    spacing=config.ui["control_gap"],
-                ),
-            ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
+        nested_row = ft.Row(
+            spacing=config.ui["control_gap"],
+        )
+        nested_row.controls = [icon, label]
+        row_content.controls = [nested_row]
         btn_container = ft.Container(
             content=row_content,
             padding=config.ui["card_padding"],
@@ -109,21 +108,20 @@ class ControlsUtils:
             weight=config.font_weights["montserrat_semibold"],
         )
         card_content = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[icon],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    expand=True,
-                ),
-                ft.Column(
-                    controls=[label, description],
-                    spacing=config.ui["modal_gap"] - 6,
-                ),
-            ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            spacing=config.ui["modal_gap"],
             expand=True,
         )
+        top_row = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            expand=True,
+        )
+        top_row.controls = [icon]
+        text_column = ft.Column(
+            spacing=config.ui["modal_gap"] - 6,
+        )
+        text_column.controls = [label, description]
+        card_content.controls = [top_row, text_column]
+        card_content.spacing = config.ui["modal_gap"]
         btn_container = ft.Container(
             content=card_content,
             padding=config.ui["card_padding"],

@@ -1,6 +1,6 @@
 from datetime import date
 
-from .core_domain import WorkMixin
+from .core_domain import WorkMixin, PartialWorkMixin
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 anais, proceedings, entre outros).'''
 
 
-class MonographicProceedings(WorkMixin):
+class MonographicProceedings(PartialWorkMixin, WorkMixin):
     __tablename__ = 'monographic_proceedings'
 
     title: Mapped[str] = mapped_column(
@@ -30,7 +30,7 @@ class MonographicProceedings(WorkMixin):
     published: Mapped[bool] = mapped_column(nullable=False, default=True)
 
 
-class PeriodicalProceedings(WorkMixin):
+class PeriodicalProceedings(PartialWorkMixin, WorkMixin):
     __tablename__ = 'periodical_proceedings'
 
     title: Mapped[str] = mapped_column(

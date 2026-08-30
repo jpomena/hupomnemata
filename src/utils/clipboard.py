@@ -1,11 +1,15 @@
-"""Operacoes de clipboard que preservam a formatacao das referencias."""
+"""Operacoes de clipboard para referencias bibliograficas."""
 
-import ctypes
 import html
 import os
-from ctypes import wintypes
+import shutil
+import subprocess
 
 from src.utils.types import TextStyle, ViewReference
+
+if os.name == "nt":
+    import ctypes
+    from ctypes import wintypes
 
 
 def reference_text(reference: ViewReference) -> str:
@@ -27,10 +31,49 @@ def reference_html(reference: ViewReference) -> str:
     return "".join(spans)
 
 
-def copy_reference(reference: ViewReference) -> bool:
-    """Copia HTML e texto no clipboard nativo do Windows."""
-    if os.name != "nt":
+def _copy_plain_text_to_system_clipboard(text: str) -> bool:
+    """Copia texto puro usando ferramentas nativas do sistema operacional."""
+    if os.name == "nt":
+        command = [
+            "powershell",
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+        ]
+    elif os.name == "posix":
+        if shutil.which("wl-copy"):
+            command = ["wl-copy"]
+        elif shutil.which("xclip"):
+            command = ["xclip", "-selection", "clipboard"]
+        elif shutil.which("xsel"):
+            command = ["xsel", "--clipboard", "--input"]
+        elif shutil.which("pbcopy"):
+            command = ["pbcopy"]
+        else:
+            return False
+    else:
         return False
+
+    try:
+        result = subprocess.run(
+            command,
+            input=text,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def copy_reference(reference: ViewReference) -> bool:
+    """Copia HTML em Windows e texto puro em plataformas Unix-like."""
+    plain_text = reference_text(reference)
+
+    if os.name != "nt":
+        return _copy_plain_text_to_system_clipboard(plain_text)
 
     fragment = reference_html(reference)
     html_document = (
@@ -83,7 +126,7 @@ def copy_reference(reference: ViewReference) -> bool:
             kernel32,
             user32,
             13,
-            (reference_text(reference) + "\0").encode("utf-16-le"),
+            (plain_text + "\0").encode("utf-16-le"),
         )
     finally:
         user32.CloseClipboard()

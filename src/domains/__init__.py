@@ -1,7 +1,7 @@
 from .core_domain import (
     DatePrecision, BibliographicResource, WorkMixin, Author, Authorship
 )
-from .digital import MiscellaneousDigitalDocument
+from .digital import MiscDigitalDocument
 from .monographs import (
     EditorialMonograph, AcademicMonograph, CorrespondenceMonograph
 )
@@ -34,5 +34,5 @@ __all__ = [
     'ThreeDimensionalDocument',
     'CartographicDocument',
     'MusicalScore',
-    'MiscellaneousDigitalDocument',
+    'MiscDigitalDocument',
 ]

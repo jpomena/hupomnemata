@@ -1,8 +1,8 @@
 from collections.abc import Iterable
 from typing import TypedDict
 
-from sqlalchemy import inspect, or_, select, delete
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, select, delete
+from sqlalchemy.orm import Session, selectinload
 
 from src.domains import Author, Authorship, BibliographicResource, WorkMixin
 from src.strategies import CoreNormalizer
@@ -13,6 +13,8 @@ class AuthorReference(TypedDict):
     id: int | None
     corporation: bool
     acronym: str | None
+    jurisdiction_id: int | None
+    jurisdiction_name: str | None
 
 
 class AuthorSearchResult(TypedDict):
@@ -55,6 +57,11 @@ class WorkRepository:
         resource = BibliographicResource(**resource_data)
         work = work_model(**work_data)
         setattr(resource, relationship_name, work)
+        if resource.specific_work is None:
+            raise ValueError(
+                'Uma BibliographicResource precisa ter um specific_work '
+                'associado antes de ser persistida.'
+            )
         self.session.add(resource)
 
         attached_author_ids: set[int] = set()
@@ -99,12 +106,30 @@ class WorkRepository:
                 'given_names_initials': parsed.given_names_initials,
                 'last_name_initial': parsed.last_name_initial,
             }
+
+        jurisdiction = None
+        jurisdiction_name = (reference.get('jurisdiction_name') or '').strip()
+        if jurisdiction_name:
+            jurisdiction = self._find_or_create_author({
+                'name': jurisdiction_name,
+                'id': reference.get('jurisdiction_id'),
+                'corporation': True,
+                'acronym': None,
+                'jurisdiction_id': None,
+                'jurisdiction_name': None,
+            })
+
         statement = select(Author).where(
             Author.given_names == elements['given_names'],
             Author.last_name == elements['last_name'],
         )
         author = self.session.scalars(statement).first()
         if author is not None:
+            if (
+                jurisdiction is not None
+                and author.jurisdiction_id != jurisdiction.id
+            ):
+                author.jurisdiction = jurisdiction
             return author
 
         author = Author(
@@ -114,6 +139,7 @@ class WorkRepository:
             last_name_initial=elements['last_name_initial'],
             corporation=reference['corporation'],
             acronym=reference['acronym'],
+            jurisdiction=jurisdiction,
         )
         self.session.add(author)
         self.session.flush()
@@ -157,7 +183,11 @@ class WorkRepository:
         return [
             {
                 'id': author.id,
-                'name': f"{author.given_names} {author.last_name}",
+                'name': (
+                    author.given_names
+                    if author.corporation
+                    else f"{author.given_names} {author.last_name}"
+                ),
                 'corporation': author.corporation,
                 'acronym': author.acronym,
             }
@@ -166,21 +196,50 @@ class WorkRepository:
 
     def list_works(self) -> list[BibliographicResource]:
         """Lista todas as obras cadastradas, da mais recente à mais antiga."""
-        statement = select(BibliographicResource).order_by(
-            BibliographicResource.id.desc()
+        statement = (
+            select(BibliographicResource)
+            .options(
+                selectinload(BibliographicResource.authorships)
+                .selectinload(Authorship.author)
+                .selectinload(Author.jurisdiction),
+                selectinload(BibliographicResource.editorial_monograph),
+                selectinload(BibliographicResource.academic_monograph),
+                selectinload(BibliographicResource.correspondence_monograph),
+                selectinload(BibliographicResource.periodical_collection),
+                selectinload(BibliographicResource.journal_article),
+                selectinload(BibliographicResource.newspaper_article),
+                selectinload(BibliographicResource.monographic_proceeding),
+                selectinload(BibliographicResource.periodical_proceeding),
+                selectinload(BibliographicResource.patent),
+                selectinload(BibliographicResource.statute),
+                selectinload(BibliographicResource.caselaw),
+                selectinload(BibliographicResource.audiovisual_document),
+                selectinload(BibliographicResource.audio_document),
+                selectinload(BibliographicResource.visual_document),
+                selectinload(BibliographicResource.three_dimensional_document),
+                selectinload(BibliographicResource.cartographic_document),
+                selectinload(BibliographicResource.musical_score),
+                selectinload(
+                    BibliographicResource.miscellaneous_digital_document
+                ),
+            )
+            .order_by(BibliographicResource.id.desc())
         )
         works = list(self.session.scalars(statement))
-        relationships = inspect(BibliographicResource).relationships
         for resource in works:
-            for relationship in relationships:
-                related = getattr(resource, relationship.key)
-                if relationship.key == "authorships":
-                    for authorship in related:
-                        authorship.author
-                elif related is not None and hasattr(
-                    related, "bibliographic_resource"
-                ):
-                    related.bibliographic_resource
+            for authorship in resource.authorships:
+                author = authorship.author
+                if author.jurisdiction_id is not None:
+                    _ = author.jurisdiction
+            work = resource.specific_work
+            if work is None:
+                continue
+            _ = work.bibliographic_resource
+            _ = work.authors
+            if getattr(work, 'is_partial', False):
+                parent = getattr(work, 'parent_bibliographic_resource', None)
+                if parent is not None:
+                    parent.id
         return works
 
     def search_works(
