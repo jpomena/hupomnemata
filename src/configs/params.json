@@ -1,5 +1,5 @@
 {
-  "COLORS": {
+  "COLORS_ALT": {
     "bg": "#0c0c0e",
     "surface": "#141417",
     "border": "#232328",
@@ -10,7 +10,7 @@
     "card_hover": "#1a1a1f"
   },
 
-  "COLORS_ALT": {
+  "COLORS": {
     "bg": "#E7E7E7",
     "surface": "#FFFFFF",
     "border": "#C4C4C7",

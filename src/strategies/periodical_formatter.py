@@ -1,6 +1,7 @@
 from src.utils import ABNTUtils as Utils
 from typing import List, TYPE_CHECKING
 from src.domains import (
+    Magazine,
     PeriodicalCollection,
     JournalArticle,
     NewspaperArticle
@@ -76,7 +77,8 @@ class PeriodicalFormatter:
         for content, style in Utils.format_title_and_subtitle(
             title=work.title,
             subtitle=work.subtitle if work.subtitle else None,
-            title_style=TextStyle.NORMAL
+            title_style=TextStyle.NORMAL,
+            without_author=not bibliographic_resource.authors,
         ):
             parts.append(ReferencePart(content=content, style=style))
 
@@ -85,13 +87,39 @@ class PeriodicalFormatter:
         if not work:
             return
 
-        subtitle = work.journal_subtitle if work.journal_subtitle else None
+        if isinstance(work, Magazine):
+            title = work.title
+            subtitle = work.subtitle
+        elif isinstance(work, (JournalArticle, PeriodicalCollection)):
+            magazine = PeriodicalFormatter._magazine_for(work)
+            title = magazine.title
+            subtitle = work.journal_subtitle
+        else:
+            title = work.journal_title
+            subtitle = work.journal_subtitle
+
         for content, style in Utils.format_title_and_subtitle(
-            title=work.journal_title,
-            subtitle=subtitle,
-            title_style=TextStyle.BOLD
+            title=title,
+            subtitle=subtitle if subtitle else None,
+            title_style=TextStyle.BOLD,
+            without_author=(
+                isinstance(work, (Magazine, PeriodicalCollection))
+                and not work.authors
+            ),
         ):
             parts.append(ReferencePart(content=content, style=style))
+
+    @staticmethod
+    def _magazine_for(work) -> Magazine:
+        parent = getattr(work, 'parent_bibliographic_resource', None)
+        magazine = (
+            parent.specific_work if parent is not None else None
+        )
+        if not isinstance(magazine, Magazine):
+            raise ValueError(
+                'Artigo ou coleção periódica sem uma revista vinculada.'
+            )
+        return magazine
 
     @staticmethod
     def _append_specific_details(work, parts):
@@ -103,6 +131,10 @@ class PeriodicalFormatter:
                 parts[-1].content = '.'
                 parts.extend(
                     PeriodicalFormatter._format_collection_details(work)
+                )
+            case Magazine():
+                parts.extend(
+                    PeriodicalFormatter._format_magazine_details(work)
                 )
             case JournalArticle():
                 parts.extend(
@@ -147,11 +179,12 @@ class PeriodicalFormatter:
     ) -> List[ReferencePart]:
         '''Trata particularidades de publicação de uma Coleção.'''
         parts = []
+        magazine = PeriodicalFormatter._magazine_for(collection)
 
         parts.append(
             ReferencePart(
                 content=(
-                    f' {collection.publication_place}:'
+                    f' {magazine.publication_place}:'
                     f' {collection.publisher},'
                     f' {collection.first_volume_year}'
                 )
@@ -165,7 +198,11 @@ class PeriodicalFormatter:
             )
         parts.append(ReferencePart(content='.'))
 
-        if collection.is_partial:
+        if (
+            collection.is_partial
+            and collection.consult_start_year is not None
+            and collection.consult_end_year is not None
+        ):
             parts.append(ReferencePart(
                 content=(
                     f' {collection.consult_start_year}'
@@ -181,12 +218,23 @@ class PeriodicalFormatter:
         return parts
 
     @staticmethod
+    def _format_magazine_details(
+        magazine: Magazine,
+    ) -> List[ReferencePart]:
+        return [
+            ReferencePart(
+                content=f' {magazine.publication_place}.'
+            )
+        ]
+
+    @staticmethod
     def _format_journal_article_details(
         article: JournalArticle
     ) -> List[ReferencePart]:
         parts = []
+        magazine = PeriodicalFormatter._magazine_for(article)
         parts.append(
-            ReferencePart(content=f' {article.publication_place},')
+            ReferencePart(content=f' {magazine.publication_place},')
         )
 
         if article.year_season:
@@ -204,7 +252,7 @@ class PeriodicalFormatter:
                 content=f' n. {article.number},'
             ))
 
-        if article.is_partial:
+        if article.part_start_page and article.part_end_page:
             parts.append(ReferencePart(
                 content=(
                     f' p. {article.part_start_page}'
@@ -212,7 +260,7 @@ class PeriodicalFormatter:
                 )
             ))
 
-        date = Utils.format_abbrev_date(article.date_anchor)
+        date = Utils.format_abbrev_month_year(article.date_anchor)
         parts.append(ReferencePart(
             content=f' {date}.'
         ))

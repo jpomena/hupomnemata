@@ -6,7 +6,13 @@ from typing import Any
 import flet as ft
 from sqlalchemy import inspect
 
-from src.domains import BibliographicResource
+from src.domains import (
+    BibliographicResource,
+    JournalArticle,
+    Magazine,
+    PeriodicalCollection,
+)
+from src.utils import ABNTUtils
 from src.utils.types import ViewConfig, WORK_TYPE_LABELS
 
 
@@ -80,9 +86,9 @@ class WorkDetailsPopup:
         "defense_year": "Ano de defesa",
         "carrier_type": "Tipo de suporte",
         "seconds": "Duração em segundos",
+        "physical_details": "Detalhes físicos",
         "sound": "Possui som",
         "colorized": "Colorizado",
-        "is_part": "É parte de uma obra sonora",
         "part_identifier": "Identificador da parte",
         "recipient": "Destinatário",
         "applicant": "Requerente",
@@ -91,8 +97,9 @@ class WorkDetailsPopup:
         "grant_date": "Data de concessão",
         "instrumentation": "Instrumentação",
         "responsiblity_type": "Tipo de responsabilidade",
-        "manufacturing_place": "Local de fabricação",
-        "manufacturer": "Fabricante",
+        "manufacturing_place": "Local",
+        "manufacturer": "Produtor ou fabricante",
+        "physical_description": "Descrição física",
     }
 
     def __init__(
@@ -123,8 +130,22 @@ class WorkDetailsPopup:
             self._detail_row("Autores", self._authors_value()),
         ]
         if type(work).__name__ in {"JournalArticle", "NewspaperArticle"}:
+            publication_date = work.date_anchor
+            if isinstance(work, JournalArticle):
+                publication_date = ABNTUtils.format_abbrev_month_year(
+                    publication_date
+                )
             overview_controls.append(
-                self._detail_row("Data de publicação", work.date_anchor)
+                self._detail_row("Data de publicação", publication_date)
+            )
+        if isinstance(work, (JournalArticle, PeriodicalCollection)):
+            parent = work.parent_bibliographic_resource
+            magazine = parent.specific_work if parent is not None else None
+            magazine_name = (
+                magazine.title if magazine is not None else "Não informado"
+            )
+            overview_controls.append(
+                self._detail_row("Revista", magazine_name)
             )
         detail_controls.append(self._section_title("Visão geral"))
         detail_controls.append(
@@ -211,6 +232,18 @@ class WorkDetailsPopup:
             return fields
         for column in inspection.mapper.column_attrs:
             if column.key in self.HIDDEN_FIELDS:
+                continue
+            if isinstance(model, Magazine) and column.key == "display_year":
+                continue
+            if (
+                isinstance(model, (JournalArticle, PeriodicalCollection))
+                and column.key in {
+                    "journal_title",
+                    "publication_place",
+                }
+            ):
+                continue
+            if isinstance(model, JournalArticle) and column.key == "publisher":
                 continue
             if allowed_fields is not None and column.key not in allowed_fields:
                 continue
@@ -325,8 +358,10 @@ class WorkDetailsPopup:
             "translation_notes",
         }
 
-    @staticmethod
-    def _label(name: str) -> str:
+    def _label(self, name: str) -> str:
+        work = self.resource.specific_work
+        if isinstance(work, Magazine) and name == "title":
+            return "Nome da revista"
         return WorkDetailsPopup.LABELS.get(
             name, name.replace("_", " ").capitalize()
         )

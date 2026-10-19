@@ -1,13 +1,8 @@
 import flet as ft
 
-from src.domains import BibliographicResource, CaseLaw, Statute, WorkMixin
-from src.strategies import (
-    LegalDocsFormatter,
-    MonographFormatter,
-    PeriodicalFormatter,
-    ProceedingsFormatter,
-)
+from src.domains import BibliographicResource, WorkMixin
 from src.utils.types import (
+    ReferencePart,
     TextStyle,
     ViewConfig,
     ViewReference,
@@ -24,6 +19,10 @@ class WorksComposer:
             works: list[BibliographicResource],
             on_navigate,
             on_work_click: Callable[[BibliographicResource], None],
+            on_edit_work: Callable[[BibliographicResource], None],
+            format_reference: Callable[
+                [BibliographicResource], ViewReference | None
+            ],
             on_copy_reference: Callable[[ViewReference], Awaitable[None]],
             on_delete_work: Callable[[BibliographicResource], None],
     ) -> None:
@@ -32,6 +31,8 @@ class WorksComposer:
         self.works = [work for work in (works or []) if work is not None]
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
+        self.on_edit_work = on_edit_work
+        self.format_reference = format_reference
         self.on_copy_reference = on_copy_reference
         self.on_delete_work = on_delete_work
         self.board: ft.Column | None = None
@@ -203,10 +204,29 @@ class WorksComposer:
             f"{author.given_names} {author.last_name}"
             for author in resource.authors
         )
-        reference = self._format_reference(resource)
+        reference = self.format_reference(resource)
 
-        async def copy_reference(event, value=reference):
-            await self.on_copy_reference(value)
+        async def copy_reference(event):
+            if reference is not None:
+                await self.on_copy_reference(reference)
+
+        display_reference = reference or ViewReference(parts=[
+            ReferencePart(
+                'Referência ainda não disponível para este tipo documental.'
+            )
+        ])
+        copy_button = ft.IconButton(
+            icon=ft.Icons.COPY,
+            tooltip=(
+                'Copiar referência'
+                if reference is not None
+                else 'Referência indisponível para cópia'
+            ),
+            on_click=copy_reference if reference is not None else None,
+            disabled=reference is None,
+            icon_size=20,
+            icon_color=self.config.colors['text'],
+        )
 
         title_text = ft.Text(
             value=work.title,
@@ -249,7 +269,7 @@ class WorksComposer:
                                 color=self.config.colors["muted"],
                             ),
                             ft.Text(
-                                spans=self._reference_spans(reference),
+                                spans=self._reference_spans(display_reference),
                                 size=self.config.font_sizes[
                                     "montserrat_tiny"
                                 ],
@@ -271,12 +291,15 @@ class WorksComposer:
                     ft.Column(
                         controls=[
                             ft.IconButton(
-                                icon=ft.Icons.COPY,
-                                tooltip="Copiar referência",
-                                on_click=copy_reference,
+                                icon=ft.Icons.EDIT_OUTLINED,
+                                tooltip="Editar obra",
+                                on_click=lambda e, resource=resource: (
+                                    self.on_edit_work(resource)
+                                ),
                                 icon_size=20,
-                                icon_color=self.config.colors['text']
+                                icon_color=self.config.colors['text'],
                             ),
+                            copy_button,
                             ft.IconButton(
                                 icon=ft.Icons.DELETE_OUTLINE,
                                 icon_color=ft.Colors.RED_400,
@@ -345,10 +368,12 @@ class WorksComposer:
             work = self._get_specific_work(resource)
             if work is None or not getattr(work, 'is_partial', False):
                 continue
-            parent = getattr(work, 'parent_bibliographic_resource', None)
-            if parent is None or parent.id not in resource_map:
+            parent_id = getattr(
+                work, 'parent_bibliographic_resource_id', None
+            )
+            if parent_id not in resource_map:
                 continue
-            children_map.setdefault(parent.id, []).append(resource)
+            children_map.setdefault(parent_id, []).append(resource)
 
         def render_resource(
             resource: BibliographicResource,
@@ -387,14 +412,14 @@ class WorksComposer:
                 roots.append(resource)
                 continue
 
-            parent = getattr(
+            parent_id = getattr(
                 specific_work,
-                'parent_bibliographic_resource',
+                'parent_bibliographic_resource_id',
                 None,
             )
             if (
-                parent is not None
-                and getattr(parent, 'id', None) in resource_map
+                parent_id is not None
+                and parent_id in resource_map
             ):
                 continue
             roots.append(resource)
@@ -445,44 +470,6 @@ class WorksComposer:
             )
             for part in reference.parts
         ]
-
-    def _format_reference(
-        self, resource: BibliographicResource
-    ) -> ViewReference:
-        specific_work = self._get_specific_work(resource)
-        if specific_work is None:
-            return ViewReference(parts=[])
-
-        work_name = type(specific_work).__name__
-        monograph_types = {
-            "EditorialMonograph",
-            "AcademicMonograph",
-            "CorrespondenceMonograph",
-        }
-        periodical_types = {
-            "PeriodicalCollection",
-            "JournalArticle",
-            "NewspaperArticle",
-        }
-        proceedings_types = {
-            "MonographicProceedings",
-            "PeriodicalProceedings",
-        }
-        legal_docs_types = {
-            "Statute",
-            "CaseLaw",
-        }
-        if work_name in monograph_types:
-            return MonographFormatter.formatter(resource)
-        if work_name in periodical_types:
-            return PeriodicalFormatter.formatter(resource)
-        if work_name in proceedings_types:
-            return ProceedingsFormatter.formatter(resource)
-        if work_name in legal_docs_types:
-            specific_work = resource.specific_work
-            if isinstance(specific_work, (Statute, CaseLaw)):
-                return LegalDocsFormatter.formatter(specific_work)
-        return ViewReference(parts=[])
 
     def compose(self) -> ft.Container:
         """Monta a area de conteudo que ocupa o lado principal."""

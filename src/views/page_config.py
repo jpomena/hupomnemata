@@ -16,6 +16,7 @@ class PageConfigurator:
     def configure_page(self, page: ft.Page) -> None:
         """Aplica fontes, tema, titulo e dimensoes da janela."""
         page.fonts = self.config.page_fonts
+        page.window.icon = "assets/images/icon.ico"
         page.theme = ft.Theme(
             font_family=self.config.font_families["cormorant"],
             tooltip_theme=ft.TooltipTheme(
@@ -31,8 +32,8 @@ class PageConfigurator:
             f"{self.config.texts['app']['version']}"
         )
         page.padding = 0
-        page.window.width = 1350
-        page.window.height = 870
+        page.window.width = 1400
+        page.window.height = 900
         page.window.resizable = True
         page.window.frameless = True
         page.window.title_bar_hidden = True

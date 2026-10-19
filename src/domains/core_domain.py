@@ -20,8 +20,8 @@ from sqlalchemy.orm import (
     declared_attr,
     object_mapper
 )
-from sqlalchemy.orm.attributes import NO_VALUE
 from sqlalchemy.ext.associationproxy import association_proxy
+from src.utils.error_log import log_exception
 
 
 if TYPE_CHECKING:
@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     )
     from .periodicals import (
         PeriodicalCollection,
+        Magazine,
         JournalArticle,
         NewspaperArticle
     )
@@ -101,6 +102,11 @@ class BibliographicResource(Base):
             back_populates='bibliographic_resource',
             foreign_keys='[PeriodicalCollection.bib_res_id]',
         )
+    )
+    magazine: Mapped['Magazine'] = relationship(
+        'Magazine',
+        back_populates='bibliographic_resource',
+        foreign_keys='[Magazine.bib_res_id]',
     )
     journal_article: Mapped['JournalArticle'] = relationship(
         'JournalArticle',
@@ -197,7 +203,7 @@ class BibliographicResource(Base):
             'parent_work', 'authorships', 'authors', 'citations'
         }
         mapper = object_mapper(self)
-        matches: list[object] = []
+        matches: list[WorkMixin] = []
         state = inspect(self)
 
         for rel in mapper.relationships:
@@ -207,16 +213,20 @@ class BibliographicResource(Base):
             attr_state = state.attrs.get(rel.key)
             if attr_state is not None:
                 value = attr_state.loaded_value
-                if value is not NO_VALUE and value is not None:
+                if isinstance(value, WorkMixin):
                     matches.append(value)
                     continue
 
             if state.session is not None:
                 try:
                     value = getattr(self, rel.key, None)
-                except (RuntimeError, AttributeError):
+                except (RuntimeError, AttributeError) as error:
+                    log_exception(
+                        f"Falha ao carregar relacionamento {rel.key}",
+                        error,
+                    )
                     value = None
-                if value is not None:
+                if isinstance(value, WorkMixin):
                     matches.append(value)
 
         if not matches:
@@ -288,7 +298,7 @@ class WorkMixin(Base):
     date_anchor: Mapped[date] = mapped_column(nullable=True)
 
     display_year: Mapped[str] = mapped_column(
-        String(10), nullable=False, default='[s.d.]'
+        String(30), nullable=False, default='[s.d.]'
     )
     date_precision: Mapped[DatePrecision] = mapped_column(
         Enum(DatePrecision),

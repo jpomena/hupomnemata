@@ -8,6 +8,11 @@ if TYPE_CHECKING:
 
 
 class ABNTUtils:
+    TITLE_PARTICLES = {
+        'a', 'as', 'da', 'das', 'de', 'do', 'dos',
+        'o', 'os', 'um', 'uma', 'umas', 'uns',
+    }
+
     @staticmethod
     def fmt_authors(authors: Iterable['Author']) -> str:
         '''
@@ -38,6 +43,15 @@ class ABNTUtils:
         return '; '.join(authors_strs)
 
     @staticmethod
+    def format_title_without_author(title: str) -> str:
+        words = title.strip().split()
+        for index, word in enumerate(words):
+            words[index] = word.upper()
+            if word.casefold() not in ABNTUtils.TITLE_PARTICLES:
+                break
+        return ' '.join(words)
+
+    @staticmethod
     def format_part_header(
         partial_bibliographic_resource: BibliographicResource
     ) -> List[Tuple[str, TextStyle]]:
@@ -52,14 +66,17 @@ class ABNTUtils:
             )
 
         parts = []
+        author_text = ABNTUtils.fmt_authors(
+            partial_bibliographic_resource.authors
+        )
+        parts.append((author_text, TextStyle.NORMAL))
+        title = (
+            work.title
+            if author_text
+            else ABNTUtils.format_title_without_author(work.title)
+        )
         parts.append((
-                ABNTUtils.fmt_authors(
-                    partial_bibliographic_resource.authors
-                ),
-                TextStyle.NORMAL
-        ))
-        parts.append((
-            f' {work.title}',
+            f' {title}',
             TextStyle.NORMAL
         ))
         if work.subtitle:
@@ -73,7 +90,8 @@ class ABNTUtils:
     def format_title_and_subtitle(
         title: str,
         subtitle: str | None = None,
-        title_style: TextStyle = TextStyle.NORMAL
+        title_style: TextStyle = TextStyle.NORMAL,
+        without_author: bool = False,
     ) -> List[Tuple[str, TextStyle]]:
         '''
         Formata título e subtítulo. O estilo do título pode variar
@@ -82,7 +100,12 @@ class ABNTUtils:
         '''
         title_text = title.strip().lower()
         if title_text:
-            title_text = title_text.capitalize()
+            if without_author:
+                title_text = ABNTUtils.format_title_without_author(
+                    title_text
+                )
+            else:
+                title_text = title_text.capitalize()
         subtitle_text = subtitle.strip() if subtitle else ''
 
         parts = []
@@ -112,6 +135,20 @@ class ABNTUtils:
         year = date.strftime('%Y')
 
         return f'{day} {month} {year}'
+
+    @staticmethod
+    def format_abbrev_month_year(
+        date: date | datetime | None
+    ) -> str:
+        if date is None:
+            return '[s.d.]'
+
+        months = {
+            1: 'jan.', 2: 'fev.', 3: 'mar.', 4: 'abr.',
+            5: 'maio', 6: 'jun.', 7: 'jul.', 8: 'ago.',
+            9: 'set.', 10: 'out.', 11: 'nov.', 12: 'dez.',
+        }
+        return f'{months[date.month]} {date:%Y}'
 
     @staticmethod
     def fmt_full_date(

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from src.domains import Author
 
 
-class MultipleAuthors:
+class MultipleAuthorsPopup:
     def __init__(self) -> None:
         pass
 

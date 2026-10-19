@@ -8,7 +8,9 @@ from src.utils.types import ViewConfig
 from src.views.work_insert_specs import (
     DEFAULTED_FIELDS,
     INHERITED_FROM_PARENT_FIELDS,
-    PARTIAL,
+    MAGAZINE_PARENT_TYPES,
+    PARTIAL_FIELDS_BY_TYPE,
+    PARTIAL_FORM_FIELDS,
     WORK_TYPES,
     FieldSpec,
     WorkTypeSpec,
@@ -79,6 +81,18 @@ class RenderMixin:
 
     def _spec_for_render(self, spec: FieldSpec) -> FieldSpec:
         """Normaliza a spec antes da montagem final do formulário."""
+        if (
+            self.selected.key == "musical_score"
+            and self.partial_enabled
+            and spec.key == "physical_description"
+        ):
+            return FieldSpec(
+                key=spec.key,
+                label="Descrição física da parte (se houver)",
+                hint=spec.hint,
+                kind=spec.kind,
+                required=False,
+            )
         if spec.key in DEFAULTED_FIELDS.get(self.selected.key, set()):
             return FieldSpec(
                 key=spec.key,
@@ -92,7 +106,7 @@ class RenderMixin:
                 key=spec.key,
                 label=(
                     "Data de publicação"
-                    if self.selected.date_kind == "date"
+                    if self.selected.date_kind in {"date", "month"}
                     else spec.label
                 ),
                 hint=spec.hint,
@@ -135,19 +149,72 @@ class RenderMixin:
         rows: list[ft.Control] = []
         current: list[ft.Control] = []
         checkbox_controls: list[ft.Control] = []
-        partial_keys = {partial.key for partial in PARTIAL}
+        partial_keys = {
+            partial.key
+            for partial in PARTIAL_FIELDS_BY_TYPE.get(
+                self.selected.key, ()
+            )
+        } | {
+            partial.key
+            for partial in self.selected.fields
+            if partial.key in {
+                "consult_start_year",
+                "consult_end_year",
+                "part_start_page",
+                "part_end_page",
+            }
+        }
 
         for spec in self.selected.fields:
+            spec = self._spec_for_render(spec)
+            allowed_partial_fields = PARTIAL_FORM_FIELDS.get(
+                self.selected.key
+            )
             if (
                 self.partial_enabled
+                and allowed_partial_fields is not None
+                and spec.key not in allowed_partial_fields
+            ):
+                continue
+            if (
+                self.partial_enabled
+                and self.selected.key not in MAGAZINE_PARENT_TYPES
                 and spec.key in INHERITED_FROM_PARENT_FIELDS
+                and not spec.required
+            ):
+                continue
+            if (
+                self.selected.key == "audio_document"
+                and self.partial_enabled
+                and spec.key in {
+                    "authors",
+                    "carrier_type",
+                    "date_anchor",
+                    "date_precision",
+                    "publication_place",
+                    "publisher",
+                    "display_year",
+                    "responsibilities",
+                }
+            ):
+                continue
+            if (
+                self.selected.key == "musical_score"
+                and self.partial_enabled
+                and spec.key in {
+                    "date_anchor",
+                    "date_precision",
+                    "publication_place",
+                    "publisher",
+                    "display_year",
+                    "instrumentation",
+                }
             ):
                 continue
             if spec.key in partial_keys:
                 if spec.key != "is_partial" and not self.partial_enabled:
                     continue
 
-            spec = self._spec_for_render(spec)
             control = self._field_for_render(spec)
             self.fields[spec.key] = control
 
@@ -191,6 +258,23 @@ class RenderMixin:
                 rows, current = self._flush_current_row(rows, current)
 
         rows, current = self._flush_current_row(rows, current)
+
+        if self.selected.key in MAGAZINE_PARENT_TYPES:
+            checkbox_controls.extend(
+                [
+                    ft.Text(
+                        "Revista *",
+                        color=self.config.colors["text"],
+                        size=self.config.font_sizes["montserrat_tiny"],
+                    ),
+                    self._parent_work_control(),
+                    ft.IconButton(
+                        icon=ft.Icons.ADD,
+                        tooltip="Nova revista",
+                        on_click=self._create_parent_work,
+                    ),
+                ]
+            )
 
         if checkbox_controls:
             rows.insert(

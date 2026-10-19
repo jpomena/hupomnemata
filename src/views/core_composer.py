@@ -1,7 +1,8 @@
 """Composer da tela principal da aplicacao."""
 
 import flet as ft
-from src.repositories import AuthorSearchResult
+from src.domains import BibliographicResource
+from src.contracts import AuthorReference, AuthorSearchResult
 
 from collections.abc import Awaitable, Callable
 from src.views.dashboard import DashboardComposer
@@ -10,11 +11,11 @@ from src.views.sidebar import SidebarComposer
 from src.utils.types import ViewConfig
 from src.utils.types import ViewReference
 from src.views.work_insert_modal import WorkInsertModalComposer
-from src.views.general_popups import MultipleAuthors
+from src.views.general_popups import MultipleAuthorsPopup
 from src.views.work_details_popup import WorkDetailsPopup
 
 
-class ApplicationComposer:
+class CoreComposer:
     """Compoe a estrutura visual principal da aplicacao."""
 
     def __init__(
@@ -24,6 +25,10 @@ class ApplicationComposer:
         config: ViewConfig,
         on_navigate: Callable[[str], None],
         on_work_click: Callable,
+        on_edit_work: Callable,
+        on_format_reference: Callable[
+            [BibliographicResource], ViewReference | None
+        ],
         on_copy_reference: Callable[[ViewReference], Awaitable[None]],
         on_delete_work: Callable,
         on_create_parent_work: Callable[
@@ -35,6 +40,8 @@ class ApplicationComposer:
         self.config = config
         self.on_navigate = on_navigate
         self.on_work_click = on_work_click
+        self.on_edit_work = on_edit_work
+        self.on_format_reference = on_format_reference
         self.on_copy_reference = on_copy_reference
         self.on_delete_work = on_delete_work
         self.on_create_parent_work = on_create_parent_work
@@ -69,12 +76,10 @@ class ApplicationComposer:
             await self.page.window.close()
 
         title_controls: list[ft.Control] = [
-            ft.Text(
-                value=self.config.texts["app"]["name"],
-                size=self.config.font_sizes["montserrat_medium"],
-                weight=self.config.font_weights["montserrat_semibold"],
-                color=self.config.colors["gold"],
-                font_family=self.config.font_families["montserrat"],
+            ft.Image(
+                src="assets/images/icon.ico",
+                width=56,
+                height=56
             ),
         ]
         toolbar_controls: list[ft.Control] = [
@@ -188,6 +193,8 @@ class ApplicationComposer:
             works=works or [],
             on_navigate=self.on_navigate,
             on_work_click=self.on_work_click,
+            on_edit_work=self.on_edit_work,
+            format_reference=self.on_format_reference,
             on_copy_reference=self.on_copy_reference,
             on_delete_work=self.on_delete_work,
         ).compose()
@@ -206,12 +213,19 @@ class ApplicationComposer:
         search_authors: (
             Callable[[str], list[AuthorSearchResult]] | None
         ) = None,
-        search_works: Callable[[str], list[tuple[int, str]]] | None = None,
+        search_works: (
+            Callable[[str, str | None], list[tuple[int, str]]] | None
+        ) = None,
         on_create_parent_work: Callable[
             [Callable[[int, str], None], str | None], None
         ] | None = None,
         initial_work_type: str | None = None,
         parent_mode: bool = False,
+        edit_mode: bool = False,
+        initial_values: dict[str, object] | None = None,
+        initial_author_references: list[AuthorReference] | None = None,
+        initial_parent_work_id: int | None = None,
+        initial_parent_work_title: str = "",
     ) -> ft.AlertDialog:
         return WorkInsertModalComposer(
             page=page,
@@ -222,6 +236,11 @@ class ApplicationComposer:
             on_create_parent_work=on_create_parent_work,
             initial_work_type=initial_work_type,
             parent_mode=parent_mode,
+            edit_mode=edit_mode,
+            initial_values=initial_values,
+            initial_author_references=initial_author_references,
+            initial_parent_work_id=initial_parent_work_id,
+            initial_parent_work_title=initial_parent_work_title,
         ).compose()
 
     @staticmethod
@@ -232,7 +251,7 @@ class ApplicationComposer:
         on_cancel: Callable[[], None],
         config: ViewConfig
     ) -> ft.AlertDialog:
-        return MultipleAuthors().compose(
+        return MultipleAuthorsPopup().compose(
             authors=authors,
             on_select=on_select,
             on_create_new=on_create_new,
