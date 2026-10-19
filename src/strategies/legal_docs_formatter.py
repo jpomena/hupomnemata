@@ -7,6 +7,43 @@ from typing import List
 class LegalDocsFormatter:
 
     @staticmethod
+    def formatter(
+        work: CaseLaw | Statute
+    ) -> ViewReference:
+        ref_parts = []
+
+        ref_parts.extend(LegalDocsFormatter._format_author(work=work))
+        match work:
+            case CaseLaw():
+                ref_parts.extend(
+                    LegalDocsFormatter
+                    ._format_caselaw_specifics(
+                        work=work
+                    )
+                )
+            case Statute():
+                ref_parts.extend(
+                    LegalDocsFormatter
+                    ._format_statute_specifics(
+                        work=work
+                    )
+                )
+        ref_parts.extend(
+            LegalDocsFormatter
+            ._format_publication_data(
+                work=work
+            )
+        )
+        ref_parts.extend(
+            LegalDocsFormatter
+            ._format_suffix_details(
+                work=work
+            )
+        )
+
+        return ViewReference(ref_parts)
+
+    @staticmethod
     def _format_author(
         work: Statute | CaseLaw
     ) -> List[ReferencePart]:
@@ -33,8 +70,11 @@ class LegalDocsFormatter:
         work: Statute
     ) -> List[ReferencePart]:
         parts = []
+        title = work.title
+        if not Utils.fmt_authors(work.authors):
+            title = Utils.format_title_without_author(title)
         parts.append(ReferencePart(
-            f' {work.title}, de {Utils.fmt_full_date(work.promulgation_date)}.'
+            f' {title}, de {Utils.fmt_full_date(work.promulgation_date)}.'
             f' {work.abstract}.'
         ))
 
@@ -44,7 +84,10 @@ class LegalDocsFormatter:
     def _format_caselaw_specifics(work: CaseLaw) -> List[ReferencePart]:
         parts = []
 
-        parts.append(ReferencePart(f' {work.title}.'))
+        title = work.title
+        if not Utils.fmt_authors(work.authors):
+            title = Utils.format_title_without_author(title)
+        parts.append(ReferencePart(f' {title}.'))
         if work.case_number:
             parts.append(ReferencePart(f' Processo n. {work.case_number}.'))
         if work.abstract:
@@ -95,40 +138,3 @@ class LegalDocsFormatter:
             )
 
         return parts
-
-    @staticmethod
-    def formatter(
-        work: CaseLaw | Statute
-    ) -> ViewReference:
-        ref_parts = []
-
-        ref_parts.extend(LegalDocsFormatter._format_author(work=work))
-        match work:
-            case CaseLaw():
-                ref_parts.extend(
-                    LegalDocsFormatter
-                    ._format_caselaw_specifics(
-                        work=work
-                    )
-                )
-            case Statute():
-                ref_parts.extend(
-                    LegalDocsFormatter
-                    ._format_statute_specifics(
-                        work=work
-                    )
-                )
-        ref_parts.extend(
-            LegalDocsFormatter
-            ._format_publication_data(
-                work=work
-            )
-        )
-        ref_parts.extend(
-            LegalDocsFormatter
-            ._format_suffix_details(
-                work=work
-            )
-        )
-
-        return ViewReference(ref_parts)

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 
 from src.utils.types import TextStyle, ViewReference
+from src.utils.error_log import log_exception
 
 if os.name == "nt":
     import ctypes
@@ -64,7 +65,8 @@ def _copy_plain_text_to_system_clipboard(text: str) -> bool:
             check=False,
         )
         return result.returncode == 0
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError) as error:
+        log_exception("Falha ao acessar o clipboard do sistema", error)
         return False
 
 

@@ -5,7 +5,12 @@ from .digital import MiscDigitalDocument
 from .monographs import (
     EditorialMonograph, AcademicMonograph, CorrespondenceMonograph
 )
-from .periodicals import PeriodicalCollection, JournalArticle, NewspaperArticle
+from .periodicals import (
+    Magazine,
+    PeriodicalCollection,
+    JournalArticle,
+    NewspaperArticle,
+)
 from .proceedings import MonographicProceedings, PeriodicalProceedings
 from .patent import Patent
 from .legal_documents import Statute, CaseLaw
@@ -21,6 +26,7 @@ __all__ = [
     'AcademicMonograph',
     'CorrespondenceMonograph',
     'PeriodicalCollection',
+    'Magazine',
     'JournalArticle',
     'NewspaperArticle',
     'MonographicProceedings',

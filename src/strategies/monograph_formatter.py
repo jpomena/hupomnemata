@@ -89,7 +89,8 @@ class MonographFormatter:
             title=bibliographic_resource.specific_work.title,
             subtitle=bibliographic_resource.specific_work.subtitle
             if bibliographic_resource.specific_work.subtitle else None,
-            title_style=TextStyle.BOLD
+            title_style=TextStyle.BOLD,
+            without_author=not bibliographic_resource.authors,
         ):
             parts.append(ReferencePart(content=content, style=style))
 

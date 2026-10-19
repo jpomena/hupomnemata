@@ -1,6 +1,7 @@
 import flet as ft
 from datetime import date, datetime
 from collections.abc import Callable
+from sqlalchemy import inspect as sqlalchemy_inspect
 
 import src.domains  # noqa: F401
 from src.configs.settings import (
@@ -17,7 +18,6 @@ from src.configs.settings import (
 )
 from src.db.db import init_db
 from src.domains import (
-    Author,
     AudiovisualDocument,
     AudioDocument,
     CaseLaw,
@@ -25,11 +25,11 @@ from src.domains import (
     CorrespondenceMonograph,
     EditorialMonograph,
     JournalArticle,
+    Magazine,
     MiscDigitalDocument,
     MonographicProceedings,
     MusicalScore,
     NewspaperArticle,
-    Patent,
     PeriodicalCollection,
     PeriodicalProceedings,
     Statute,
@@ -37,23 +37,41 @@ from src.domains import (
     VisualDocument,
     AcademicMonograph,
     DatePrecision,
+    BibliographicResource,
     WorkMixin,
 )
 from typing import cast
 
-from src.repositories import (
-    AuthorReference,
-    AuthorSearchResult,
-    WorkCreationPayload,
-)
+from src.contracts import AuthorSearchResult
 from src.services import WorkService
-from src.strategies import CoreNormalizer
+from src.utils.normalizers import CoreNormalizer
+from src.strategies import (
+    DigitalFormatter,
+    LegalDocsFormatter,
+    MonographFormatter,
+    AudiovisualFormatter,
+    AudioFormatter,
+    CartographicFormatter,
+    MusicalScoreFormatter,
+    PeriodicalFormatter,
+    ProceedingsFormatter,
+    ThreeDimensionalFormatter,
+    VisualFormatter,
+)
 from src.utils.ft_responsiveness import Responsive
-from src.views.application import ApplicationComposer
+from src.views.core_composer import CoreComposer
 from src.views.page_config import PageConfigurator
 from src.utils.types import ViewConfig
 from src.utils.clipboard import copy_reference as copy_reference_html
 from src.utils.types import ViewReference
+from src.utils.error_log import log_exception
+from src.views.work_insert_specs import (
+    WORK_TYPES,
+)
+from src.services.work_form_service import WorkFormService
+from src.controllers.work_submission_controller import (
+    WorkSubmissionController,
+)
 
 
 class CoreController:
@@ -62,13 +80,9 @@ class CoreController:
     def __init__(self, page: ft.Page):
         self.page = page
         self.work_insert_modal: ft.AlertDialog | None = None
-        self._pending_payload: WorkCreationPayload | None = None
-        self._pending_author_ids: dict[int, int] = {}
-        self._new_author_indexes: set[int] = set()
-        self._pending_on_created: Callable[[int, str], None] | None = None
-        self._pending_on_deferred_close: Callable[[], None] | None = None
         self.normalizer = CoreNormalizer()
         self.service = WorkService(self.normalizer)
+        self.form_service = WorkFormService(self.normalizer)
         self.view_config = ViewConfig(
             colors=COLORS,
             page_fonts=PAGE_FONTS,
@@ -83,6 +97,14 @@ class CoreController:
         )
         self.page_configurator = PageConfigurator(
             config=self.view_config,
+        )
+        self.submission_controller = WorkSubmissionController(
+            page=self.page,
+            config=self.view_config,
+            service=self.service,
+            form_service=self.form_service,
+            show_message=self.show_message,
+            close_insert_work=self.close_insert_work,
         )
 
     def start(self) -> None:
@@ -110,22 +132,23 @@ class CoreController:
     def build_application(self) -> None:
         scale = Responsive.get_scale(self.page)
         self.work_insert_modal = (
-            ApplicationComposer.compose_work_insert_modal(
+            CoreComposer.compose_work_insert_modal(
                 page=self.page,
                 config=self.view_config,
-                on_save=self.handle_work_submission,
+                on_save=self.submission_controller.handle_work_submission,
                 search_authors=self.search_authors,
                 search_works=self.search_works,
                 on_create_parent_work=self.open_parent_work,
             )
         )
-        self.multiple_authors_modal: ft.AlertDialog | None = None
-        self.application = ApplicationComposer(
+        self.application = CoreComposer(
             page=self.page,
             scale=scale,
             config=self.view_config,
             on_navigate=self.navigate,
             on_work_click=self.open_work_details,
+            on_edit_work=self.open_work_edit,
+            on_format_reference=self.format_reference,
             on_copy_reference=self.copy_reference,
             on_delete_work=self.delete_work,
             on_create_parent_work=self.open_parent_work,
@@ -137,12 +160,223 @@ class CoreController:
             self.page.show_dialog(self.work_insert_modal)
 
     def open_work_details(self, resource) -> None:
-        modal = ApplicationComposer.compose_work_details_popup(
+        modal = CoreComposer.compose_work_details_popup(
             resource=resource,
             config=self.view_config,
             on_close=lambda: self.close_dialog(modal),
         )
         self.page.show_dialog(modal)
+
+    @staticmethod
+    def format_reference(
+        resource: BibliographicResource,
+    ) -> ViewReference | None:
+        """Select and run the reference strategy for a bibliographic work."""
+        work = resource.specific_work
+        if work is None:
+            return None
+        if isinstance(
+            work,
+            (
+                EditorialMonograph,
+                AcademicMonograph,
+                CorrespondenceMonograph,
+            ),
+        ):
+            return MonographFormatter.formatter(resource)
+        if isinstance(
+            work,
+            (
+                PeriodicalCollection,
+                JournalArticle,
+                Magazine,
+                NewspaperArticle,
+            ),
+        ):
+            return PeriodicalFormatter.formatter(resource)
+        if isinstance(work, (MonographicProceedings, PeriodicalProceedings)):
+            return ProceedingsFormatter.formatter(resource)
+        if isinstance(work, (Statute, CaseLaw)):
+            return LegalDocsFormatter.formatter(work)
+        if isinstance(work, MiscDigitalDocument):
+            return DigitalFormatter.formatter(work)
+        if isinstance(work, AudiovisualDocument):
+            return AudiovisualFormatter.formatter(work)
+        if isinstance(work, AudioDocument):
+            return AudioFormatter.formatter(work)
+        if isinstance(work, MusicalScore):
+            return MusicalScoreFormatter.formatter(resource)
+        if isinstance(work, VisualDocument):
+            return VisualFormatter.formatter(work)
+        if isinstance(work, CartographicDocument):
+            return CartographicFormatter.formatter(work)
+        if isinstance(work, ThreeDimensionalDocument):
+            return ThreeDimensionalFormatter.formatter(work)
+        return None
+
+    def open_work_edit(self, resource) -> None:
+        """Open a pre-populated form to edit the selected resource."""
+        work = resource.specific_work
+        if work is None:
+            self.show_message(
+                'A obra cadastrada não possui detalhes disponíveis.',
+                COLORS['text'],
+            )
+            return
+
+        work_type = next(
+            (
+                spec.key
+                for spec in WORK_TYPES
+                if self.service.work_model_for(spec.key) is type(work)
+            ),
+            None,
+        )
+        if work_type is None:
+            self.show_message(
+                'Não há formulário de edição para este tipo de obra.',
+                COLORS['text'],
+            )
+            return
+
+        initial_values = self._edit_form_values(work, work_type)
+        authors = []
+        for author in resource.authors:
+            jurisdiction = author.jurisdiction
+            authors.append({
+                'name': (
+                    author.given_names
+                    if author.corporation
+                    else f'{author.given_names} {author.last_name}'.strip()
+                ),
+                'id': author.id,
+                'corporation': author.corporation,
+                'acronym': author.acronym,
+                'jurisdiction_id': (
+                    jurisdiction.id if jurisdiction is not None else None
+                ),
+                'jurisdiction_name': (
+                    jurisdiction.given_names
+                    if jurisdiction is not None
+                    else None
+                ),
+            })
+
+        parent_id = getattr(work, 'parent_bibliographic_resource_id', None)
+        parent_title = (
+            self.service.get_work_title(parent_id)
+            if parent_id is not None
+            else None
+        )
+        modal = CoreComposer.compose_work_insert_modal(
+            page=self.page,
+            config=self.view_config,
+            on_save=lambda form_data: self.handle_work_update(
+                resource.id, form_data
+            ),
+            search_authors=self.search_authors,
+            search_works=self.search_works,
+            on_create_parent_work=self.open_parent_work,
+            initial_work_type=work_type,
+            edit_mode=True,
+            initial_values=initial_values,
+            initial_author_references=authors,
+            initial_parent_work_id=parent_id,
+            initial_parent_work_title=(
+                parent_title or ''
+            ),
+        )
+        self.page.show_dialog(modal)
+
+    @staticmethod
+    def _edit_form_values(
+        work: WorkMixin,
+        work_type: str,
+    ) -> dict[str, object]:
+        """Convert persisted model values back to form control values."""
+        spec = next(item for item in WORK_TYPES if item.key == work_type)
+        values: dict[str, object] = {}
+        for column in sqlalchemy_inspect(work).mapper.column_attrs:
+            key = column.key
+            value = getattr(work, key)
+            if key in {
+                'id', 'bib_res_id', 'created_at', 'updated_at',
+                'display_year',
+            }:
+                continue
+            if key == 'date_precision':
+                precision_labels = {
+                    'exact': 'Data exata',
+                    'decade': 'Década',
+                    'century': 'Século',
+                    'millenia': 'Milênio',
+                    'unknown': 'Data desconhecida',
+                }
+                value = precision_labels[value.value]
+            elif key in {'date_anchor'}:
+                if (
+                    value is None
+                    or (
+                        getattr(work, 'date_precision', None)
+                        == DatePrecision.UNKNOWN
+                    )
+                ):
+                    value = ''
+                elif spec.date_kind == 'date':
+                    value = value.strftime('%d/%m/%Y')
+                elif spec.date_kind == 'month':
+                    value = value.strftime('%m/%Y')
+                else:
+                    value = value.strftime('%Y')
+            elif isinstance(value, (date, datetime)):
+                value = value.strftime('%d/%m/%Y')
+            elif isinstance(value, int) and not isinstance(value, bool):
+                value = str(value)
+            values[key] = value
+        return values
+
+    def handle_work_update(
+        self,
+        resource_id: int,
+        form_data: dict[str, object],
+    ) -> bool:
+        """Validate and persist edits while retaining the resource identity."""
+        missing_fields = (
+            WorkSubmissionController._missing_required_fields(form_data)
+        )
+        if missing_fields:
+            self.show_message(
+                'Preencha os campos obrigatórios: '
+                + ', '.join(missing_fields)
+                + '.',
+                COLORS['text'],
+            )
+            return False
+
+        try:
+            payload = self.form_service.prepare_payload(
+                form_data,
+                include_empty=True,
+            )
+            work_title = self.service.update(resource_id, payload)
+        except (ValueError, TypeError) as error:
+            log_exception("Dados inválidos ao editar uma obra", error)
+            self.show_message(str(error), COLORS['text'])
+            return False
+        except Exception as error:
+            log_exception("Falha ao editar uma obra", error)
+            self.show_message(
+                f'Não foi possível salvar as alterações.\n\n{error}',
+                COLORS['text'],
+            )
+            return False
+
+        self.navigate('Acervo')
+        self.show_message(
+            f'A obra “{work_title}” foi atualizada.',
+            COLORS['gold'],
+        )
+        return True
 
     def open_parent_work(
         self,
@@ -157,13 +391,13 @@ class CoreController:
                 self.close_dialog(parent_modal)
 
         def save_parent(form_data: dict[str, object]) -> bool:
-            return self.handle_work_submission(
+            return self.submission_controller.handle_work_submission(
                 form_data,
                 on_created=on_created,
                 on_deferred_close=close_parent_modal,
             )
 
-        parent_modal = ApplicationComposer.compose_work_insert_modal(
+        parent_modal = CoreComposer.compose_work_insert_modal(
             page=self.page,
             config=self.view_config,
             on_save=save_parent,
@@ -194,6 +428,7 @@ class CoreController:
         try:
             self.service.remove_work(resource)
         except Exception as error:
+            log_exception("Falha ao excluir uma obra", error)
             self.show_message(
                 f'Não foi possível excluir a obra.\n\n{error}', COLORS['text']
             )
@@ -210,367 +445,13 @@ class CoreController:
         """Retorna autores existentes para a busca do modal."""
         return self.service.search_authors(query)
 
-    def search_works(self, query: str) -> list[tuple[int, str]]:
-        """Retorna obras encontradas para seletores relacionados."""
-        return self.service.search_works(query)
-
-    def handle_work_submission(
+    def search_works(
         self,
-        form_data: dict[str, object],
-        on_created: Callable[[int, str], None] | None = None,
-        on_deferred_close: Callable[[], None] | None = None,
-    ) -> bool:
-        """Normaliza a entrada e coordena sua persistência."""
-        title = str(form_data.get('title', '')).strip()
-        authors = form_data.get('authors', [])
-        if not title or not self._author_references(authors):
-            self.show_message(
-                'Os campos Título e Autor são obrigatórios!',
-                COLORS['text'],
-            )
-            return False
-
-        try:
-            self._pending_payload = self.prepare_work_payload(form_data)
-            self._pending_author_ids.clear()
-            self._new_author_indexes.clear()
-            self._pending_on_created = on_created
-            self._pending_on_deferred_close = on_deferred_close
-            return self._continue_pending_submission(close_form=False)
-        except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
-            return False
-        except Exception as e:
-            self.show_message(
-                f'Não foi possível salvar a obra.\n\n{e} ', COLORS['text']
-            )
-            return False
-
-    def _continue_pending_submission(self, close_form: bool) -> bool:
-        """Resolve autores semelhantes um por vez e persiste no fim."""
-        if self._pending_payload is None:
-            return False
-
-        created_work: tuple[int, str] | None = None
-        try:
-            result = self.service.resolve_and_create(
-                self._pending_payload,
-                author_ids=self._pending_author_ids,
-                new_author_indexes=self._new_author_indexes,
-            )
-            if result.get('requires_choice') is True:
-                choice_result = cast(
-                    dict[str, object],
-                    result,
-                )
-                choice_index = choice_result['index']
-                choice_candidates = choice_result['candidates']
-                if not isinstance(choice_index, int):
-                    choice_index = int(str(choice_index))
-                if not isinstance(choice_candidates, list):
-                    raise TypeError('Lista de autores duplicados inválida.')
-                authors_candidates = [
-                    candidate
-                    for candidate in choice_candidates
-                    if isinstance(candidate, Author)
-                ]
-                self._show_multiple_authors_modal(
-                    choice_index,
-                    authors_candidates,
-                )
-                return False
-
-            created_result = cast(dict[str, object], result)
-            resource_id = created_result['resource_id']
-            work_title = created_result['work_title']
-            if not isinstance(resource_id, int):
-                resource_id = int(str(resource_id))
-            if not isinstance(work_title, str):
-                work_title = str(work_title)
-            created_work = (resource_id, work_title)
-        except (ValueError, TypeError) as error:
-            self._clear_pending_submission()
-            self.show_message(str(error), COLORS['text'])
-            return False
-        except Exception as error:
-            self._clear_pending_submission()
-            self.show_message(
-                f'Não foi possível salvar a obra.\n\n{error}', COLORS['text']
-            )
-            return False
-
-        on_created = self._pending_on_created
-        on_deferred_close = self._pending_on_deferred_close
-        self._clear_pending_submission()
-        if close_form:
-            if on_deferred_close is not None:
-                on_deferred_close()
-            else:
-                self.close_insert_work()
-        if created_work is not None and on_created is not None:
-            on_created(*created_work)
-        self.show_message('Obra adicionada ao acervo.', COLORS['gold'])
-        return True
-
-    def _show_multiple_authors_modal(
-        self, index: int, candidates: list[Author]
-    ) -> None:
-        self.multiple_authors_modal = (
-            ApplicationComposer.compose_multiple_authors_modal(
-                authors=candidates,
-                on_select=lambda author_id: self._select_existing_author(
-                    index, author_id
-                ),
-                on_create_new=lambda: self._create_new_author(index),
-                on_cancel=self._clear_pending_submission,
-                config=self.view_config
-            )
-        )
-        self.page.show_dialog(self.multiple_authors_modal)
-
-    def _select_existing_author(self, index: int, author_id: int) -> None:
-        self._pending_author_ids[index] = author_id
-        self._continue_pending_submission(close_form=True)
-
-    def _create_new_author(self, index: int) -> None:
-        self._new_author_indexes.add(index)
-        self._continue_pending_submission(close_form=True)
-
-    def _clear_pending_submission(self) -> None:
-        self._pending_payload = None
-        self._pending_author_ids.clear()
-        self._new_author_indexes.clear()
-        self._pending_on_created = None
-        self._pending_on_deferred_close = None
-
-    def prepare_work_payload(
-        self, form_data: dict[str, object]
-    ) -> WorkCreationPayload:
-        model = self.service.work_model_for(
-            str(form_data.get('work_type', ''))
-        )
-        authors = form_data.get('authors', [])
-        date_precision = self.service.parse_date_precision(
-            str(form_data.get('date_precision') or 'Data exata')
-        )
-        form_data = dict(form_data)
-        raw_date_anchor = str(form_data.get('date_anchor', '')).strip()
-        work_type = str(form_data.get('work_type', ''))
-        if work_type == 'statute':
-            raw_promulgation = str(
-                form_data.get('promulgation_date', '')
-            ).strip()
-            if not raw_promulgation and raw_date_anchor:
-                form_data['promulgation_date'] = raw_date_anchor
-        elif work_type == 'caselaw':
-            raw_decision = str(form_data.get('decision_date', '')).strip()
-            if not raw_decision and raw_date_anchor:
-                form_data['decision_date'] = raw_date_anchor
-
-        complete_date = (
-            '/' in raw_date_anchor
-            or work_type in {
-                'journal_article', 'newspaper_article', 'statute', 'caselaw'
-            }
-        )
-        date_anchor = self.service.parse_date(
-            raw_date_anchor,
-            year_only=not complete_date,
-            unknown=(
-                str(form_data.get('date_precision', ''))
-                == 'Data desconhecida'
-            ),
-        )
-        converted = self.service.convert_model_values(form_data)
-        if 'title' in converted:
-            converted['title'] = self.normalizer.title_normalizer(
-                str(converted['title'])
-            )
-        converted['date_anchor'] = date_anchor
-        converted['date_precision'] = date_precision
-        converted['display_year'] = self.normalizer.display_year_normalizer(
-            date_precision, date_anchor
-        )
-        partial_keys = {
-            'part_volume', 'part_chapter', 'part_start_page', 'part_end_page',
-            'consult_start_year', 'consult_end_year',
-            'is_partial', 'parent_bibliographic_resource_id',
-        }
-        resource_data = {}
-        work_data = {
-            key: value for key, value in converted.items()
-            if key not in partial_keys
-        }
-        work_data.update({
-            key: converted[key]
-            for key in partial_keys
-            if key in converted
-        })
-        return {
-            'work_model': model,
-            'relationship_name': model.__tablename__.removesuffix('s'),
-            'author_names': cast(
-                list[AuthorReference],
-                self.service.author_references(authors),
-            ),
-            'resource_data': resource_data,
-            'work_data': work_data,
-        }
-
-    @staticmethod
-    def _author_references(value: object) -> list[AuthorReference]:
-        if isinstance(value, list):
-            references: list[AuthorReference] = []
-            for item in value:
-                if isinstance(item, dict):
-                    name = str(item.get('name', '')).strip()
-                    if name:
-                        references.append({
-                            'name': name,
-                            'id': (
-                                int(item['id'])
-                                if item.get('id') is not None else None
-                            ),
-                            'corporation': bool(
-                                item.get('corporation', False)
-                            ),
-                            'acronym': (
-                                str(item['acronym']).strip().upper()
-                                if item.get('acronym') else None
-                            ),
-                            'jurisdiction_id': (
-                                int(item['jurisdiction_id'])
-                                if item.get('jurisdiction_id') is not None
-                                else None
-                            ),
-                            'jurisdiction_name': (
-                                str(item['jurisdiction_name']).strip()
-                                if item.get('jurisdiction_name')
-                                else None
-                            ),
-                        })
-                elif str(item).strip():
-                    references.append({
-                        'name': str(item).strip(),
-                        'id': None,
-                        'corporation': False,
-                        'acronym': None,
-                        'jurisdiction_id': None,
-                        'jurisdiction_name': None,
-                    })
-            return references
-
-        return [
-            {
-                'name': name.strip(),
-                'id': None,
-                'corporation': False,
-                'acronym': None,
-                'jurisdiction_id': None,
-                'jurisdiction_name': None,
-            }
-            for name in str(value).replace(',', ';').split(';')
-            if name.strip()
-        ]
-
-    @staticmethod
-    def work_model_for(work_type: str) -> type[WorkMixin]:
-        models: dict[str, type[WorkMixin]] = {
-            'editorial_monograph': EditorialMonograph,
-            'academic_monograph': AcademicMonograph,
-            'correspondence_monograph': CorrespondenceMonograph,
-            'periodical_collection': PeriodicalCollection,
-            'journal_article': JournalArticle,
-            'newspaper_article': NewspaperArticle,
-            'monographic_proceedings': MonographicProceedings,
-            'periodical_proceedings': PeriodicalProceedings,
-            'patent': Patent,
-            'statute': Statute,
-            'caselaw': CaseLaw,
-            'miscellaneous_digital_document': MiscDigitalDocument,
-            'audiovisual_document': AudiovisualDocument,
-            'audio_document': AudioDocument,
-            'musical_score': MusicalScore,
-            'visual_document': VisualDocument,
-            'cartographic_document': CartographicDocument,
-            'three_dimensional_document': ThreeDimensionalDocument,
-        }
-        try:
-            return models[work_type]
-        except KeyError as error:
-            raise ValueError('Tipo de obra inválido.') from error
-
-    @staticmethod
-    def parse_date(
-        value: str,
-        year_only: bool,
-        unknown: bool = False,
-    ) -> date:
-        if unknown and not value.strip():
-            return date(1, 1, 1)
-        try:
-            if year_only:
-                return date(int(value), 1, 1)
-            return datetime.strptime(value, '%d/%m/%Y').date()
-        except (TypeError, ValueError) as error:
-            expected = 'AAAA' if year_only else 'DD/MM/AAAA'
-            raise ValueError(
-                f'Informe a data no formato {expected}.'
-            ) from error
-
-    @staticmethod
-    def parse_date_precision(value: str) -> DatePrecision:
-        options = {
-            'Data exata': DatePrecision.EXACT,
-            'Década': DatePrecision.DECADE,
-            'Século': DatePrecision.CENTURY,
-            'Milênio': DatePrecision.MILLENIA,
-            'Data desconhecida': DatePrecision.UNKNOWN,
-        }
-        try:
-            return options[value]
-        except KeyError as error:
-            raise ValueError('Precisão de data inválida.') from error
-
-    @staticmethod
-    def convert_model_values(
-        form_data: dict[str, object]
-    ) -> dict[str, object]:
-        numeric_fields = {
-            'consult_start_year', 'consult_end_year',
-            'edition', 'page_quantity', 'volumes', 'collection_number',
-            'first_volume_year', 'last_volume_year', 'volume', 'year_season',
-            'number', 'event_number', 'event_year', 'publication_year',
-            'vol_or_year', 'version', 'seconds', 'defense_year',
-        }
-        date_fields = {
-            'viewed_at', 'publication_date', 'filing_date', 'grant_date',
-            'decision_date',
-        }
-        result = {}
-        for key, value in form_data.items():
-            if key in {
-                'work_type', 'authors', 'date_precision', 'date_anchor'
-            }:
-                continue
-            if value in ('', None):
-                continue
-            if key in numeric_fields:
-                result[key] = int(str(value))
-            elif key in date_fields:
-                result[key] = datetime.strptime(
-                    str(value), '%d/%m/%Y'
-                ).date()
-            else:
-                result[key] = value
-        if form_data.get('work_type') in {
-            'audiovisual_document',
-            'audio_document',
-        }:
-            result.setdefault('responsibilities', {})
-        if form_data.get('work_type') == 'audio_document':
-            result.setdefault('part_responsibilities', {})
-        return result
+        query: str,
+        work_type: str | None = None,
+    ) -> list[tuple[int, str]]:
+        """Retorna obras encontradas para seletores relacionados."""
+        return self.service.search_works(query, work_type)
 
     def close_insert_work(self) -> None:
         if self.work_insert_modal is not None:

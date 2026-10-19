@@ -18,7 +18,9 @@ class PeriodicalCollection(PartialWorkMixin, WorkMixin):
 
     first_volume_year: Mapped[int] = mapped_column(nullable=False)
     last_volume_year: Mapped[int] = mapped_column(nullable=True)
-    journal_title: Mapped[str] = mapped_column(String(150), nullable=False)
+    journal_title: Mapped[str | None] = mapped_column(
+        String(150), nullable=True
+    )
     journal_subtitle: Mapped[str] = mapped_column(String(500), nullable=True)
     publication_place: Mapped[str] = mapped_column(
         String(150), nullable=False, default='[s.l.]'
@@ -30,6 +32,16 @@ class PeriodicalCollection(PartialWorkMixin, WorkMixin):
     additional_notes: Mapped[str] = mapped_column(String(500), nullable=True)
 
 
+class Magazine(WorkMixin):
+    """Revista que pode conter artigos e coleções periódicas."""
+
+    __tablename__ = 'magazines'
+
+    publication_place: Mapped[str] = mapped_column(
+        String(150), nullable=False, default='[s.l.]'
+    )
+
+
 class JournalArticle(PartialWorkMixin, WorkMixin):
     '''Compreende partes de uma publicação periódica, como artigo,
     comunicação, editorial, suplemento, entrevista, recensão, resenha,
@@ -37,7 +49,9 @@ class JournalArticle(PartialWorkMixin, WorkMixin):
 
     __tablename__ = 'journal_articles'
 
-    journal_title: Mapped[str] = mapped_column(String(150), nullable=False)
+    journal_title: Mapped[str | None] = mapped_column(
+        String(150), nullable=True
+    )
     journal_subtitle: Mapped[str] = mapped_column(String(500), nullable=True)
     publication_place: Mapped[str] = mapped_column(
         String(150), nullable=False, default='[s.l.]'

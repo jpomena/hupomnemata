@@ -75,6 +75,22 @@ class ProceedingsFormatter:
                 ProceedingsFormatter._format_pagination(specific_work)
             )
 
+        source = (
+            specific_work if specific_work.url else main_doc
+        )
+        if source.url:
+            if source.viewed_at is None:
+                raise ValueError(
+                    'Informe a data de acesso para anais on-line.'
+                )
+            parts.append(
+                ReferencePart(
+                    f' Disponível em: {source.url}.'
+                    f' Acesso em: '
+                    f'{Utils.format_abbrev_date(source.viewed_at)}.'
+                )
+            )
+
         return ViewReference(parts)
 
     @staticmethod
@@ -82,9 +98,15 @@ class ProceedingsFormatter:
         child_doc: MonographicProceedings | PeriodicalProceedings,
         parent_doc: MonographicProceedings | PeriodicalProceedings
     ) -> list[ReferencePart]:
+        author_text = Utils.fmt_authors(child_doc.authors)
+        title = (
+            child_doc.title
+            if author_text
+            else Utils.format_title_without_author(child_doc.title)
+        )
         parts = [
-            ReferencePart(f'{Utils.fmt_authors(child_doc.authors)}.'),
-            ReferencePart(f' {child_doc.title}')
+            ReferencePart(f'{author_text}.'),
+            ReferencePart(f' {title}')
         ]
         if child_doc.subtitle:
             parts.append(ReferencePart(f': {child_doc.subtitle}'))
@@ -100,9 +122,15 @@ class ProceedingsFormatter:
     def _format_unpublished(
         document: MonographicProceedings
     ) -> list[ReferencePart]:
+        author_text = Utils.fmt_authors(document.authors)
+        title = (
+            document.title
+            if author_text
+            else Utils.format_title_without_author(document.title)
+        )
         parts = [
-            ReferencePart(f'{Utils.fmt_authors(document.authors)}'),
-            ReferencePart(f' {document.title}', TextStyle.BOLD)
+            ReferencePart(author_text),
+            ReferencePart(f' {title}', TextStyle.BOLD)
         ]
         if document.subtitle:
             parts.append(ReferencePart(f': {document.subtitle}'))

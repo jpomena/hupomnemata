@@ -6,10 +6,7 @@ from typing import Protocol, TypedDict, cast
 
 import flet as ft
 
-from src.repositories.work_repository import (
-    AuthorReference,
-    AuthorSearchResult,
-)
+from src.contracts import AuthorReference, AuthorSearchResult
 from src.utils.types import ViewConfig
 from src.views.work_insert_specs import FieldSpec, WorkTypeSpec
 
@@ -72,9 +69,11 @@ class FieldBuilderMixin:
     parent_work_field: ft.TextField | None
     parent_work_results: ft.Column | None
     search_authors: Callable[[str], list[AuthorSearchResult]] | None
-    search_works: Callable[[str], list[tuple[int, str]]] | None
+    search_works: Callable[
+        [str, str | None], list[tuple[int, str]]
+    ] | None
     on_create_parent_work: Callable[
-        [Callable[[int, str], None]], None
+        [Callable[[int, str], None], str | None], None
     ] | None
     type_grid: ft.GridView
     form: ft.Column
@@ -162,6 +161,54 @@ class FieldBuilderMixin:
             return cast(SupportsAuthorsControl, self)._authors_control()
         if spec.kind == "responsibilities":
             data = initial_value if isinstance(initial_value, dict) else {}
+            if self.selected.key in {
+                "audio_document",
+                "audiovisual_document",
+            }:
+                role_hint = (
+                    "Ex.: direção, produção"
+                    if self.selected.key == "audiovisual_document"
+                    else (
+                        "Ex.: entrevistado, entrevistador"
+                        if spec.key == "responsibilities"
+                        else "Ex.: intérprete, compositor"
+                    )
+                )
+                controls = [
+                    self._audio_responsibility_row(
+                        role,
+                        names,
+                        role_hint,
+                    )
+                    for role, names in data.items()
+                ]
+                if not controls:
+                    controls.append(
+                        self._audio_responsibility_row(
+                            role_hint=role_hint,
+                        )
+                    )
+                fields = ft.Column(
+                    controls=controls,
+                    spacing=self.config.ui["control_gap"],
+                )
+
+                def add_responsibility(event) -> None:
+                    fields.controls.append(
+                        self._audio_responsibility_row(
+                            role_hint=role_hint,
+                        )
+                    )
+                    fields.update()
+
+                fields.controls.append(
+                    ft.IconButton(
+                        icon=ft.Icons.ADD,
+                        tooltip="Adicionar responsabilidade",
+                        on_click=add_responsibility,
+                    )
+                )
+                return fields
             responsibility_key, responsibility_names = next(
                 iter(data.items()), ("", "")
             )
@@ -251,7 +298,11 @@ class FieldBuilderMixin:
             "hint_text": (
                 "DD/MM/AAAA"
                 if spec.kind == "date"
-                else spec.hint if spec.hint else spec.label
+                else (
+                    "MM/AAAA"
+                    if spec.kind == "month"
+                    else spec.hint if spec.hint else spec.label
+                )
             ),
             "multiline": spec.kind == "multiline",
             "min_lines": 3 if spec.kind == "multiline" else 1,
@@ -260,6 +311,8 @@ class FieldBuilderMixin:
         }
         if spec.kind == "date":
             common_args["on_change"] = self._format_date_input
+        elif spec.kind == "month":
+            common_args["on_change"] = self._format_month_input
         elif spec.key == "issn":
             common_args["on_change"] = self._format_issn_input
         elif spec.key == "isbn":
@@ -274,6 +327,32 @@ class FieldBuilderMixin:
         return ft.TextField(
             **common_args,
             **self._text_field_style(),
+        )
+
+    def _audio_responsibility_row(
+        self,
+        role: str = "",
+        names: str = "",
+        role_hint: str = "Ex.: entrevistado, entrevistador",
+    ) -> ft.Row:
+        return ft.Row(
+            controls=[
+                ft.TextField(
+                    label="Tipo de responsabilidade",
+                    hint_text=role_hint,
+                    value=role,
+                    expand=True,
+                    **self._text_field_style(),
+                ),
+                ft.TextField(
+                    label="Pessoa ou entidade",
+                    hint_text="Nomes das pessoas ou entidades",
+                    value=names,
+                    expand=True,
+                    **self._text_field_style(),
+                ),
+            ],
+            spacing=self.config.ui["control_gap"],
         )
 
     @staticmethod
@@ -292,6 +371,12 @@ class FieldBuilderMixin:
     def _format_date_input(self, event) -> None:
         event.control.value = self._format_digits(
             event.control.value, (2, 2, 4)
+        )
+        event.control.update()
+
+    def _format_month_input(self, event) -> None:
+        event.control.value = self._format_digits(
+            event.control.value, (2, 4)
         )
         event.control.update()
 

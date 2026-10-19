@@ -9,6 +9,7 @@ WORK_TYPE_LABELS = {
     "AcademicMonograph": "Trabalho acadêmico",
     "CorrespondenceMonograph": "Correspondência",
     "PeriodicalCollection": "Coleção periódica",
+    "Magazine": "Revista",
     "JournalArticle": "Artigo de revista",
     "NewspaperArticle": "Artigo de jornal",
     "MonographicProceedings": "Anais de evento em volume único",

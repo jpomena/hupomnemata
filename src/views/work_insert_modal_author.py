@@ -4,13 +4,10 @@ from collections.abc import Callable
 
 import flet as ft
 
-from src.repositories.work_repository import (
-    AuthorReference,
-    AuthorSearchResult,
-)
+from src.contracts import AuthorReference, AuthorSearchResult
 from src.utils.types import ViewConfig
 from src.views.work_insert_modal_fields import DropdownStyle, TextFieldStyle
-from src.views.work_insert_specs import WorkTypeSpec
+from src.views.work_insert_specs import PARENT_WORK_TYPES, WorkTypeSpec
 
 
 class AuthorSearchMixin:
@@ -30,7 +27,9 @@ class AuthorSearchMixin:
     parent_work_field: ft.TextField | None
     parent_work_results: ft.Column
     search_authors: Callable[[str], list[AuthorSearchResult]] | None
-    search_works: Callable[[str], list[tuple[int, str]]] | None
+    search_works: Callable[
+        [str, str | None], list[tuple[int, str]]
+    ] | None
     on_create_parent_work: Callable[
         [Callable[[int, str], None], str | None], None
     ] | None
@@ -373,7 +372,12 @@ class AuthorSearchMixin:
 
     def _parent_work_control(self) -> ft.Control:
         search = ft.TextField(
-            hint_text="Buscar obra-pai pelo título",
+            hint_text=(
+                "Buscar revista pelo nome"
+                if self.selected.key
+                in {'journal_article', 'periodical_collection'}
+                else "Buscar obra-pai pelo título"
+            ),
             prefix_icon=ft.Icons.SEARCH,
             value=self.parent_work_search,
             on_change=self._search_parent_works,
@@ -398,7 +402,10 @@ class AuthorSearchMixin:
         if self.parent_work_results is None:
             return
         results = (
-            self.search_works(self.parent_work_search)
+            self.search_works(
+                self.parent_work_search,
+                PARENT_WORK_TYPES.get(self.selected.key),
+            )
             if (
                 self.parent_work_search.strip()
                 and self.search_works is not None
@@ -436,7 +443,7 @@ class AuthorSearchMixin:
         if self.on_create_parent_work is not None:
             self.on_create_parent_work(
                 self._select_parent_work,
-                self.selected.key,
+                PARENT_WORK_TYPES.get(self.selected.key),
             )
 
     def _remove_author(self, reference: AuthorReference) -> None:

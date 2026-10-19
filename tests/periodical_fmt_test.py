@@ -8,6 +8,7 @@ if projeto_raiz not in sys.path:
 
 from src.domains import (  # noqa
     Author,
+    Magazine,
     PeriodicalCollection,
     JournalArticle,
     NewspaperArticle,
@@ -26,9 +27,16 @@ def run_test():
     authors = [author_1, author_2, author_3]
 
     # Cenário: Artigo de Revista Científica (JournalArticle)
+    magazine_resource = BibliographicResource(
+        magazine=Magazine(
+            title='Revista Brasileira de História',
+            publication_place='São Paulo',
+        )
+    )
     article = JournalArticle(
         title='A história econômica do período colonial',
-        journal_title='Revista Brasileira de História',
+        parent_bibliographic_resource=magazine_resource,
+        is_partial=True,
         publication_place='São Paulo',
         publisher='ANPUH',
         volume=40,
@@ -37,16 +45,14 @@ def run_test():
         date_anchor=date(2020, 5, 15),
         issn='0102-0188',
         url='https://example.com/artigo',
-        viewed_at=datetime(2026, 6, 1)
+        viewed_at=datetime(2026, 6, 1),
+        part_start_page='120',
+        part_end_page='135',
     )
 
     resource = BibliographicResource(
-        id=1,
         authors=authors,
         journal_article=article,
-        is_partial=True,
-        part_start_page='120',
-        part_end_page='135'
     )
 
     # Executa o formatador de periódicos

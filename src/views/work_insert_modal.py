@@ -5,14 +5,17 @@ from typing import TypedDict
 
 import flet as ft
 
-from src.repositories.work_repository import (
-    AuthorReference, AuthorSearchResult
-)
+from src.contracts import AuthorReference, AuthorSearchResult
 from src.utils.types import ViewConfig
 from src.views.work_insert_modal_author import AuthorSearchMixin
 from src.views.work_insert_modal_fields import FieldBuilderMixin
 from src.views.work_insert_modal_render import RenderMixin
-from src.views.work_insert_specs import WORK_TYPES, WorkTypeSpec
+from src.views.work_insert_specs import (
+    ALWAYS_PARTIAL_TYPES,
+    MAGAZINE_PARENT_TYPES,
+    WORK_TYPES,
+    WorkTypeSpec,
+)
 
 
 class DropdownStyle(TypedDict):
@@ -40,12 +43,19 @@ class WorkInsertModalComposer(
         config: ViewConfig,
         on_save: Callable[[dict[str, object]], bool],
         search_authors: Callable[[str], list[AuthorSearchResult]] | None = None,  # noqa: E501
-        search_works: Callable[[str], list[tuple[int, str]]] | None = None,
+        search_works: (
+            Callable[[str, str | None], list[tuple[int, str]]] | None
+        ) = None,
         on_create_parent_work: Callable[
             [Callable[[int, str], None], str | None], None
         ] | None = None,
         initial_work_type: str | None = None,
         parent_mode: bool = False,
+        edit_mode: bool = False,
+        initial_values: dict[str, object] | None = None,
+        initial_author_references: list[AuthorReference] | None = None,
+        initial_parent_work_id: int | None = None,
+        initial_parent_work_title: str = "",
     ):
         self.page = page
         self.config = config
@@ -56,23 +66,30 @@ class WorkInsertModalComposer(
             [Callable[[int, str], None], str | None], None
         ] | None = on_create_parent_work
         self.parent_mode = parent_mode
+        self.edit_mode = edit_mode
         self.selected: WorkTypeSpec = next(
             (spec for spec in WORK_TYPES if spec.key == initial_work_type),
             WORK_TYPES[0],
         )
         self.fields: dict[str, ft.Control] = {}
-        self.partial_enabled = False
-        self.author_references: list[AuthorReference] = []
+        self.stored_values: dict[str, object] = dict(initial_values or {})
+        self.partial_enabled = (
+            self.selected.key in ALWAYS_PARTIAL_TYPES
+            or self.selected.key in MAGAZINE_PARENT_TYPES
+            or bool(self.stored_values.get("is_partial"))
+        )
+        self.author_references: list[AuthorReference] = list(
+            initial_author_references or []
+        )
         self.author_search = ""
         self.author_control: ft.Column | None = None
         self.author_search_field: ft.TextField | None = None
         self.author_results: ft.Row | None = None
         self.author_pills: ft.Row | None = None
-        self.parent_work_search = ""
-        self.parent_work_id: int | None = None
+        self.parent_work_search = initial_parent_work_title
+        self.parent_work_id = initial_parent_work_id
         self.parent_work_field: ft.TextField | None = None
         self.parent_work_results: ft.Column | None = None
-        self.stored_values: dict[str, object] = {}
         self.type_grid = ft.GridView(
             runs_count=3,
             spacing=self.config.ui["control_gap"] - 4,
@@ -182,6 +199,19 @@ class WorkInsertModalComposer(
                 continue
             if isinstance(control, ft.Checkbox):
                 data[key] = control.value
+            elif (
+                isinstance(control, ft.Column)
+                and key in {"responsibilities", "part_responsibilities"}
+            ):
+                responsibilities = {}
+                for row in control.controls:
+                    if not isinstance(row, ft.Row) or len(row.controls) < 2:
+                        continue
+                    role = getattr(row.controls[0], "value", "").strip()
+                    names = getattr(row.controls[1], "value", "").strip()
+                    if role and names:
+                        responsibilities[role] = names
+                data[key] = responsibilities
             elif isinstance(control, ft.Row):
                 responsibility_key = getattr(
                     control.controls[0], "value", ""
@@ -210,7 +240,10 @@ class WorkInsertModalComposer(
     def _choose(self, spec) -> None:
         """Seleciona tipo de obra e reinicia estado do formulário."""
         self.selected = spec
-        self.partial_enabled = False
+        self.partial_enabled = (
+            spec.key in ALWAYS_PARTIAL_TYPES
+            or spec.key in MAGAZINE_PARENT_TYPES
+        )
         self.author_references.clear()
         self.author_search = ""
         self.author_control = None
@@ -261,9 +294,13 @@ class WorkInsertModalComposer(
     def compose(self) -> ft.AlertDialog:
         """Montagem final do modal em tela."""
         modal_title = (
-            "Cadastrar nova obra-pai"
-            if self.parent_mode
-            else "Cadastrar nova obra".title()
+            "Editar obra"
+            if self.edit_mode
+            else (
+                "Cadastrar nova obra-pai"
+                if self.parent_mode
+                else "Cadastrar nova obra".title()
+            )
         )
         type_panel = ft.Container(
             content=ft.Column(
@@ -285,7 +322,7 @@ class WorkInsertModalComposer(
                     ),
                     (
                         ft.Text(
-                            value=f"{self.selected.label}",
+                            value=self.selected.label,
                             size=self.config.font_sizes["montserrat_small"],
                             color=self.config.colors["gold"],
                             font_family=(
@@ -297,7 +334,7 @@ class WorkInsertModalComposer(
                                 ]
                             ),
                         )
-                        if self.parent_mode
+                        if self.parent_mode or self.edit_mode
                         else self.type_grid
                     ),
                 ],
@@ -306,7 +343,7 @@ class WorkInsertModalComposer(
             ),
             width=(
                 self.config.ui["modal_type_panel_width"]
-                if not self.parent_mode
+                if not self.parent_mode and not self.edit_mode
                 else None
             ),
             expand=False,
@@ -324,12 +361,18 @@ class WorkInsertModalComposer(
         modal_width = (
             int(self.config.ui["modal_width"] * 0.7)
             if self.parent_mode
-            else self.config.ui["modal_width"]
+            else (
+                760 if self.edit_mode
+                else self.config.ui["modal_width"]
+            )
         )
         modal_height = (
             int(self.config.ui["modal_height"] * 0.7)
             if self.parent_mode
-            else self.config.ui["modal_height"]
+            else (
+                650 if self.edit_mode
+                else self.config.ui["modal_height"]
+            )
         )
 
         modal_content = ft.Column(
@@ -368,7 +411,11 @@ class WorkInsertModalComposer(
         )
         save_button = ft.ElevatedButton(
             content=ft.Text(
-                value="Salvar acervo",
+                value=(
+                    "Salvar alterações"
+                    if self.edit_mode
+                    else "Salvar acervo"
+                ),
                 font_family=self.config.font_families["montserrat"],
             ),
             on_click=self._save,

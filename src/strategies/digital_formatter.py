@@ -10,16 +10,21 @@ class DigitalFormatter:
         work: MiscDigitalDocument
     ) -> ViewReference:
         parts = []
-        parts.append(ReferencePart(Utils.fmt_authors(work.authors)))
-        parts.append(ReferencePart('.'))
-        parts.append(ReferencePart(f' {work.title}'))
+        author_text = Utils.fmt_authors(work.authors)
+        parts.append(ReferencePart(author_text))
+        title = (
+            work.title
+            if author_text
+            else Utils.format_title_without_author(work.title)
+        )
+        parts.append(ReferencePart(f' {title}'))
         if work.subtitle:
             parts.append(ReferencePart(f': {work.subtitle}'))
         parts.append(ReferencePart('.'))
         if work.version:
             parts.append(ReferencePart(f' {work.version}.'))
         parts.append(ReferencePart(
-            f' {work.publication_place}, {work.display_year}'
+            f' {work.publication_place}, {work.display_year}.'
         ))
         if work.additional_notes:
             parts.append(
