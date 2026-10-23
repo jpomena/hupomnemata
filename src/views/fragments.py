@@ -305,6 +305,7 @@ class FragmentsComposer:
                 ft.Text(
                     value='Nenhuma obra encontrada.',
                     color=self.config.colors['muted'],
+                    font_family=self.config.font_families['montserrat']
                 )
             ]
         self.work_results.visible = True
