@@ -66,19 +66,16 @@ class PeriodicalFormatter:
         if not work:
             return
 
-        parts.append(
-            ReferencePart(
-                content=Utils.fmt_authors(
-                    bibliographic_resource.authors
-                )
-            )
-        )
+        author_text = Utils.fmt_authors(bibliographic_resource.authors)
+        if author_text:
+            parts.append(ReferencePart(content=author_text))
 
         for content, style in Utils.format_title_and_subtitle(
             title=work.title,
             subtitle=work.subtitle if work.subtitle else None,
             title_style=TextStyle.NORMAL,
             without_author=not bibliographic_resource.authors,
+            preserve_title_spelling=work.preserve_title_spelling,
         ):
             parts.append(ReferencePart(content=content, style=style))
 
@@ -90,13 +87,18 @@ class PeriodicalFormatter:
         if isinstance(work, Magazine):
             title = work.title
             subtitle = work.subtitle
+            preserve_title_spelling = work.preserve_title_spelling
         elif isinstance(work, (JournalArticle, PeriodicalCollection)):
             magazine = PeriodicalFormatter._magazine_for(work)
             title = magazine.title
             subtitle = work.journal_subtitle
+            preserve_title_spelling = (
+                magazine.preserve_title_spelling
+            )
         else:
             title = work.journal_title
             subtitle = work.journal_subtitle
+            preserve_title_spelling = False
 
         for content, style in Utils.format_title_and_subtitle(
             title=title,
@@ -106,6 +108,7 @@ class PeriodicalFormatter:
                 isinstance(work, (Magazine, PeriodicalCollection))
                 and not work.authors
             ),
+            preserve_title_spelling=preserve_title_spelling,
         ):
             parts.append(ReferencePart(content=content, style=style))
 

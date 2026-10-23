@@ -218,6 +218,38 @@ class RenderMixin:
             control = self._field_for_render(spec)
             self.fields[spec.key] = control
 
+            if spec.key == "title":
+                rows, current = self._flush_current_row(rows, current)
+                rows.append(ft.Row(controls=[control]))
+                preserve_title = ft.Checkbox(
+                    label=(
+                        "Manter a grafia informada do título "
+                        "(evita que o aplicativo deixe nomes "
+                        "próprios em caixa baixa)"
+                    ),
+                    value=bool(
+                        self.stored_values.get(
+                            "preserve_title_spelling",
+                            False,
+                        )
+                    ),
+                    label_position=ft.LabelPosition.LEFT,
+                    label_style=ft.TextStyle(
+                        size=self.config.font_sizes["montserrat_tiny"],
+                        weight=self.config.font_weights["montserrat_normal"],
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families["montserrat"],
+                    ),
+                )
+                self.fields["preserve_title_spelling"] = preserve_title
+                rows.append(
+                    ft.Row(
+                        controls=[preserve_title],
+                        alignment=ft.MainAxisAlignment.START,
+                    )
+                )
+                continue
+
             if spec.key == "is_partial" and self.partial_enabled:
                 checkbox_controls.extend(
                     self._checkbox_group(

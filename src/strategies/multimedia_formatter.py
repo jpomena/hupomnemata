@@ -10,13 +10,17 @@ from src.domains import (
 from src.utils import ReferencePart, TextStyle, ViewReference
 from src.utils import ABNTUtils as Utils
 
+
 class AudiovisualFormatter:
 
     @staticmethod
     def formatter(work: AudiovisualDocument) -> ViewReference:
         parts = [
             ReferencePart(
-                content=AudiovisualFormatter._format_title(work.title),
+                content=AudiovisualFormatter._format_title(
+                    work.title,
+                    preserve_title_spelling=work.preserve_title_spelling,
+                ),
             )
         ]
         if work.subtitle:
@@ -56,8 +60,14 @@ class AudiovisualFormatter:
         return ViewReference(parts)
 
     @staticmethod
-    def _format_title(title: str) -> str:
-        return Utils.format_title_without_author(title)
+    def _format_title(
+        title: str,
+        preserve_title_spelling: bool = False,
+    ) -> str:
+        return Utils.format_title_without_author(
+            title,
+            preserve_title_spelling=preserve_title_spelling,
+        )
 
     @staticmethod
     def _format_duration(seconds: int) -> str:
@@ -149,11 +159,12 @@ class AudioFormatter:
         responsibilities: dict[str, str] | None = None,
     ) -> list[ReferencePart]:
         author_text = Utils.fmt_authors(work.authors)
-        title = (
-            Utils.format_title_without_author(work.title)
-            if not author_text
-            else AudioFormatter._format_title(work.title)
-        )
+        if work.preserve_title_spelling:
+            title = work.title.strip()
+        elif not author_text:
+            title = Utils.format_title_without_author(work.title)
+        else:
+            title = AudioFormatter._format_title(work.title)
         parts = []
         if 'audiolivro' in work.carrier_type.casefold():
             if author_text:
@@ -375,7 +386,10 @@ class MusicalScoreFormatter:
 
         title = work.title.strip()
         if not authors:
-            title = Utils.format_title_without_author(title)
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         if work.subtitle:
             title += f': {work.subtitle.strip()}'
         parts.append(ReferencePart(f'{title}.'))
@@ -434,7 +448,10 @@ class VisualFormatter:
 
         title = work.title.strip() or '[Sem título]'
         if not author_text and title != '[Sem título]':
-            title = Utils.format_title_without_author(title)
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         if work.subtitle:
             title += f': {work.subtitle.strip()}'
         parts.append(ReferencePart(f'{title}. {work.display_year}.'))
@@ -482,7 +499,10 @@ class CartographicFormatter:
 
         title = work.title.strip()
         if not author_text:
-            title = Utils.format_title_without_author(title)
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         if work.subtitle:
             title += f': {work.subtitle.strip()}'
         parts.append(ReferencePart(f'{title}.'))
@@ -538,7 +558,10 @@ class ThreeDimensionalFormatter:
         if not title:
             title = '[Objeto sem título]'
         elif not author_text:
-            title = Utils.format_title_without_author(title)
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         if work.subtitle:
             title += f': {work.subtitle.strip()}'
         parts.append(ReferencePart(f'{title}.'))

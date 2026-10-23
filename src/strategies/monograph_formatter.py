@@ -80,17 +80,19 @@ class MonographFormatter:
 
     @staticmethod
     def _append_authors_and_title(bibliographic_resource, parts):
-        parts.append(
-            ReferencePart(
-                content=Utils.fmt_authors(bibliographic_resource.authors)
-            )
-        )
+        author_text = Utils.fmt_authors(bibliographic_resource.authors)
+        if author_text:
+            parts.append(ReferencePart(content=author_text))
         for content, style in Utils.format_title_and_subtitle(
             title=bibliographic_resource.specific_work.title,
             subtitle=bibliographic_resource.specific_work.subtitle
             if bibliographic_resource.specific_work.subtitle else None,
             title_style=TextStyle.BOLD,
             without_author=not bibliographic_resource.authors,
+            preserve_title_spelling=(
+                bibliographic_resource.specific_work
+                .preserve_title_spelling
+            ),
         ):
             parts.append(ReferencePart(content=content, style=style))
 

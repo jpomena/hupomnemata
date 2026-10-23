@@ -11,6 +11,7 @@ from src.domains import (
     Author,
     Authorship,
     BibliographicResource,
+    CaseLaw,
     CorrespondenceMonograph,
     DatePrecision,
     EditorialMonograph,
@@ -33,8 +34,13 @@ from src.controllers.work_submission_controller import (
 from src.services.work_service import WorkService
 from src.services.work_form_service import WorkFormService
 from src.strategies import (
-    CoreNormalizer, MonographFormatter, PeriodicalFormatter
+    CoreNormalizer,
+    LegalDocsFormatter,
+    MonographFormatter,
+    PeriodicalFormatter,
+    ProceedingsFormatter,
 )
+from src.strategies.patent_formatter import PatentFormatter
 from src.utils import ABNTUtils
 from src.views.work_insert_specs import (
     ALWAYS_PARTIAL_TYPES,
@@ -80,6 +86,147 @@ def test_date_normalizer_handles_supported_precisions():
 
 def test_abnt_date_formatter_accepts_missing_date():
     assert ABNTUtils.format_abbrev_date(None) == '[s.d.]'
+
+
+def test_work_title_spelling_can_be_preserved_for_reference_formatting():
+    payload = WorkFormService().prepare_payload({
+        'work_type': 'editorial_monograph',
+        'title': 'Bíblia King James',
+        'preserve_title_spelling': True,
+        'authors': [],
+        'date_anchor': '2024',
+        'date_precision': 'Data exata',
+    })
+
+    assert payload['work_data']['title'] == 'Bíblia King James'
+    assert payload['work_data']['preserve_title_spelling'] is True
+    assert ABNTUtils.format_title_and_subtitle(
+        'Bíblia King James',
+        preserve_title_spelling=True,
+    )[0][0] == ' Bíblia King James'
+    assert ABNTUtils.format_title_without_author(
+        'Bíblia King James',
+        preserve_title_spelling=True,
+    ) == 'BÍBLIA King James'
+    assert ABNTUtils.format_title_without_author(
+        'a bíblia King James',
+        preserve_title_spelling=True,
+    ) == 'A BÍBLIA King James'
+    assert ABNTUtils.format_title_and_subtitle(
+        'de volta aos livros',
+        without_author=True,
+        preserve_title_spelling=True,
+    )[0][0] == 'DE VOLTA aos livros'
+
+
+def test_authors_are_optional_for_every_work_type():
+    for spec in WORK_TYPES:
+        author_fields = [
+            field for field in spec.fields if field.key == 'authors'
+        ]
+        assert all(not field.required for field in author_fields), spec.key
+
+
+def test_authorless_work_can_be_created_and_referenced_by_title():
+    form_data = {
+        'work_type': 'editorial_monograph',
+        'title': 'Bíblia King James',
+        'preserve_title_spelling': True,
+        'date_anchor': '2024',
+        'date_precision': 'Data exata',
+    }
+    assert WorkSubmissionController._missing_required_fields(form_data) == []
+
+    result = WorkService().resolve_and_create(
+        WorkFormService().prepare_payload(form_data)
+    )
+    assert not result['requires_choice']
+    resource = next(
+        work
+        for work in WorkService().list_works()
+        if work.id == result['resource_id']
+    )
+    assert resource.authorships == []
+
+    reference = CoreController.format_reference(resource)
+    assert reference is not None
+    assert ''.join(part.content for part in reference.parts).startswith(
+        'BÍBLIA King James.'
+    )
+
+
+def test_authorless_proceedings_reference_starts_with_title():
+    work = MonographicProceedings(
+        title='Memórias do encontro científico',
+    )
+
+    formatted = ''.join(
+        part.content for part in ProceedingsFormatter._format_unpublished(work)
+    )
+    assert formatted.startswith('MEMÓRIAS do encontro científico.')
+
+
+def test_authorless_legal_reference_starts_with_title():
+    work = CaseLaw(
+        title='Decisão sobre direitos autorais',
+        decision_type='Acórdão',
+        decision_date=date(2024, 1, 2),
+        publication_media='Diário da Justiça',
+        date_anchor=date(2024, 1, 3),
+    )
+
+    formatted = ''.join(
+        part.content for part in LegalDocsFormatter.formatter(work).parts
+    )
+    assert formatted.startswith('DECISÃO sobre direitos autorais.')
+
+
+def test_authorless_patent_reference_starts_with_title():
+    work = Patent(
+        title='Sistema de leitura digital',
+        applicant='Empresa',
+        number='BR123',
+        filing_date=date(2024, 1, 2),
+    )
+
+    formatted = ''.join(
+        part.content for part in PatentFormatter.formatter(work).parts
+    )
+    assert formatted.startswith('SISTEMA de leitura digital.')
+
+    normalized_payload = WorkFormService().prepare_payload({
+        'work_type': 'editorial_monograph',
+        'title': 'Bíblia King James',
+        'authors': [],
+        'date_anchor': '2024',
+        'date_precision': 'Data exata',
+    })
+    assert normalized_payload['work_data']['title'] == 'Bíblia king james'
+    assert normalized_payload['work_data']['preserve_title_spelling'] is False
+
+
+def test_existing_work_tables_migrate_title_spelling_flag():
+    with db_module.engine.begin() as connection:
+        connection.exec_driver_sql(
+            'DROP TABLE editorial_monographs'
+        )
+        connection.exec_driver_sql(
+            'CREATE TABLE editorial_monographs ('
+            'id INTEGER PRIMARY KEY, '
+            'title VARCHAR(150) NOT NULL, '
+            'bib_res_id INTEGER NOT NULL)'
+        )
+
+    db_module._ensure_legacy_columns()
+
+    with db_module.engine.connect() as connection:
+        columns = {
+            row[1]
+            for row in connection.exec_driver_sql(
+                'PRAGMA table_info("editorial_monographs")'
+            )
+        }
+    assert 'preserve_title_spelling' in columns
 
 
 def test_exception_models_follow_work_contract():
@@ -859,6 +1006,96 @@ def test_acervo_nesting_uses_parent_id_without_lazy_loading():
     assert resources[1].id == child_id
 
 
+def test_acervo_search_shows_matches_and_filters_in_real_time():
+    from types import SimpleNamespace
+    from src.configs.settings import (
+        COLORS,
+        FONT_FAMILIES,
+        FONT_SIZES,
+        FONT_WEIGHTS,
+        ICON_SIZES,
+        MAIN_VIEW_CARDS,
+        PAGE_FONTS,
+        TEXTS,
+        UI,
+    )
+    from src.utils.types import ViewConfig
+    from src.views.works import WorksComposer
+
+    works = [
+        SimpleNamespace(
+            id=1,
+            specific_work=SimpleNamespace(title='Alfa: Introdução'),
+        ),
+        SimpleNamespace(
+            id=2,
+            specific_work=SimpleNamespace(title='Alfa: Estudos'),
+        ),
+        SimpleNamespace(
+            id=3,
+            specific_work=SimpleNamespace(title='Beta'),
+        ),
+    ]
+    config = ViewConfig(
+        colors=COLORS,
+        page_fonts=PAGE_FONTS,
+        font_families=FONT_FAMILIES,
+        font_sizes=FONT_SIZES,
+        icon_sizes=ICON_SIZES,
+        font_weights=FONT_WEIGHTS,
+        ui=UI,
+        texts=TEXTS,
+        core_menus={},
+        main_view_cards=MAIN_VIEW_CARDS,
+    )
+    composer = WorksComposer(
+        scale=1,
+        config=config,
+        works=works,
+        on_navigate=lambda _destination: None,
+        on_work_click=lambda _resource: None,
+        on_edit_work=lambda _resource: None,
+        format_reference=lambda _resource: None,
+        on_copy_reference=lambda _reference: None,
+        on_delete_work=lambda _resource: None,
+    )
+    matched_resource_ids = []
+
+    def render_resources(resources):
+        matched_resource_ids[:] = [resource.id for resource in resources]
+        return [ft.Container(key=str(resource.id)) for resource in resources]
+
+    composer._nest_resources = render_resources
+    composer._compose_board()
+    composer.board.update = lambda: None
+
+    assert not composer.work_search.expand
+    assert composer.work_search_group.expand
+    composer.work_search.value = 'alfa'
+    composer._search_works(SimpleNamespace(
+        control=SimpleNamespace(value='alfa')
+    ))
+    assert composer.work_matches.visible
+    assert [
+        match.content.value for match in composer.work_matches.controls
+    ] == ['Alfa: Introdução', 'Alfa: Estudos']
+    assert matched_resource_ids == [1, 2]
+
+    composer.work_matches.controls[0].on_click(SimpleNamespace())
+    assert composer.work_search.value == 'Alfa: Introdução'
+    assert not composer.work_matches.visible
+    assert matched_resource_ids == [1]
+
+    composer.work_search.value = 'ausente'
+    composer._search_works(SimpleNamespace(
+        control=SimpleNamespace(value='ausente')
+    ))
+    assert composer.work_matches.controls[0].value == (
+        'Nenhuma obra encontrada.'
+    )
+    assert matched_resource_ids == []
+
+
 def test_partial_work_controls_are_not_universal_in_form_specs():
     for spec in WORK_TYPES:
         keys = {field.key for field in spec.fields}
@@ -1341,6 +1578,9 @@ def test_regular_checkbox_fields_render_in_separate_rows():
     )
     composer.partial_enabled = False
     composer._render(update_page=False)
+    assert composer.fields['preserve_title_spelling'].value is False
+    composer.fields['preserve_title_spelling'].value = True
+    assert composer._collect()['preserve_title_spelling'] is True
 
     rows = composer.form.controls[1].controls
     checkbox_row = next(
@@ -1504,7 +1744,7 @@ def test_monograph_without_author_capitalizes_first_significant_title_word():
 
     formatted = text_from_reference(MonographFormatter.formatter(resource))
 
-    assert formatted.lstrip().startswith('DE VOLTA aos livros.')
+    assert formatted.startswith('DE VOLTA aos livros.')
 
 
 def test_journal_article_formatter_outputs_basic_abnt_reference():

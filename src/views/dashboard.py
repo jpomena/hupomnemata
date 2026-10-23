@@ -19,7 +19,11 @@ class DashboardComposer:
         self.config = config
         self.on_navigate = on_navigate
 
-    def _compose_header(self) -> ft.Container:
+    def _compose_header(
+        self,
+        title: str | None = None,
+        subtitle: str | None = None,
+    ) -> ft.Container:
         """Cria o cabecalho e sua acao de insercao."""
 
         return ft.Container(
@@ -28,9 +32,13 @@ class DashboardComposer:
                     ft.Column(
                         controls=[
                             ft.Text(
-                                value=self.config.texts["app"][
-                                    "main_view_title"
-                                ],
+                                value=(
+                                    title
+                                    if title is not None
+                                    else self.config.texts["app"][
+                                        "main_view_title"
+                                    ]
+                                ),
                                 weight=self.config.font_weights[
                                     "cormorant_semibold"
                                 ],
@@ -41,9 +49,13 @@ class DashboardComposer:
                                 size=self.config.font_sizes["cormorant_big"],
                             ),
                             ft.Text(
-                                value=self.config.texts["app"][
-                                    "main_view_subtitle"
-                                ],
+                                value=(
+                                    subtitle
+                                    if subtitle is not None
+                                    else self.config.texts["app"][
+                                        "main_view_subtitle"
+                                    ]
+                                ),
                                 weight=self.config.font_weights[
                                     "montserrat_semibold"
                                 ],
@@ -121,6 +133,75 @@ class DashboardComposer:
                         ),
                         padding=self.config.ui["content_padding"],
                         expand=True,
+                        bgcolor=self.config.colors["bg"],
+                    ),
+                ],
+                spacing=self.config.ui["modal_gap"],
+                expand=True,
+            ),
+        )
+
+    def compose_placeholder(self, section: str) -> ft.Container:
+        """Monta uma tela provisoria para uma secao ainda incompleta."""
+        return ft.Container(
+            expand=True,
+            padding=ft.Padding(
+                top=self.config.ui["content_top_padding"],
+                right=0,
+                bottom=0,
+                left=0,
+            ),
+            bgcolor=self.config.colors["surface"],
+            content=ft.Column(
+                controls=[
+                    self._compose_header(
+                        title="Oops...",
+                        subtitle=section,
+                    ),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Image(
+                                    src="assets/images/wip.png",
+                                    width=460,
+                                    height=307,
+                                    fit=ft.BoxFit.CONTAIN,
+                                    semantics_label=(
+                                        "Ilustração de seção em construção"
+                                    ),
+                                ),
+                                ft.Text(
+                                    value=(
+                                        "Esta seção ainda está em "
+                                        "construção."
+                                    ),
+                                    color=self.config.colors["muted"],
+                                    font_family=(
+                                        self.config.font_families[
+                                            "montserrat"
+                                        ]
+                                    ),
+                                    size=self.config.font_sizes[
+                                        "montserrat_medium"
+                                    ],
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                            ],
+                            horizontal_alignment=(
+                                ft.CrossAxisAlignment.CENTER
+                            ),
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=self.config.ui["modal_gap"],
+                        ),
+                        border=ft.Border(
+                            top=ft.BorderSide(
+                                1,
+                                self.config.colors["border"],
+                            )
+                        ),
+                        padding=self.config.ui["content_padding"],
+                        expand=True,
+                        alignment=ft.Alignment.CENTER,
                         bgcolor=self.config.colors["bg"],
                     ),
                 ],

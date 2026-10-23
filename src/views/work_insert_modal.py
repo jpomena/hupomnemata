@@ -402,6 +402,8 @@ class WorkInsertModalComposer(
             content=ft.Text(
                 value="Cancelar",
                 font_family=self.config.font_families["montserrat"],
+                size=self.config.font_sizes["montserrat_medium"],
+                weight=self.config.font_weights["montserrat_normal"],
                 color=self.config.colors["text"],
             ),
             on_click=self._close,
@@ -417,10 +419,13 @@ class WorkInsertModalComposer(
                     else "Salvar acervo"
                 ),
                 font_family=self.config.font_families["montserrat"],
+                size=self.config.font_sizes["montserrat_medium"],
+                weight=self.config.font_weights["montserrat_normal"],
+                color=self.config.colors["bg"],
             ),
             on_click=self._save,
             bgcolor=self.config.colors["gold"],
-            color=self.config.colors["surface"],
+            color=self.config.colors["bg"],
         )
         action_controls: list[ft.Control] = [cancel_button, save_button]
 

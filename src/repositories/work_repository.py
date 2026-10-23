@@ -16,7 +16,10 @@ from src.domains import (
     AudioDocument,
     BibliographicResource,
     CorrespondenceMonograph,
+    CompilationFragment,
+    CompilationWork,
     EditorialMonograph,
+    Fragment,
     JournalArticle,
     Magazine,
     MonographicProceedings,
@@ -515,6 +518,7 @@ class WorkRepository:
         query: str,
         work_model: type[WorkMixin] | None = None,
         limit: int = 8,
+        include_partial: bool = False,
     ) -> list[BibliographicResource]:
         """Busca obras pelo titulo para seletores relacionados."""
         query = query.strip().casefold()
@@ -526,7 +530,10 @@ class WorkRepository:
             if (
                 work is not None
                 and (work_model is None or type(work) is work_model)
-                and not getattr(work, 'is_partial', False)
+                and (
+                    include_partial
+                    or not getattr(work, 'is_partial', False)
+                )
                 and query in work.title.casefold()
             ):
                 matches.append(resource)
@@ -555,6 +562,22 @@ class WorkRepository:
         )
 
         try:
+            fragment_ids = select(Fragment.id).where(
+                Fragment.bib_res_id == work.id
+            )
+            self.session.execute(
+                delete(CompilationFragment).where(
+                    CompilationFragment.fragment_id.in_(fragment_ids)
+                )
+            )
+            self.session.execute(
+                delete(Fragment).where(Fragment.bib_res_id == work.id)
+            )
+            self.session.execute(
+                delete(CompilationWork).where(
+                    CompilationWork.bib_res_id == work.id
+                )
+            )
             self.session.execute(
                 delete(BibliographicResource).where(
                     BibliographicResource.id == work.id

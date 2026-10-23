@@ -63,6 +63,28 @@ def test_capitalizes_first_non_particle_word_without_author():
     assert formatted_text(work).startswith('A ESCADA de madeira.')
 
 
+def test_preserves_title_spelling_when_requested():
+    work = VisualDocument(
+        title='Bíblia King James',
+        preserve_title_spelling=True,
+        display_year='2024',
+        physical_description='1 volume',
+    )
+
+    assert formatted_text(work).startswith('BÍBLIA King James. 2024.')
+
+
+def test_title_led_reference_capitalizes_leading_particle_and_next_word():
+    work = VisualDocument(
+        title='a Bíblia King James',
+        preserve_title_spelling=True,
+        display_year='2024',
+        physical_description='1 volume',
+    )
+
+    assert formatted_text(work).startswith('A BÍBLIA King James. 2024.')
+
+
 def test_formats_online_visual_document_and_requires_access_date():
     work = VisualDocument(
         title='Gravuras rupestres',

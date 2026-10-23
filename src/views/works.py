@@ -8,6 +8,7 @@ from src.utils.types import (
     ViewReference,
     WORK_TYPE_LABELS,
 )
+from src.utils.view_styles import text_field_style
 from collections.abc import Awaitable, Callable
 
 
@@ -36,6 +37,28 @@ class WorksComposer:
         self.on_copy_reference = on_copy_reference
         self.on_delete_work = on_delete_work
         self.board: ft.Column | None = None
+        self.selected_type = "Todos os tipos"
+        self.selected_work_id: int | None = None
+        self.work_search = ft.TextField(
+            label="Buscar obra",
+            hint_text="Digite o título da obra",
+            on_change=self._search_works,
+            filled=True,
+            fill_color=self.config.colors["surface"],
+            **text_field_style(self.config),
+        )
+        self.work_matches = ft.Column(
+            spacing=2,
+            tight=True,
+            visible=False,
+        )
+        self.work_search_group = ft.Column(
+            controls=[self.work_search, self.work_matches],
+            spacing=2,
+            tight=True,
+            expand=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
 
     @staticmethod
     def _get_specific_work(
@@ -91,7 +114,7 @@ class WorksComposer:
                                 self.config.font_weights['montserrat_semibold']
                             ),
                             size=self.config.font_sizes['montserrat_small'],
-                            color=self.config.colors['black']
+                            color=self.config.colors['bg']
                         ),
                         align=ft.Alignment.CENTER_RIGHT,
                         on_click=lambda e: self.on_navigate("work_insert"),
@@ -120,7 +143,7 @@ class WorksComposer:
                         type(specific_work).__name__,
                     )
                 )
-        selected_type = "Todos os tipos"
+        selected_type = self.selected_type
         type_filter = ft.Dropdown(
             value=selected_type,
             options=[
@@ -182,7 +205,13 @@ class WorksComposer:
         )
         self._filter_board(selected_type, refresh=False)
         return ft.Column(
-            controls=[type_filter, self.board],
+            controls=[
+                ft.Row(
+                    controls=[type_filter, self.work_search_group],
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                self.board,
+            ],
             spacing=self.config.ui["modal_gap"],
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -426,13 +455,69 @@ class WorksComposer:
 
         return [render_resource(resource) for resource in roots]
 
-    def _filter_board(self, selected_type: str, refresh: bool = True) -> None:
+    def _search_works(self, event: ft.Event[ft.TextField]) -> None:
+        query = (event.control.value or "").strip().casefold()
+        self.selected_work_id = None
+        if len(query) < 2:
+            self.work_matches.controls = []
+            self.work_matches.visible = False
+            self._filter_board(self.selected_type)
+            return
+
+        matches = []
+        for resource in self.works:
+            work = self._get_specific_work(resource)
+            if work is None:
+                continue
+            title = (work.title or "").strip()
+            if query in title.casefold():
+                matches.append((resource.id, title))
+
+        self.work_matches.controls = [
+            ft.TextButton(
+                content=ft.Text(
+                    value=title,
+                    color=self.config.colors["text"],
+                ),
+                on_click=lambda _event, resource_id=resource_id, title=title: (
+                    self._select_work(resource_id, title)
+                ),
+            )
+            for resource_id, title in matches[:8]
+        ]
+        if not matches:
+            self.work_matches.controls = [
+                ft.Text(
+                    value="Nenhuma obra encontrada.",
+                    color=self.config.colors["muted"],
+                )
+            ]
+        self.work_matches.visible = True
+        self._filter_board(self.selected_type)
+
+    def _select_work(self, resource_id: int, title: str) -> None:
+        self.selected_work_id = resource_id
+        self.work_search.value = title
+        self.work_matches.controls = []
+        self.work_matches.visible = False
+        self._filter_board(self.selected_type)
+
+    def _filter_board(
+        self, selected_type: str, refresh: bool = True
+    ) -> None:
         if self.board is None:
             return
+        self.selected_type = selected_type
+        query = (self.work_search.value or "").strip().casefold()
         filtered_resources = []
         for resource in self.works:
             work = self._get_specific_work(resource)
             if work is None:
+                continue
+            if self.selected_work_id is not None:
+                if resource.id != self.selected_work_id:
+                    continue
+            elif query and query not in (work.title or "").casefold():
                 continue
             if selected_type != "Todos os tipos":
                 current_type = type(work).__name__

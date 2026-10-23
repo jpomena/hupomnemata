@@ -357,7 +357,7 @@ class AuthorSearchMixin:
             ft.ElevatedButton(
                 content=ft.Text(
                     "Adicionar",
-                    color=self.config.colors["surface"],
+                    color=self.config.colors["bg"],
                     font_family=self.config.font_families["montserrat"],
                 ),
                 on_click=confirm,

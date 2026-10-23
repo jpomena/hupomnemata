@@ -2,43 +2,20 @@
 
 import re
 from collections.abc import Callable
-from typing import Protocol, TypedDict, cast
+from typing import Protocol, cast
 
 import flet as ft
 
 from src.contracts import AuthorReference, AuthorSearchResult
 from src.utils.types import ViewConfig
+from src.utils.view_styles import (
+    DropdownStyle,
+    TextFieldStyle,
+    dropdown_style,
+    text_field_base_style,
+    text_field_style,
+)
 from src.views.work_insert_specs import FieldSpec, WorkTypeSpec
-
-
-class TextFieldStyle(TypedDict, total=False):
-    """Shape compatível com os kwargs que o Flet aceita em TextField."""
-
-    border_color: str
-    focused_border_color: str
-    cursor_color: str
-    color: str
-    label_style: ft.TextStyle
-    border_radius: int | float
-    content_padding: int | float
-    bgcolor: str
-    border_width: int | float
-    text_style: ft.TextStyle
-    hint_style: ft.TextStyle
-
-
-class DropdownStyle(TypedDict, total=False):
-    """Shape compatível com os kwargs que o Flet aceita em Dropdown."""
-
-    border_color: str
-    focused_border_color: str
-    color: str
-    label_style: ft.TextStyle
-    border_radius: int | float
-    content_padding: int | float
-    bgcolor: str
-    border_width: int | float
-    text_style: ft.TextStyle
 
 
 class SupportsAuthorsControl(Protocol):
@@ -81,74 +58,16 @@ class FieldBuilderMixin:
 
     def _style(self) -> TextFieldStyle:
         """Retorna o estilo compartilhado pelos campos do formulário."""
-        return {
-            "border_color": self.config.colors["border"],
-            "focused_border_color": self.config.colors["gold"],
-            "cursor_color": self.config.colors["gold"],
-            "color": self.config.colors["text"],
-            "label_style": ft.TextStyle(
-                color=self.config.colors["muted"],
-                weight=self.config.font_weights["montserrat_normal"],
-                font_family=self.config.font_families["montserrat"],
-                letter_spacing=2,
-                size=12,
-            ),
-            "border_radius": self.config.ui["card_radius"],
-            "content_padding": self.config.ui["card_padding"],
-            "bgcolor": self.config.colors["surface"],
-            "border_width": 2,
-        }
+        return text_field_base_style(self.config)
 
     def _dropdown_style(self, theme: str | None = "dark") -> DropdownStyle:
         """Retorna o estilo dos menus suspensos."""
-        text_color = (
-            self.config.colors["black"]
-            if theme == "light"
-            else self.config.colors["muted"]
-        )
-        text_style = ft.TextStyle(
-            color=text_color,
-            weight=self.config.font_weights["montserrat_normal"],
-            font_family=self.config.font_families["montserrat"],
-            letter_spacing=2,
-            size=12,
-        )
-        label_style = ft.TextStyle(
-            color=text_color,
-            weight=self.config.font_weights["montserrat_normal"],
-            font_family=self.config.font_families["montserrat"],
-            letter_spacing=2,
-            size=12,
-        )
-        return {
-            "border_color": self.config.colors["border"],
-            "focused_border_color": self.config.colors["gold"],
-            "color": self.config.colors["text"],
-            "label_style": label_style,
-            "border_radius": self.config.ui["card_radius"],
-            "content_padding": self.config.ui["card_padding"],
-            "bgcolor": self.config.colors["surface"],
-            "border_width": 2,
-            "text_style": text_style,
-        }
+        return dropdown_style(self.config, theme)
 
     def _text_field_style(self) -> TextFieldStyle:
         """Retorna a tipografia e as cores dos campos de texto."""
         style = self._style()
-        style["text_style"] = ft.TextStyle(
-            color=self.config.colors["text"],
-            size=self.config.font_sizes["cormorant_small"],
-            weight=self.config.font_weights["cormorant_semibold"],
-            font_family=self.config.font_families["cormorant"],
-        )
-        style["hint_style"] = ft.TextStyle(
-            color=self.config.colors["muted"],
-            weight=self.config.font_weights["montserrat_normal"],
-            font_family=self.config.font_families["montserrat"],
-            letter_spacing=2,
-            size=12,
-        )
-        return style
+        return {**style, **text_field_style(self.config)}
 
     def _field(
         self,
@@ -174,14 +93,15 @@ class FieldBuilderMixin:
                         else "Ex.: intérprete, compositor"
                     )
                 )
-                controls = [
+                controls: list[ft.Control] = []
+                controls.extend(
                     self._audio_responsibility_row(
                         role,
                         names,
                         role_hint,
                     )
                     for role, names in data.items()
-                ]
+                )
                 if not controls:
                     controls.append(
                         self._audio_responsibility_row(
@@ -193,7 +113,10 @@ class FieldBuilderMixin:
                     spacing=self.config.ui["control_gap"],
                 )
 
-                def add_responsibility(event) -> None:
+                def add_responsibility(
+                    event: ft.Event[ft.IconButton],
+                ) -> None:
+                    del event
                     fields.controls.append(
                         self._audio_responsibility_row(
                             role_hint=role_hint,

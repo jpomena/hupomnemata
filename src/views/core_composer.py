@@ -2,11 +2,19 @@
 
 import flet as ft
 from src.domains import BibliographicResource
-from src.contracts import AuthorReference, AuthorSearchResult
+from src.contracts import (
+    AuthorReference,
+    AuthorSearchResult,
+    CompilationPayload,
+    CompilationRecord,
+    FragmentRecord,
+)
 
 from collections.abc import Awaitable, Callable
 from src.views.dashboard import DashboardComposer
 from src.views.works import WorksComposer
+from src.views.fragments import FragmentsComposer
+from src.views.compilations import CompilationsComposer
 from src.views.sidebar import SidebarComposer
 from src.utils.types import ViewConfig
 from src.utils.types import ViewReference
@@ -34,6 +42,50 @@ class CoreComposer:
         on_create_parent_work: Callable[
             [Callable[[int, str], None]], None
         ],
+        on_fragment_save: Callable[
+            [int | None, dict[str, object]], bool
+        ],
+        on_fragment_delete: Callable[[int], None],
+        search_fragment_works: Callable[[str], list[tuple[int, str]]],
+        search_compilation_works: Callable[
+            [str], list[tuple[int, str]]
+        ],
+        refresh_compilations: Callable[[], list[CompilationRecord]],
+        on_compilation_create: Callable[[CompilationPayload], int | None],
+        on_compilation_update: Callable[
+            [int, CompilationPayload], bool
+        ],
+        on_compilation_delete: Callable[[int], bool],
+        on_compilation_add_work: Callable[[int, int], bool],
+        on_compilation_remove_work: Callable[[int, int], bool],
+        on_compilation_reorder_works: Callable[[int, list[int]], bool],
+        on_compilation_fragment_membership: Callable[
+            [int, int, bool], bool
+        ],
+        on_compilation_fragment_note: Callable[
+            [int, int, str | None], bool
+        ],
+        on_compilation_section_create: Callable[
+            [int, str, str | None], int | None
+        ],
+        on_compilation_section_update: Callable[
+            [int, int, str, str | None], bool
+        ],
+        on_compilation_section_delete: Callable[[int, int], bool],
+        on_compilation_section_reorder: Callable[[int, list[int]], bool],
+        on_compilation_fragment_assign_section: Callable[
+            [int, int, int | None], bool
+        ],
+        on_compilation_section_reorder_fragments: Callable[
+            [int, int, list[int]], bool
+        ],
+        on_compilation_copy_caderno: Callable[[str], Awaitable[None]],
+        on_compilation_create_work: Callable[[int], None],
+        on_compilation_edit_work: Callable[[int, int], None],
+        on_compilation_create_fragment: Callable[[int, int], None],
+        on_compilation_edit_fragment: Callable[
+            [int, FragmentRecord], None
+        ],
     ):
         self.page = page
         self.scale = scale
@@ -45,6 +97,39 @@ class CoreComposer:
         self.on_copy_reference = on_copy_reference
         self.on_delete_work = on_delete_work
         self.on_create_parent_work = on_create_parent_work
+        self.on_fragment_save = on_fragment_save
+        self.on_fragment_delete = on_fragment_delete
+        self.search_fragment_works = search_fragment_works
+        self.search_compilation_works = search_compilation_works
+        self.refresh_compilations = refresh_compilations
+        self.on_compilation_create = on_compilation_create
+        self.on_compilation_update = on_compilation_update
+        self.on_compilation_delete = on_compilation_delete
+        self.on_compilation_add_work = on_compilation_add_work
+        self.on_compilation_remove_work = on_compilation_remove_work
+        self.on_compilation_reorder_works = on_compilation_reorder_works
+        self.on_compilation_fragment_membership = (
+            on_compilation_fragment_membership
+        )
+        self.on_compilation_fragment_note = on_compilation_fragment_note
+        self.on_compilation_section_create = on_compilation_section_create
+        self.on_compilation_section_update = on_compilation_section_update
+        self.on_compilation_section_delete = on_compilation_section_delete
+        self.on_compilation_section_reorder = on_compilation_section_reorder
+        self.on_compilation_fragment_assign_section = (
+            on_compilation_fragment_assign_section
+        )
+        self.on_compilation_section_reorder_fragments = (
+            on_compilation_section_reorder_fragments
+        )
+        self.on_compilation_copy_caderno = on_compilation_copy_caderno
+        self.on_compilation_create_work = on_compilation_create_work
+        self.on_compilation_edit_work = on_compilation_edit_work
+        self.on_compilation_create_fragment = (
+            on_compilation_create_fragment
+        )
+        self.on_compilation_edit_fragment = on_compilation_edit_fragment
+        self.compilations_composer: CompilationsComposer | None = None
 
     def _window_control_button(
         self,
@@ -166,17 +251,28 @@ class CoreComposer:
             spacing=0,
         )
 
-    def show_view(self, destination: str, works=None):
+    def show_view(
+        self,
+        destination: str,
+        works: list[BibliographicResource] | None = None,
+        fragments: list[FragmentRecord] | None = None,
+        compilations: list[CompilationRecord] | None = None,
+    ) -> None:
         views = {
             "dashboard": self._compose_dashboard,
             "Acervo": lambda: self._compose_works(works),
-            "Fragmentos": self._compose_dashboard
+            "Fragmentos": lambda: self._compose_fragments(fragments),
+            "Compilações": lambda: self._compose_compilations(compilations),
         }
         view_factory = views.get(destination)
         if not view_factory:
-            return
-
-        self.content.content = view_factory()
+            if destination not in self.config.core_menus:
+                return
+            self.content.content = self._compose_placeholder_dashboard(
+                destination
+            )
+        else:
+            self.content.content = view_factory()
         self.content.update()
 
     def _compose_dashboard(self) -> ft.Control:
@@ -186,7 +282,17 @@ class CoreComposer:
             on_navigate=self.on_navigate,
         ).compose()
 
-    def _compose_works(self, works) -> ft.Control:
+    def _compose_placeholder_dashboard(self, section: str) -> ft.Control:
+        return DashboardComposer(
+            scale=self.scale,
+            config=self.config,
+            on_navigate=self.on_navigate,
+        ).compose_placeholder(section)
+
+    def _compose_works(
+        self,
+        works: list[BibliographicResource] | None,
+    ) -> ft.Control:
         return WorksComposer(
             scale=self.scale,
             config=self.config,
@@ -198,6 +304,64 @@ class CoreComposer:
             on_copy_reference=self.on_copy_reference,
             on_delete_work=self.on_delete_work,
         ).compose()
+
+    def _compose_fragments(
+        self,
+        fragments: list[FragmentRecord] | None,
+    ) -> ft.Control:
+        return FragmentsComposer(
+            page=self.page,
+            config=self.config,
+            fragments=fragments or [],
+            search_works=self.search_fragment_works,
+            on_save=self.on_fragment_save,
+            on_delete=self.on_fragment_delete,
+            on_copy_reference=self.on_copy_reference,
+        ).compose()
+
+    def _compose_compilations(
+        self,
+        compilations: list[CompilationRecord] | None,
+    ) -> ft.Control:
+        self.compilations_composer = CompilationsComposer(
+            page=self.page,
+            config=self.config,
+            compilations=compilations or [],
+            search_works=self.search_compilation_works,
+            refresh_compilations=self.refresh_compilations,
+            on_create=self.on_compilation_create,
+            on_update=self.on_compilation_update,
+            on_delete=self.on_compilation_delete,
+            on_add_work=self.on_compilation_add_work,
+            on_remove_work=self.on_compilation_remove_work,
+            on_reorder_works=self.on_compilation_reorder_works,
+            on_fragment_membership=(
+                self.on_compilation_fragment_membership
+            ),
+            on_fragment_note=self.on_compilation_fragment_note,
+            on_create_section=self.on_compilation_section_create,
+            on_update_section=self.on_compilation_section_update,
+            on_delete_section=self.on_compilation_section_delete,
+            on_reorder_sections=self.on_compilation_section_reorder,
+            on_assign_fragment_to_section=(
+                self.on_compilation_fragment_assign_section
+            ),
+            on_reorder_section_fragments=(
+                self.on_compilation_section_reorder_fragments
+            ),
+            on_copy_caderno=self.on_compilation_copy_caderno,
+            on_create_work=self.on_compilation_create_work,
+            on_edit_work=self.on_compilation_edit_work,
+            on_create_fragment=self.on_compilation_create_fragment,
+            on_edit_fragment=self.on_compilation_edit_fragment,
+        )
+        return self.compilations_composer.compose()
+
+    def refresh_compilation_hub(self, compilation_id: int) -> None:
+        if self.compilations_composer is not None:
+            self.compilations_composer.refresh_compilation_hub(
+                compilation_id
+            )
 
     @staticmethod
     def compose_work_details_popup(

@@ -154,10 +154,16 @@ class WorkFormService:
             converted.get('title') or ''
         ).strip():
             converted['title'] = '[Sem título]'
-        if 'title' in converted:
+        converted.setdefault('preserve_title_spelling', False)
+        if (
+            'title' in converted
+            and not converted.get('preserve_title_spelling', False)
+        ):
             converted['title'] = self.normalizer.title_normalizer(
                 str(converted['title'])
             )
+        elif 'title' in converted:
+            converted['title'] = str(converted['title']).strip()
         if work_type != 'magazine':
             converted['date_anchor'] = date_anchor
             converted['date_precision'] = precision
@@ -169,14 +175,16 @@ class WorkFormService:
             if multimedia_display_year is not None:
                 converted['display_year'] = multimedia_display_year
             if work_type == 'monographic_proceedings':
+                if not isinstance(date_anchor, date):
+                    raise TypeError('A data de publicação deve ser uma data.')
                 converted['publication_year'] = date_anchor.year
-            elif (
-                work_type == 'periodical_proceedings'
-                and isinstance(converted.get('publication_date'), date)
-            ):
-                converted['publication_year'] = converted[
-                    'publication_date'
-                ].year
+            else:
+                publication_date = converted.get('publication_date')
+                if (
+                    work_type == 'periodical_proceedings'
+                    and isinstance(publication_date, date)
+                ):
+                    converted['publication_year'] = publication_date.year
 
         work_data = {
             key: value

@@ -70,6 +70,7 @@ class WorkService:
         self,
         query: str,
         work_type: str | None = None,
+        include_partial: bool = False,
     ) -> list[tuple[int, str]]:
         work_model = (
             self.work_model_for(work_type) if work_type is not None else None
@@ -78,6 +79,7 @@ class WorkService:
             resources = WorkRepository(session, self.normalizer).search_works(
                 query,
                 work_model=work_model,
+                include_partial=include_partial,
             )
         return [
             (resource.id, resource.specific_work.title)
