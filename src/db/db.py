@@ -1,10 +1,17 @@
+import sys
+
 from pathlib import Path
 
 from sqlalchemy import create_engine, or_, select, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from src.utils.error_log import log_exception
 
-DATABASE_PATH = Path(__file__).resolve().parents[0] / 'hupomnemata.db'
+if getattr(sys, 'frozen', False):
+    base_path = Path(sys.executable).parent
+else:
+    base_path = Path(__file__).resolve().parents[0]
+
+DATABASE_PATH = base_path / 'hupomnemata.db'
 DATABASE_URL = f'sqlite:///{DATABASE_PATH.as_posix()}'
 
 engine = create_engine(DATABASE_URL)

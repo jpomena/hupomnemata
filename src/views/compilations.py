@@ -568,8 +568,8 @@ class CompilationsComposer:
                             ),
                             ft.Text(
                                 value=(
-                                    'Hubs de trabalho com obras e fragmentos '
-                                    'relacionados'
+                                    'Compilações são seus projetos de escrita,'
+                                    ' com obras e fragmentos relacionados'
                                 ),
                                 weight=self.config.font_weights[
                                     'montserrat_normal'
