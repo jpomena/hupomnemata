@@ -50,18 +50,23 @@ class LegalDocsFormatter:
         authors = work.authors
         parts = []
 
-        parts.append(ReferencePart(f' {Utils.fmt_authors(authors)}'))
-        if isinstance(work, CaseLaw) and (
-            work.region or work.panel
-        ):
+        author_text = Utils.fmt_authors(authors)
+        if author_text:
+            parts.append(ReferencePart(f' {author_text}'))
+        has_panel = False
+        if isinstance(work, CaseLaw) and (work.region or work.panel):
+            has_panel = True
             panels = []
             if work.region:
                 panels.append(work.region)
             if work.panel:
                 panels.append(work.panel)
             panels_str = ', '.join(panels)
-            parts.append(ReferencePart(f'({panels_str})'))
-        parts.append(ReferencePart('.'))
+            parts.append(ReferencePart(
+                f'{" " if not author_text else ""}({panels_str})'
+            ))
+        if author_text or has_panel:
+            parts.append(ReferencePart('.'))
 
         return parts
 
@@ -71,10 +76,16 @@ class LegalDocsFormatter:
     ) -> List[ReferencePart]:
         parts = []
         title = work.title
-        if not Utils.fmt_authors(work.authors):
-            title = Utils.format_title_without_author(title)
+        author_text = Utils.fmt_authors(work.authors)
+        if not author_text:
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
+        prefix = ' ' if author_text else ''
         parts.append(ReferencePart(
-            f' {title}, de {Utils.fmt_full_date(work.promulgation_date)}.'
+            f'{prefix}{title}, de '
+            f'{Utils.fmt_full_date(work.promulgation_date)}.'
             f' {work.abstract}.'
         ))
 
@@ -85,9 +96,16 @@ class LegalDocsFormatter:
         parts = []
 
         title = work.title
-        if not Utils.fmt_authors(work.authors):
-            title = Utils.format_title_without_author(title)
-        parts.append(ReferencePart(f' {title}.'))
+        author_text = Utils.fmt_authors(work.authors)
+        if not author_text:
+            title = Utils.format_title_without_author(
+                title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
+        has_panel = work.region or work.panel
+        parts.append(ReferencePart(
+            f'{" " if author_text or has_panel else ""}{title}.'
+        ))
         if work.case_number:
             parts.append(ReferencePart(f' Processo n. {work.case_number}.'))
         if work.abstract:

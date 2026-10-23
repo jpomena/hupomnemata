@@ -42,9 +42,8 @@ COMMON = (
     ),
     FieldSpec(
         key="authors",
-        label="Autores / responsáveis, separados por ponto e vírgula",
-        hint="Ex.: Pierre Dardot; Christian Laval",
-        required=True,
+        label="Autores / responsáveis (se houver)",
+        hint="Separe vários nomes por ponto e vírgula",
     ),
     FieldSpec(
         key="abstract",
@@ -981,7 +980,7 @@ WORK_TYPES = (
             hint="Ex.: 1 partitura (86 p.) + 1 parte (34 p.)",
             required=True,
         ),
-        FieldSpec(key="authors", label="Compositor(es)", required=True),
+        FieldSpec(key="authors", label="Compositor(es), se houver"),
         *PUBLICATION,
         FieldSpec(key="additional_notes", label="Notas adicionais")
     ),

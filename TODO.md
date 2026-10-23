@@ -46,9 +46,33 @@
   exceções por tipo documental.
 - [ ] Atualizar a documentação de escopo e status dos formatters.
 
-## 5. Retomar as funcionalidades planejadas
+## 5. Implementar Fragmentos
+
+- [x] Associar citações e comentários a obras do Acervo.
+- [x] Exigir localização tipada em citações e permitir localização opcional
+  em comentários.
+- [x] Oferecer localizadores por página, capítulo, seção, posição e tempo.
+- [x] Criar, listar, editar e excluir fragmentos; remover fragmentos junto com
+  a obra associada.
+- [x] Migrar citações legadas para o novo modelo sem perder seus dados.
+- [ ] Adicionar tags para organizar fragmentos.
+
+## 6. Compilações
+
+- [x] Criar compilações com nome obrigatório e descrição opcional.
+- [x] Reunir obras do Acervo em várias compilações, sem duplicatas por projeto.
+- [x] Permitir adicionar, remover e reordenar obras manualmente.
+- [x] Preservar obras e fragmentos ao excluir uma compilação.
+- [x] Buscar compilações por nome e descrição, com sugestões de resultados.
+- [x] Abrir um hub por compilação com visão geral e obras/fragmentos aninhados.
+- [x] Vincular fragmentos existentes a várias compilações sem duplicatas.
+- [x] Criar e editar obras e fragmentos pelo hub, restringindo fragmentos às
+  obras vinculadas ao projeto.
+- [x] Criar caderno de trabalho como esqueleto de escrita, com seções/ideias,
+  fragmentos organizáveis, notas de articulação e cópia com referências.
+
+## 7. Retomar outras funcionalidades planejadas
 
 - [ ] Importação de metadados.
-- [ ] Fichamento rápido e notas de leitura.
 - [ ] Exportação de referências e dados.
 - [ ] Grafo conceitual.

@@ -17,7 +17,7 @@ PART_IDENTIFIERS = parameters['PART_IDENTIFIERS']
 
 PHYSICAL_ATTRIBUTES = parameters['PHYSICAL_ATTRIBUTES']
 
-COLORS = parameters['COLORS']
+COLORS = parameters['COLORS_LIGHT']
 
 CORE_MENUS = parameters['CORE_MENUS']
 

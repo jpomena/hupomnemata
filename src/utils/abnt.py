@@ -43,7 +43,10 @@ class ABNTUtils:
         return '; '.join(authors_strs)
 
     @staticmethod
-    def format_title_without_author(title: str) -> str:
+    def format_title_without_author(
+        title: str,
+        preserve_title_spelling: bool = False,
+    ) -> str:
         words = title.strip().split()
         for index, word in enumerate(words):
             words[index] = word.upper()
@@ -73,10 +76,13 @@ class ABNTUtils:
         title = (
             work.title
             if author_text
-            else ABNTUtils.format_title_without_author(work.title)
+            else ABNTUtils.format_title_without_author(
+                work.title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         )
         parts.append((
-            f' {title}',
+            f'{" " if author_text else ""}{title}',
             TextStyle.NORMAL
         ))
         if work.subtitle:
@@ -92,24 +98,32 @@ class ABNTUtils:
         subtitle: str | None = None,
         title_style: TextStyle = TextStyle.NORMAL,
         without_author: bool = False,
+        preserve_title_spelling: bool = False,
     ) -> List[Tuple[str, TextStyle]]:
         '''
         Formata título e subtítulo. O estilo do título pode variar
         (negrito na obra principal, normal na parte).
         O subtítulo, segundo a ABNT, nunca recebe destaque (sempre normal).
         '''
-        title_text = title.strip().lower()
-        if title_text:
-            if without_author:
-                title_text = ABNTUtils.format_title_without_author(
-                    title_text
-                )
-            else:
-                title_text = title_text.capitalize()
+        title_text = (
+            title.strip()
+            if preserve_title_spelling
+            else title.strip().lower()
+        )
+        if without_author and title_text:
+            title_text = ABNTUtils.format_title_without_author(
+                title_text,
+                preserve_title_spelling=preserve_title_spelling,
+            )
+        elif title_text and not preserve_title_spelling:
+            title_text = title_text.lower().capitalize()
         subtitle_text = subtitle.strip() if subtitle else ''
 
         parts = []
-        parts.append((f' {title_text}', title_style))
+        parts.append((
+            f'{" " if not without_author else ""}{title_text}',
+            title_style,
+        ))
 
         if subtitle_text:
             parts.append((f': {subtitle_text}', TextStyle.NORMAL))

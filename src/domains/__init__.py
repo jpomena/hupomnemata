@@ -1,5 +1,16 @@
 from .core_domain import (
-    DatePrecision, BibliographicResource, WorkMixin, Author, Authorship
+    DatePrecision,
+    BibliographicResource,
+    WorkMixin,
+    Author,
+    Authorship,
+    Fragment,
+)
+from .compilations import (
+    Compilation,
+    CompilationFragment,
+    CompilationSection,
+    CompilationWork,
 )
 from .digital import MiscDigitalDocument
 from .monographs import (
@@ -22,6 +33,11 @@ __all__ = [
     'WorkMixin',
     'Author',
     'Authorship',
+    'Fragment',
+    'Compilation',
+    'CompilationWork',
+    'CompilationFragment',
+    'CompilationSection',
     'EditorialMonograph',
     'AcademicMonograph',
     'CorrespondenceMonograph',

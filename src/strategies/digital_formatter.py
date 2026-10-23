@@ -11,13 +11,17 @@ class DigitalFormatter:
     ) -> ViewReference:
         parts = []
         author_text = Utils.fmt_authors(work.authors)
-        parts.append(ReferencePart(author_text))
+        if author_text:
+            parts.append(ReferencePart(author_text))
         title = (
             work.title
             if author_text
-            else Utils.format_title_without_author(work.title)
+            else Utils.format_title_without_author(
+                work.title,
+                preserve_title_spelling=work.preserve_title_spelling,
+            )
         )
-        parts.append(ReferencePart(f' {title}'))
+        parts.append(ReferencePart(f'{" " if author_text else ""}{title}'))
         if work.subtitle:
             parts.append(ReferencePart(f': {work.subtitle}'))
         parts.append(ReferencePart('.'))

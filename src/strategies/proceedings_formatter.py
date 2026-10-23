@@ -102,12 +102,19 @@ class ProceedingsFormatter:
         title = (
             child_doc.title
             if author_text
-            else Utils.format_title_without_author(child_doc.title)
+            else Utils.format_title_without_author(
+                child_doc.title,
+                preserve_title_spelling=(
+                    child_doc.preserve_title_spelling
+                ),
+            )
         )
-        parts = [
-            ReferencePart(f'{author_text}.'),
-            ReferencePart(f' {title}')
-        ]
+        parts = (
+            [ReferencePart(f'{author_text}.')]
+            if author_text
+            else []
+        )
+        parts.append(ReferencePart(f'{" " if author_text else ""}{title}'))
         if child_doc.subtitle:
             parts.append(ReferencePart(f': {child_doc.subtitle}'))
 
@@ -126,12 +133,22 @@ class ProceedingsFormatter:
         title = (
             document.title
             if author_text
-            else Utils.format_title_without_author(document.title)
+            else Utils.format_title_without_author(
+                document.title,
+                preserve_title_spelling=(
+                    document.preserve_title_spelling
+                ),
+            )
         )
-        parts = [
-            ReferencePart(author_text),
-            ReferencePart(f' {title}', TextStyle.BOLD)
-        ]
+        parts = (
+            [ReferencePart(author_text)]
+            if author_text
+            else []
+        )
+        parts.append(ReferencePart(
+            f'{" " if author_text else ""}{title}',
+            TextStyle.BOLD,
+        ))
         if document.subtitle:
             parts.append(ReferencePart(f': {document.subtitle}'))
         parts.append(ReferencePart(f'. {document.date_anchor}.'))
@@ -158,7 +175,10 @@ class ProceedingsFormatter:
         else:
             parts.append(ReferencePart(f', {document.event_year}.'))
 
-        parts.append(ReferencePart(f' {document.title}', TextStyle.BOLD))
+        parts.append(ReferencePart(
+            f' {document.title}',
+            TextStyle.BOLD,
+        ))
 
         if document.subtitle:
             parts.append(ReferencePart(f': {document.subtitle}'))

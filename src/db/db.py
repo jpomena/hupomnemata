@@ -18,6 +18,19 @@ def _import_domain_models() -> None:
     import src.domains  # noqa: F401
 
 
+def _rename_legacy_citations_table() -> None:
+    """Move the original citations table to the fragments table name."""
+    with engine.begin() as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
+        if 'citations' in tables and 'fragments' not in tables:
+            conn.execute(text('ALTER TABLE citations RENAME TO fragments'))
+
+
 def _cleanup_duplicate_specific_works() -> None:
     """Remove registros antigos de obras específicas duplicadas por recurso."""
     tables = [
@@ -195,6 +208,57 @@ def _ensure_legacy_columns() -> None:
                 text("SELECT name FROM sqlite_master WHERE type='table'")
             ).fetchall()
         }
+        for table in Base.metadata.tables.values():
+            columns = table_columns.get(table.name, set())
+            if (
+                {'title', 'bib_res_id'} <= columns
+                and 'preserve_title_spelling' not in columns
+            ):
+                conn.execute(text(
+                    f'ALTER TABLE "{table.name}" ADD COLUMN '
+                    'preserve_title_spelling BOOLEAN NOT NULL DEFAULT 0'
+                ))
+                columns.add('preserve_title_spelling')
+        if 'fragments' in table_columns:
+            fragment_columns = table_columns['fragments']
+            fragment_migrations = {
+                'fragment_type': (
+                    "VARCHAR(20) NOT NULL DEFAULT 'quote'"
+                ),
+                'location_type': 'VARCHAR(30)',
+                'location_value': 'VARCHAR(100)',
+                'created_at': 'DATETIME',
+                'updated_at': 'DATETIME',
+            }
+            for column_name, column_type in fragment_migrations.items():
+                if column_name not in fragment_columns:
+                    conn.execute(text(
+                        'ALTER TABLE fragments ADD COLUMN '
+                        f'{column_name} {column_type}'
+                    ))
+                    fragment_columns.add(column_name)
+            conn.execute(text(
+                'UPDATE fragments SET created_at = CURRENT_TIMESTAMP '
+                'WHERE created_at IS NULL'
+            ))
+            if {'start_page', 'end_page'} <= fragment_columns:
+                conn.execute(text(
+                    """
+                    UPDATE fragments
+                    SET location_type = 'Página',
+                        location_value = CASE
+                            WHEN start_page IS NOT NULL
+                                AND end_page IS NOT NULL
+                                THEN CAST(start_page AS TEXT) || '-' ||
+                                     CAST(end_page AS TEXT)
+                            WHEN start_page IS NOT NULL
+                                THEN CAST(start_page AS TEXT)
+                            ELSE CAST(end_page AS TEXT)
+                        END
+                    WHERE location_type IS NULL
+                      AND (start_page IS NOT NULL OR end_page IS NOT NULL)
+                    """
+                ))
         if 'statutes' in table_columns and 'publication_date' not in table_columns['statutes']:  # noqa: E501
             conn.execute(
                 text('ALTER TABLE statutes ADD COLUMN publication_date DATE')
@@ -314,6 +378,81 @@ def _ensure_legacy_columns() -> None:
                     ))
 
 
+def _ensure_compilation_fragment_columns() -> None:
+    with engine.begin() as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
+        if 'compilation_fragments' not in tables:
+            return
+
+        columns = {
+            row[1]
+            for row in conn.execute(
+                text('PRAGMA table_info("compilation_fragments")')
+            )
+        }
+        added_position = 'position' not in columns
+        if added_position:
+            conn.execute(text(
+                'ALTER TABLE compilation_fragments ADD COLUMN '
+                'position INTEGER NOT NULL DEFAULT 0'
+            ))
+        if 'work_note' not in columns:
+            conn.execute(text(
+                'ALTER TABLE compilation_fragments ADD COLUMN work_note TEXT'
+            ))
+
+        if added_position and 'fragments' in tables:
+            rows = conn.execute(text(
+                """
+                SELECT cf.id, cf.compilation_id, f.bib_res_id
+                FROM compilation_fragments AS cf
+                JOIN fragments AS f ON f.id = cf.fragment_id
+                ORDER BY cf.compilation_id, f.bib_res_id, cf.fragment_id
+                """
+            )).fetchall()
+            positions: dict[tuple[int, int], int] = {}
+            for association_id, compilation_id, bib_res_id in rows:
+                key = (compilation_id, bib_res_id)
+                position = positions.get(key, 0)
+                conn.execute(
+                    text(
+                        'UPDATE compilation_fragments '
+                        'SET position = :position WHERE id = :id'
+                    ),
+                    {'position': position, 'id': association_id},
+                )
+                positions[key] = position + 1
+
+
+def _ensure_compilation_outline_columns() -> None:
+    with engine.begin() as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
+        if 'compilation_fragments' not in tables:
+            return
+        columns = {
+            row[1]
+            for row in conn.execute(
+                text('PRAGMA table_info("compilation_fragments")')
+            )
+        }
+        if 'section_id' not in columns:
+            conn.execute(text(
+                'ALTER TABLE compilation_fragments ADD COLUMN '
+                'section_id INTEGER REFERENCES compilation_sections(id) '
+                'ON DELETE SET NULL'
+            ))
+
+
 def _migrate_periodical_parent_links() -> None:
     """Cria Revistas para registros legados e as vincula como obra-pai."""
     from src.domains import (
@@ -387,8 +526,11 @@ def _migrate_periodical_parent_links() -> None:
 
 def init_db():
     _import_domain_models()
+    _rename_legacy_citations_table()
     Base.metadata.create_all(bind=engine)
     _ensure_legacy_columns()
+    _ensure_compilation_fragment_columns()
+    _ensure_compilation_outline_columns()
     _cleanup_duplicate_specific_works()
     _split_resources_with_multiple_work_types()
     _migrate_periodical_parent_links()

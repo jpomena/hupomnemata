@@ -30,13 +30,14 @@ class PatentFormatter:
         parts = []
 
         author_text = Utils.fmt_authors(authors)
-        parts.append(ReferencePart(f' {author_text}'))
-        parts.append(ReferencePart('.'))
+        if author_text:
+            parts.append(ReferencePart(f' {author_text}.'))
         formatted_title = ''.join(
             content
             for content, _ in Utils.format_title_and_subtitle(
                 title,
                 without_author=not author_text,
+                preserve_title_spelling=work.preserve_title_spelling,
             )
         )
         parts.append(ReferencePart(formatted_title))
@@ -57,7 +58,7 @@ class PatentFormatter:
             parts.append(ReferencePart(
                 f' Procurador: {work.representative}.'
             ))
-        parts.append(f' {work.number}')
+        parts.append(ReferencePart(f' {work.number}'))
 
         return parts
 

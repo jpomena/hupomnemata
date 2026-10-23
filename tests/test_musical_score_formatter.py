@@ -171,7 +171,7 @@ def test_musical_score_is_partial_and_controller_dispatches_formatter():
     resource = BibliographicResource(musical_score=work)
 
     assert 'musical_score' in PARTIAL_WORK_TYPES
-    assert field_labels['authors'] == 'Compositor(es)'
+    assert field_labels['authors'] == 'Compositor(es), se houver'
     assert 'physical_description' in field_labels
     assert 'date_anchor' in field_labels
     assert 'display_year' not in field_labels

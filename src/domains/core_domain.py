@@ -2,8 +2,9 @@ import enum
 
 from src.db import Base
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, List, cast
+from typing import TYPE_CHECKING, Any, cast
 from sqlalchemy import (
+    Boolean,
     String,
     Text,
     Enum,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     CheckConstraint,
     UniqueConstraint,
     inspect,
+    text,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -52,6 +54,7 @@ if TYPE_CHECKING:
         CartographicDocument,
         MusicalScore
     )
+    from .compilations import CompilationFragment, CompilationWork
     from .digital import MiscDigitalDocument
     from .patent import Patent
 
@@ -186,8 +189,15 @@ class BibliographicResource(Base):
             foreign_keys='[MiscDigitalDocument.bib_res_id]',
         )
     )
-    citations: Mapped[List[Citation]] = relationship(
-        'Citation', back_populates='bibliographic_resource'
+    fragments: Mapped[list['Fragment']] = relationship(
+        'Fragment',
+        back_populates='bibliographic_resource',
+        cascade='all, delete-orphan',
+    )
+    compilation_items: Mapped[list['CompilationWork']] = relationship(
+        'CompilationWork',
+        back_populates='bibliographic_resource',
+        cascade='all, delete-orphan',
     )
 
     @property
@@ -200,7 +210,7 @@ class BibliographicResource(Base):
         o erro de lazy-load em objetos fora da sessão.
         '''
         exclude_relations = {
-            'parent_work', 'authorships', 'authors', 'citations'
+            'parent_work', 'authorships', 'authors', 'fragments'
         }
         mapper = object_mapper(self)
         matches: list[WorkMixin] = []
@@ -281,6 +291,12 @@ class WorkMixin(Base):
     # ---------------------------- Identidade ---------------------------------
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
+    preserve_title_spelling: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text('0'),
+    )
     subtitle: Mapped[str] = mapped_column(String(500), nullable=True)
     abstract: Mapped[str] = mapped_column(Text, nullable=True)
     bib_res_id: Mapped[int] = mapped_column(
@@ -400,11 +416,14 @@ class Authorship(Base):
     )
 
 
-class Citation(Base):
-    __tablename__ = 'citations'
+class Fragment(Base):
+    __tablename__ = 'fragments'
 
     id: Mapped[int] = mapped_column(primary_key=True)
     excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    fragment_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default='quote'
+    )
     bib_res_id: Mapped[int] = mapped_column(
         ForeignKey(
             'bibliographic_resources.id',
@@ -413,7 +432,26 @@ class Citation(Base):
     )
     start_page: Mapped[int] = mapped_column(nullable=True)
     end_page: Mapped[int] = mapped_column(nullable=True)
+    location_type: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+    location_value: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, onupdate=func.now()
+    )
 
-    bibliographic_resource: Mapped[BibliographicResource] = relationship(
-        'BibliographicResource', back_populates='citations'
+    bibliographic_resource: Mapped['BibliographicResource'] = relationship(
+        'BibliographicResource', back_populates='fragments'
+    )
+    compilation_items: Mapped[list['CompilationFragment']] = relationship(
+        'CompilationFragment',
+        back_populates='fragment',
+        cascade='all, delete-orphan',
     )

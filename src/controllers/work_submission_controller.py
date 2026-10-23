@@ -144,22 +144,6 @@ class WorkSubmissionController:
             ):
                 missing.append(field.label.rstrip(' *'))
 
-        author_field = next(
-            (field for field in spec.fields if field.key == 'authors'),
-            None,
-        )
-        if (
-            author_field is not None
-            and author_field.required
-            and not (
-                work_type == 'audio_document'
-                and form_data.get('is_partial')
-            )
-            and not WorkFormService.author_references(
-                form_data.get('authors', [])
-            )
-        ):
-            missing.append(author_field.label.rstrip(' *'))
         if (
             is_partial
         ) and not form_data.get('parent_bibliographic_resource_id'):
