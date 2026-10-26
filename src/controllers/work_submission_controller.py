@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 import flet as ft
 
-from src.configs.settings import COLORS
 from src.contracts import WorkCreationPayload
 from src.domains import Author
 from src.services.work_service import WorkService
@@ -55,7 +54,7 @@ class WorkSubmissionController:
                 'Preencha os campos obrigatórios: '
                 + ', '.join(missing_fields)
                 + '.',
-                COLORS['text'],
+                self.config.colors['text'],
             )
             return False
 
@@ -70,13 +69,13 @@ class WorkSubmissionController:
             return self._continue_pending_submission(close_form=False)
         except (ValueError, TypeError) as error:
             log_exception('Dados inválidos no cadastro de obra', error)
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao preparar o cadastro de obra', error)
             self.show_message(
                 f'Não foi possível salvar a obra.\n\n{error} ',
-                COLORS['text'],
+                self.config.colors['text'],
             )
             return False
 
@@ -221,14 +220,14 @@ class WorkSubmissionController:
         except (ValueError, TypeError) as error:
             log_exception('Dados inválidos ao persistir uma obra', error)
             self._clear_pending_submission()
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao persistir uma obra', error)
             self._clear_pending_submission()
             self.show_message(
                 f'Não foi possível salvar a obra.\n\n{error}',
-                COLORS['text'],
+                self.config.colors['text'],
             )
             return False
 
@@ -242,7 +241,9 @@ class WorkSubmissionController:
                 self.close_insert_work()
         if on_created is not None:
             on_created(*created_work)
-        self.show_message('Obra adicionada ao acervo.', COLORS['gold'])
+        self.show_message(
+            'Obra adicionada ao acervo.', self.config.colors['gold']
+        )
         return True
 
     def _show_multiple_authors_modal(

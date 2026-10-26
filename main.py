@@ -3,7 +3,8 @@ from src.controllers import CoreController
 
 
 def main(page: ft.Page):
-    CoreController(page).start()
+    dark_theme = True
+    CoreController(page, dark_theme=dark_theme).start()
 
 
 if __name__ == '__main__':
