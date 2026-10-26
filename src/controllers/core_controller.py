@@ -4,7 +4,8 @@ from collections.abc import Callable
 from sqlalchemy import inspect as sqlalchemy_inspect
 
 from src.configs.settings import (
-    COLORS,
+    COLORS_LIGHT,
+    COLORS_DARK,
     CORE_MENUS,
     FONT_FAMILIES,
     FONT_SIZES,
@@ -81,7 +82,7 @@ from src.controllers.work_submission_controller import (
 class CoreController:
     """Orquestra o ciclo de vida e os fluxos principais da aplicação."""
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, dark_theme: bool = False):
         self.page = page
         self.work_insert_modal: ft.AlertDialog | None = None
         self.normalizer = CoreNormalizer()
@@ -91,7 +92,7 @@ class CoreController:
         self.compilation_fragment_composer = None
         self.form_service = WorkFormService(self.normalizer)
         self.view_config = ViewConfig(
-            colors=COLORS,
+            colors=COLORS_DARK if dark_theme else COLORS_LIGHT,
             page_fonts=PAGE_FONTS,
             font_families=FONT_FAMILIES,
             font_sizes=FONT_SIZES,
@@ -284,7 +285,7 @@ class CoreController:
         if work is None:
             self.show_message(
                 'A obra cadastrada não possui detalhes disponíveis.',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
 
@@ -299,7 +300,7 @@ class CoreController:
         if work_type is None:
             self.show_message(
                 'Não há formulário de edição para este tipo de obra.',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
 
@@ -416,7 +417,7 @@ class CoreController:
                 'Preencha os campos obrigatórios: '
                 + ', '.join(missing_fields)
                 + '.',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
@@ -428,13 +429,13 @@ class CoreController:
             work_title = self.service.update(resource_id, payload)
         except (ValueError, TypeError) as error:
             log_exception("Dados inválidos ao editar uma obra", error)
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception("Falha ao editar uma obra", error)
             self.show_message(
                 f'Não foi possível salvar as alterações.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
@@ -444,7 +445,7 @@ class CoreController:
             self.refresh_compilation_hub(compilation_id)
         self.show_message(
             f'A obra “{work_title}” foi atualizada.',
-            COLORS['gold'],
+            self.view_config.colors['gold'],
         )
         return True
 
@@ -491,7 +492,9 @@ class CoreController:
             await self.page.clipboard.set(
                 "".join(part.content for part in reference.parts).strip()
             )
-        self.show_message('Referência copiada.', COLORS['gold'])
+        self.show_message(
+            'Referência copiada.', self.view_config.colors['gold']
+        )
 
     def delete_work(self, resource) -> None:
         """Remove uma obra do acervo e atualiza a listagem."""
@@ -500,12 +503,15 @@ class CoreController:
         except Exception as error:
             log_exception("Falha ao excluir uma obra", error)
             self.show_message(
-                f'Não foi possível excluir a obra.\n\n{error}', COLORS['text']
+                f'Não foi possível excluir a obra.\n\n{error}',
+                self.view_config.colors['text']
             )
             return
 
         self.navigate('Acervo')
-        self.show_message('Obra excluída do acervo.', COLORS['gold'])
+        self.show_message(
+            'Obra excluída do acervo.', self.view_config.colors['gold']
+        )
 
     def save_fragment(
         self,
@@ -520,18 +526,18 @@ class CoreController:
                 self.fragment_service.update(fragment_id, data)
                 message = 'Fragmento atualizado.'
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao salvar fragmento', error)
             self.show_message(
                 f'Não foi possível salvar o fragmento.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
         self.navigate('Fragmentos')
-        self.show_message(message, COLORS['gold'])
+        self.show_message(message, self.view_config.colors['gold'])
         return True
 
     def save_compilation_fragment(
@@ -559,7 +565,7 @@ class CoreController:
                 self.fragment_service.update(fragment_id, payload)
                 message = 'Fragmento atualizado.'
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception(
@@ -568,12 +574,12 @@ class CoreController:
             )
             self.show_message(
                 f'Não foi possível salvar o fragmento.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
         self.refresh_compilation_hub(compilation_id)
-        self.show_message(message, COLORS['gold'])
+        self.show_message(message, self.view_config.colors['gold'])
         return True
 
     def delete_fragment(self, fragment_id: int) -> None:
@@ -583,12 +589,14 @@ class CoreController:
             log_exception('Falha ao excluir fragmento', error)
             self.show_message(
                 f'Não foi possível excluir o fragmento.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
 
         self.navigate('Fragmentos')
-        self.show_message('Fragmento excluído.', COLORS['gold'])
+        self.show_message(
+            'Fragmento excluído.', self.view_config.colors['gold']
+        )
 
     def search_fragment_works(self, query: str) -> list[tuple[int, str]]:
         try:
@@ -597,7 +605,7 @@ class CoreController:
             log_exception('Falha ao buscar obras para fragmentos', error)
             self.show_message(
                 f'Não foi possível buscar obras no Acervo.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return []
 
@@ -611,7 +619,7 @@ class CoreController:
             log_exception('Falha ao buscar obras para compilações', error)
             self.show_message(
                 f'Não foi possível buscar obras no Acervo.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return []
 
@@ -622,17 +630,19 @@ class CoreController:
         try:
             compilation_id = self.compilation_service.create(payload)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return None
         except Exception as error:
             log_exception('Falha ao criar compilação', error)
             self.show_message(
                 f'Não foi possível criar a compilação.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return None
 
-        self.show_message('Compilação criada.', COLORS['gold'])
+        self.show_message(
+            'Compilação criada.', self.view_config.colors['gold']
+        )
         return compilation_id
 
     def update_compilation(
@@ -643,34 +653,38 @@ class CoreController:
         try:
             self.compilation_service.update(compilation_id, payload)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao atualizar compilação', error)
             self.show_message(
                 f'Não foi possível atualizar a compilação.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
-        self.show_message('Compilação atualizada.', COLORS['gold'])
+        self.show_message(
+            'Compilação atualizada.', self.view_config.colors['gold']
+        )
         return True
 
     def delete_compilation(self, compilation_id: int) -> bool:
         try:
             self.compilation_service.delete(compilation_id)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao excluir compilação', error)
             self.show_message(
                 f'Não foi possível excluir a compilação.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
-        self.show_message('Compilação excluída.', COLORS['gold'])
+        self.show_message(
+            'Compilação excluída.', self.view_config.colors['gold']
+        )
         return True
 
     def add_work_to_compilation(
@@ -681,17 +695,19 @@ class CoreController:
         try:
             self.compilation_service.add_work(compilation_id, bib_res_id)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao adicionar obra à compilação', error)
             self.show_message(
                 f'Não foi possível adicionar a obra.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
-        self.show_message('Obra adicionada à compilação.', COLORS['gold'])
+        self.show_message(
+            'Obra adicionada à compilação.', self.view_config.colors['gold']
+        )
         return True
 
     def remove_work_from_compilation(
@@ -702,17 +718,19 @@ class CoreController:
         try:
             self.compilation_service.remove_work(compilation_id, bib_res_id)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao remover obra da compilação', error)
             self.show_message(
                 f'Não foi possível remover a obra.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
-        self.show_message('Obra removida da compilação.', COLORS['gold'])
+        self.show_message(
+            'Obra removida da compilação.', self.view_config.colors['gold']
+        )
         return True
 
     def reorder_compilation_works(
@@ -726,13 +744,13 @@ class CoreController:
                 ordered_resource_ids,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao ordenar obras da compilação', error)
             self.show_message(
                 f'Não foi possível ordenar as obras.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
@@ -756,7 +774,7 @@ class CoreController:
                     fragment_id,
                 )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception(
@@ -765,7 +783,7 @@ class CoreController:
             )
             self.show_message(
                 f'Não foi possível atualizar o fragmento.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
 
@@ -784,7 +802,7 @@ class CoreController:
                 note,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception(
@@ -793,7 +811,7 @@ class CoreController:
             )
             self.show_message(
                 f'Não foi possível salvar a nota.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -811,13 +829,13 @@ class CoreController:
                 central_idea,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return None
         except Exception as error:
             log_exception('Falha ao criar seção do caderno', error)
             self.show_message(
                 f'Não foi possível criar a seção.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return None
         return section_id
@@ -837,13 +855,13 @@ class CoreController:
                 central_idea,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao atualizar seção do caderno', error)
             self.show_message(
                 f'Não foi possível atualizar a seção.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -856,13 +874,13 @@ class CoreController:
         try:
             self.compilation_service.delete_section(compilation_id, section_id)
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao remover seção do caderno', error)
             self.show_message(
                 f'Não foi possível remover a seção.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -878,13 +896,13 @@ class CoreController:
                 section_ids,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao ordenar seções do caderno', error)
             self.show_message(
                 f'Não foi possível ordenar as seções.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -902,13 +920,13 @@ class CoreController:
                 section_id,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao mover fragmento entre seções', error)
             self.show_message(
                 f'Não foi possível mover o fragmento.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -926,13 +944,13 @@ class CoreController:
                 fragment_ids,
             )
         except (ValueError, TypeError) as error:
-            self.show_message(str(error), COLORS['text'])
+            self.show_message(str(error), self.view_config.colors['text'])
             return False
         except Exception as error:
             log_exception('Falha ao ordenar fragmentos na seção', error)
             self.show_message(
                 f'Não foi possível ordenar os fragmentos.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return False
         return True
@@ -944,10 +962,10 @@ class CoreController:
             log_exception('Falha ao copiar caderno de trabalho', error)
             self.show_message(
                 f'Não foi possível copiar o caderno.\n\n{error}',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
-        self.show_message('Caderno copiado.', COLORS['gold'])
+        self.show_message('Caderno copiado.', self.view_config.colors['gold'])
 
     def open_compilation_work_insert(self, compilation_id: int) -> None:
         def add_created_work(resource_id: int, title: str) -> None:
@@ -993,7 +1011,7 @@ class CoreController:
         if resource is None:
             self.show_message(
                 'A obra da compilação não está mais disponível.',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
         self.open_work_edit(resource, compilation_id=compilation_id)
@@ -1069,7 +1087,7 @@ class CoreController:
         if title is None:
             self.show_message(
                 'Inclua a obra na compilação antes de criar um fragmento.',
-                COLORS['text'],
+                self.view_config.colors['text'],
             )
             return
         composer.open_create_for_work(resource_id, title)
@@ -1113,7 +1131,9 @@ class CoreController:
     def show_message(self, message: str, bgcolor: str) -> None:
         self.page.show_dialog(
             ft.SnackBar(
-                content=ft.Text(value=message, color=COLORS['surface']),
+                content=ft.Text(
+                    value=message, color=self.view_config.colors['surface']
+                ),
                 bgcolor=bgcolor,
             )
         )

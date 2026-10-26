@@ -24,16 +24,16 @@
 
 ## 3. Implementar os formatters ausentes
 
-- [ ] `PatentFormatter` — requerente, representante, número, depósito e
+- [x] `PatentFormatter` — requerente, representante, número, depósito e
   concessão.
-- [ ] `AudiovisualFormatter` — responsabilidades, suporte, duração, som e cor.
-- [ ] `AudioFormatter` — responsabilidades gerais e da parte, suporte e
+- [x] `AudiovisualFormatter` — responsabilidades, suporte, duração, som e cor.
+- [x] `AudioFormatter` — responsabilidades gerais e da parte, suporte e
   identificador da parte.
 - [x] `MusicalScoreFormatter` — autoria, instrumentação, publicação,
   descrição física, partes de coletânea e acesso on-line.
-- [ ] `VisualFormatter` — dados bibliográficos aplicáveis a documentos visuais.
-- [ ] `CartographicFormatter` — edição e dados de publicação.
-- [ ] `ThreeDimensionalFormatter` — tipo de responsabilidade e dados de
+- [x] `VisualFormatter` — dados bibliográficos aplicáveis a documentos visuais.
+- [x] `CartographicFormatter` — edição e dados de publicação.
+- [x] `ThreeDimensionalFormatter` — tipo de responsabilidade e dados de
   fabricação.
 - [ ] Para cada formatter novo, adicionar testes de referência completa,
   campos opcionais e combinações inválidas ou incompletas de dados.
