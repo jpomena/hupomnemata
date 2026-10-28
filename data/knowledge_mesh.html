@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hupomnemata — Malha de Saberes (Estruturas de Saber)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #F9F9FB;
+      color: #1A1A1A;
+      font-family: 'Montserrat', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+    #graph-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* Top Bar HUD */
+    .hud-bar {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #FFFFFFCC;
+      backdrop-filter: blur(12px);
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      padding: 10px 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      z-index: 10;
+      pointer-events: auto;
+    }
+    .hud-title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #896200;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hud-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .search-box {
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: #1A1A1A;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.2s;
+    }
+    .search-box:focus {
+      border-color: #896200;
+    }
+    .btn {
+      background: #896200;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #FFFFFF;
+      color: #1A1A1A;
+      border: 1px solid #E0E0E0;
+    }
+    /* Legends & Stats */
+    .hud-footer {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: #FFFFFFCC;
+      backdrop-filter: blur(12px);
+      border: 1px solid #E0E0E0;
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 11px;
+      color: #666666;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      z-index: 10;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    /* Detail Panel */
+    .detail-panel {
+      position: absolute;
+      top: 80px;
+      right: 20px;
+      width: 380px;
+      max-height: calc(100vh - 120px);
+      background: #FFFFFFF2;
+      backdrop-filter: blur(16px);
+      border: 1px solid #E0E0E0;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      z-index: 20;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .detail-panel.visible {
+      display: flex;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #E0E0E0;
+      padding-bottom: 10px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: #666666;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .close-btn:hover {
+      color: #1A1A1A;
+    }
+    .node-title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #896200;
+      line-height: 1.3;
+    }
+    .node-excerpt {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1A1A1A;
+      font-style: italic;
+      background: #F9F9FB80;
+      padding: 12px;
+      border-left: 3px solid #896200;
+      border-radius: 4px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .resonance-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #896200;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .resonance-item {
+      background: #F9F9FB;
+      border: 1px solid #E0E0E0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      margin-top: 6px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .resonance-item:hover {
+      border-color: #896200;
+    }
+    /* SVG Elements */
+    .link {
+      stroke: rgba(137, 98, 0, 0.28);
+      stroke-linecap: round;
+      transition: stroke 0.2s, stroke-width 0.2s;
+    }
+    .link.highlighted {
+      stroke: #896200;
+      stroke-width: 2.5px !important;
+      stroke-opacity: 0.9;
+    }
+    .node {
+      cursor: pointer;
+    }
+    .node circle {
+      stroke-width: 2px;
+      transition: stroke 0.2s, r 0.2s, filter 0.2s;
+    }
+    .node:hover circle {
+      stroke: #896200;
+      filter: drop-shadow(0 0 8px #89620080);
+    }
+    .node.dimmed {
+      opacity: 0.15;
+    }
+    .node-label {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 10px;
+      fill: #666666;
+      pointer-events: none;
+      transition: fill 0.2s, font-weight 0.2s;
+    }
+    .node:hover .node-label {
+      fill: #1A1A1A;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="graph-container">
+    <svg id="network-svg"></svg>
+  </div>
+
+  <!-- HUD Header -->
+  <div class="hud-bar">
+    <div class="hud-title">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#896200" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      Estruturas de Saber
+    </div>
+    <div class="hud-controls">
+      <input type="text" id="search-input" class="search-box" placeholder="Buscar nós, autores ou conceitos..." />
+      <button class="btn btn-secondary" onclick="resetZoom()">Centralizar</button>
+      <button class="btn" onclick="triggerPhysicsRestart()">Reorganizar Malha</button>
+    </div>
+  </div>
+
+  <!-- Footer Stats -->
+  <div class="hud-footer">
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #896200;"></div>
+      <span id="stat-nodes">0 Nós</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: rgba(212, 175, 55, 0.6);"></div>
+      <span id="stat-links">0 Ressonâncias</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #2E7D32;"></div>
+      <span id="stat-clusters">0 Clusters</span>
+    </div>
+  </div>
+
+  <!-- Detail Card -->
+  <div id="detail-card" class="detail-panel">
+    <div class="panel-header">
+      <span id="card-type-badge" class="badge" style="background: #89620033; color: #896200;">CITAÇÃO</span>
+      <button class="close-btn" onclick="closeCard()">&times;</button>
+    </div>
+    <div id="card-title" class="node-title">Título do Nó</div>
+    <div id="card-meta" style="font-size: 11px; color: #666666;">Metadados da Obra</div>
+    <div id="card-excerpt" class="node-excerpt">Texto do fragmento ou descrição conceitual...</div>
+    <div>
+      <div class="resonance-title">Ressonâncias Semânticas</div>
+      <div id="card-resonances">
+        <!-- Injetado dinamicamente -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const graphData = {"nodes": [{"id": "fragment_2", "type": "fragment", "entity_type": "fragment", "entity_id": 2, "title": "Bíblia King James Atualizada", "work_title": "Bíblia King James Atualizada", "label": "31 Mas Jesus lhes respondeu: “Credes agora?\n3…", "excerpt": "31 Mas Jesus lhes respondeu: “Credes agora?\n32 Pois, chegará o momento, e realmente, a hora é esta, quando sereis espalhados cada um para sua família. Vós me deixareis sozinho. Mas Eu não estou desamparado, pois meu Pai está comigo.\n33 Eu vos preveni sobre esses acontecimentos para que em mim tenhais paz.\r\nNeste mundo sofrereis tribulações; mas tende fé e coragem! Eu venci o mundo.”", "full_text": "31 Mas Jesus lhes respondeu: “Credes agora?\n32 Pois, chegará o momento, e realmente, a hora é esta, quando sereis espalhados cada um para sua família. Vós me deixareis sozinho. Mas Eu não estou desamparado, pois meu Pai está comigo.\n33 Eu vos preveni sobre esses acontecimentos para que em mim tenhais paz.\r\nNeste mundo sofrereis tribulações; mas tende fé e coragem! Eu venci o mundo.”", "location": "Outros Jo 16:32-33", "cluster_id": 3, "cluster_name": "Cluster: Neoliberalismo / Direito / Crise", "color": "#8C5E58", "size": 14, "x": 923.2357304708161, "y": 563.3159215234568}, {"id": "fragment_3", "type": "fragment", "entity_type": "fragment", "entity_id": 3, "title": "Bíblia King James Atualizada", "work_title": "Bíblia King James Atualizada", "label": "1 Portanto, eu, prisioneiro no Senhor, suplic…", "excerpt": "1 Portanto, eu, prisioneiro no Senhor, suplico-vos que andeis de modo digno para com o chamado que recebestes,\n2 com toda humildade e mansidão, com paciência, suportando-vos uns aos outros em amor,\n3 procurando cuidadosamente manter a unidade do Espírito no vínculo da paz.", "full_text": "1 Portanto, eu, prisioneiro no Senhor, suplico-vos que andeis de modo digno para com o chamado que recebestes,\n2 com toda humildade e mansidão, com paciência, suportando-vos uns aos outros em amor,\n3 procurando cuidadosamente manter a unidade do Espírito no vínculo da paz.", "location": "Outros Ef 4:1-3", "cluster_id": 4, "cluster_name": "Cluster: Portanto / Prisioneiro / Senhor", "color": "#4A7A68", "size": 14, "x": 1076.3884653486843, "y": 788.5792336016478}, {"id": "work_1", "type": "work", "entity_type": "work", "entity_id": 1, "title": "Decreto-Lei n. 2848", "work_title": "Decreto-Lei n. 2848", "label": "Decreto-Lei n. 2848", "excerpt": "", "full_text": "", "location": "1940-12-31", "cluster_id": 6, "cluster_name": "Cluster: Tertuliano / Batismo / Penitência", "color": "#A88942", "size": 18, "x3": -88.38211372766007, "y3": 154.75385507657106, "z3": 196.38358164586003, "x": 730.1849163028161, "y": 694.2156155442433}, {"id": "work_2", "type": "work", "entity_type": "work", "entity_id": 2, "title": "Do governo dos vivos", "work_title": "Do governo dos vivos", "label": "Do governo dos vivos", "excerpt": "curso no Collège de France (1979–1980)", "full_text": "curso no Collège de France (1979–1980)", "location": "2014-01-01", "cluster_id": 2, "cluster_name": "Cluster: Governo / Vivos / Chico", "color": "#5A6B7C", "size": 18, "x3": -201.76422745532025, "y3": -174.75385507657106, "z3": 2.777060853142803e-14, "x": 820.7021931389454, "y": 593.1253915776133}, {"id": "work_3", "type": "work", "entity_type": "work", "entity_id": 3, "title": "Aula de 13 de fevereiro de 1980", "work_title": "Aula de 13 de fevereiro de 1980", "label": "Aula de 13 de fevereiro de 1980", "excerpt": "Tertuliano (continuação): a relação entre purificação da alma e acesso à verdade na preparação e no ato do batismo. Recapitulação do marco geral dessa análise: as relações entre ato de verdade e ascese. Novidade da doutrina de Tertuliano. — O problema da preparação para o batismo. Argumentação de Tertuliano contra os gnósticos e a atitude de certos postulantes ao batismo. Sua doutrina do pecado original: não só perversão da natureza, mas introdução do outro (Satanás) em nós. O tempo do batismo, tempo de luta e de combate contra o adversário. O medo, modalidade essencial da reação do sujeito consigo mesmo; importância desse tema na história do cristianismo e da subjetividade. — Consequência prática: a \"disciplina da penitência\". Novo sentido da palavra penitência em Tertuliano. Difração da metanoia. A penitência estendida à vida inteira. A penitência como manifestação da verdade do pecador perante Deus. Dissociação entre o polo da fé e o polo do reconhecimento das faltas.", "full_text": "Tertuliano (continuação): a relação entre purificação da alma e acesso à verdade na preparação e no ato do batismo. Recapitulação do marco geral dessa análise: as relações entre ato de verdade e ascese. Novidade da doutrina de Tertuliano. — O problema da preparação para o batismo. Argumentação de Tertuliano contra os gnósticos e a atitude de certos postulantes ao batismo. Sua doutrina do pecado original: não só perversão da natureza, mas introdução do outro (Satanás) em nós. O tempo do batismo, tempo de luta e de combate contra o adversário. O medo, modalidade essencial da reação do sujeito consigo mesmo; importância desse tema na história do cristianismo e da subjetividade. — Consequência prática: a \"disciplina da penitência\". Novo sentido da palavra penitência em Tertuliano. Difração da metanoia. A penitência estendida à vida inteira. A penitência como manifestação da verdade do pecador perante Deus. Dissociação entre o polo da fé e o polo do reconhecimento das faltas.", "location": "2014-01-01", "cluster_id": 6, "cluster_name": "Cluster: Tertuliano / Batismo / Penitência", "color": "#A88942", "size": 18, "x3": -143.38211372766006, "y3": 174.75385507657106, "z3": 248.34510587292635, "x": 791.142005090813, "y": 809.2497545738299}, {"id": "work_4", "type": "work", "entity_type": "work", "entity_id": 4, "title": "How project management helped one man escape homelessness — and launch a movement", "work_title": "How project management helped one man escape homelessness — and launch a movement", "label": "How project management helped one man escape homelessness — and launch a movement", "excerpt": "", "full_text": "", "location": "2025-01-01", "cluster_id": 4, "cluster_name": "Cluster: Portanto / Prisioneiro / Senhor", "color": "#4A7A68", "size": 18, "x3": 165.14800000000002, "y3": -10.0, "z3": 242.743456579163, "x": 945.2795065078504, "y": 791.3114788252683}, {"id": "work_5", "type": "work", "entity_type": "work", "entity_id": 5, "title": "A revolução neoliberal e a subversão do \"modelo jurídico\"", "work_title": "A revolução neoliberal e a subversão do \"modelo jurídico\"", "label": "A revolução neoliberal e a subversão do \"modelo jurídico\"", "excerpt": "O processo revolucionário em curso -- A revolução neoliberal -- Neoliberalismo e direito -- Neoliberalismo e \"modelo jurídico\" -- Neoliberalismo e direito democrático -- A constituição da crise é o estado de exceção (o Estado de não-direito) -- A questão latente dos contornos jurídicos do estado de exceção: há limites para a suprema salvação pública? -- Uma contextualização mais radical das normas constitucionais -- A discricionariedade do legislador à beira do abismo -- A justiça constitucional num tempo \"de crise\" -- O lugar da estabilidade e da confiança -- O lugar da igualdade -- O lugar da qualidade e o argumento da proporcionalidade -- Aspectos pragmaticos da argumentação \"de crise\" -- A argumentação na jurisprudência constitucional -- E agora?.", "full_text": "O processo revolucionário em curso -- A revolução neoliberal -- Neoliberalismo e direito -- Neoliberalismo e \"modelo jurídico\" -- Neoliberalismo e direito democrático -- A constituição da crise é o estado de exceção (o Estado de não-direito) -- A questão latente dos contornos jurídicos do estado de exceção: há limites para a suprema salvação pública? -- Uma contextualização mais radical das normas constitucionais -- A discricionariedade do legislador à beira do abismo -- A justiça constitucional num tempo \"de crise\" -- O lugar da estabilidade e da confiança -- O lugar da igualdade -- O lugar da qualidade e o argumento da proporcionalidade -- Aspectos pragmaticos da argumentação \"de crise\" -- A argumentação na jurisprudência constitucional -- E agora?.", "location": "2013-03-01", "cluster_id": 3, "cluster_name": "Cluster: Neoliberalismo / Direito / Crise", "color": "#8C5E58", "size": 18, "x3": 251.76422745532025, "y3": -174.75385507657106, "z3": 0.0, "x": 845.7905794571242, "y": 691.282520596412}, {"id": "work_6", "type": "work", "entity_type": "work", "entity_id": 6, "title": "Revista dos Tribunais", "work_title": "Revista dos Tribunais", "label": "Revista dos Tribunais", "excerpt": "", "full_text": "", "location": "", "cluster_id": 5, "cluster_name": "Cluster: Revista / Tribunais / Arias", "color": "#7D6285", "size": 18, "x3": -115.14800000000011, "y3": -10.0, "z3": -242.74345657916297, "x": 863.3290225755017, "y": 463.2922162888933}, {"id": "work_9", "type": "work", "entity_type": "work", "entity_id": 9, "title": "O prisioneiro da grade de ferro", "work_title": "O prisioneiro da grade de ferro", "label": "O prisioneiro da grade de ferro", "excerpt": "", "full_text": "", "location": "2003-01-01", "cluster_id": 1, "cluster_name": "Cluster: Prisioneiro / Grade / Ferro", "color": "#896200", "size": 18, "x3": 138.38211372766017, "y3": 154.75385507657106, "z3": -196.38358164586, "x": 1058.2947854650304, "y": 546.7373130520868}, {"id": "work_10", "type": "work", "entity_type": "work", "entity_id": 10, "title": "Chico buarque", "work_title": "Chico buarque", "label": "Chico buarque", "excerpt": "", "full_text": "", "location": "1984-01-01", "cluster_id": 2, "cluster_name": "Cluster: Governo / Vivos / Chico", "color": "#5A6B7C", "size": 18, "x3": -256.7642274553202, "y3": -154.75385507657106, "z3": 51.96152422706635, "x": 589.0523940556648, "y": 685.3767342932588}, {"id": "work_11", "type": "work", "entity_type": "work", "entity_id": 11, "title": "Vai passar", "work_title": "Vai passar", "label": "Vai passar", "excerpt": "", "full_text": "", "location": "1984-01-01", "cluster_id": 1, "cluster_name": "Cluster: Prisioneiro / Grade / Ferro", "color": "#896200", "size": 18, "x3": 83.38211372766017, "y3": 174.75385507657106, "z3": -144.42205741879368, "x": 989.5164676870845, "y": 427.8993407348021}, {"id": "work_12", "type": "work", "entity_type": "work", "entity_id": 12, "title": "Six sonatas for violoncello and piano", "work_title": "Six sonatas for violoncello and piano", "label": "Six sonatas for violoncello and piano", "excerpt": "", "full_text": "", "location": "1970-01-01", "cluster_id": 2, "cluster_name": "Cluster: Governo / Vivos / Chico", "color": "#5A6B7C", "size": 18, "x3": -274.2642274553203, "y3": -174.75385507657106, "z3": -82.27241335952162, "x": 680.8873184283765, "y": 588.0216642794435}, {"id": "work_13", "type": "work", "entity_type": "work", "entity_id": 13, "title": "Arias for baritone", "work_title": "Arias for baritone", "label": "Arias for baritone", "excerpt": "", "full_text": "", "location": "1991-01-01", "cluster_id": 5, "cluster_name": "Cluster: Revista / Tribunais / Arias", "color": "#7D6285", "size": 18, "x3": -200.1480000000001, "y3": 10.0, "z3": -242.74345657916297, "x": 742.9161658973536, "y": 469.8799940559101}, {"id": "work_14", "type": "work", "entity_type": "work", "entity_id": 14, "title": "Don pasquale", "work_title": "Don pasquale", "label": "Don pasquale", "excerpt": "Bella siccome un Angelo", "full_text": "Bella siccome un Angelo", "location": "1991-01-01", "cluster_id": 6, "cluster_name": "Cluster: Tertuliano / Batismo / Penitência", "color": "#A88942", "size": 18, "x3": -160.8821137276601, "y3": 154.75385507657106, "z3": 114.11116828633838, "x": 643.5607990801634, "y": 807.3524105830679}, {"id": "work_15", "type": "work", "entity_type": "work", "entity_id": 15, "title": "Cometa de halley", "work_title": "Cometa de halley", "label": "Cometa de halley", "excerpt": "", "full_text": "", "location": "1986-01-01", "cluster_id": 4, "cluster_name": "Cluster: Portanto / Prisioneiro / Senhor", "color": "#4A7A68", "size": 18, "x3": 80.14800000000002, "y3": 10.0, "z3": 242.743456579163, "x": 1002.2196504937762, "y": 673.5878120624054}, {"id": "work_16", "type": "work", "entity_type": "work", "entity_id": 16, "title": "Bíblia King James Atualizada", "work_title": "Bíblia King James Atualizada", "label": "Bíblia King James Atualizada", "excerpt": "", "full_text": "", "location": "2012-01-01", "cluster_id": 1, "cluster_name": "Cluster: Prisioneiro / Grade / Ferro", "color": "#896200", "size": 18, "x3": 65.88211372766011, "y3": 154.75385507657106, "z3": -278.65599500538167, "x": 1107.5, "y": 179.97767916454728}], "links": [{"source": "fragment_1", "target": "work_1", "value": 0.479, "weight": 0.479, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "fragment_1", "target": "work_2", "value": 0.411, "weight": 0.411, "relation": "semantic", "note": "Afinidade Semântica: 41%"}, {"source": "fragment_1", "target": "work_3", "value": 0.498, "weight": 0.498, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "fragment_1", "target": "work_17", "value": 0.404, "weight": 0.404, "relation": "semantic", "note": "Afinidade Semântica: 40%"}, {"source": "fragment_1", "target": "work_20", "value": 0.404, "weight": 0.404, "relation": "semantic", "note": "Afinidade Semântica: 40%"}, {"source": "fragment_2", "target": "work_1", "value": 0.437, "weight": 0.437, "relation": "semantic", "note": "Afinidade Semântica: 43%"}, {"source": "fragment_2", "target": "work_4", "value": 0.492, "weight": 0.492, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "fragment_2", "target": "work_6", "value": 0.453, "weight": 0.453, "relation": "semantic", "note": "Afinidade Semântica: 45%"}, {"source": "fragment_2", "target": "work_9", "value": 0.414, "weight": 0.414, "relation": "semantic", "note": "Afinidade Semântica: 41%"}, {"source": "fragment_2", "target": "work_11", "value": 0.442, "weight": 0.442, "relation": "semantic", "note": "Afinidade Semântica: 44%"}, {"source": "fragment_2", "target": "work_12", "value": 0.465, "weight": 0.465, "relation": "semantic", "note": "Afinidade Semântica: 46%"}, {"source": "fragment_2", "target": "work_13", "value": 0.441, "weight": 0.441, "relation": "semantic", "note": "Afinidade Semântica: 44%"}, {"source": "fragment_2", "target": "work_17", "value": 0.493, "weight": 0.493, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "fragment_2", "target": "work_20", "value": 0.493, "weight": 0.493, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "fragment_3", "target": "work_2", "value": 0.477, "weight": 0.477, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "fragment_3", "target": "work_4", "value": 0.468, "weight": 0.468, "relation": "semantic", "note": "Afinidade Semântica: 46%"}, {"source": "fragment_3", "target": "work_19", "value": 0.48, "weight": 0.48, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_1", "target": "work_2", "value": 0.47, "weight": 0.47, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_1", "target": "work_5", "value": 0.454, "weight": 0.454, "relation": "semantic", "note": "Afinidade Semântica: 45%"}, {"source": "work_1", "target": "work_10", "value": 0.471, "weight": 0.471, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_1", "target": "work_12", "value": 0.499, "weight": 0.499, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "work_1", "target": "work_17", "value": 0.482, "weight": 0.482, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_1", "target": "work_20", "value": 0.482, "weight": 0.482, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_2", "target": "work_4", "value": 0.472, "weight": 0.472, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_2", "target": "work_6", "value": 0.46, "weight": 0.46, "relation": "semantic", "note": "Afinidade Semântica: 45%"}, {"source": "work_2", "target": "work_9", "value": 0.495, "weight": 0.495, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "work_2", "target": "work_10", "value": 0.407, "weight": 0.407, "relation": "semantic", "note": "Afinidade Semântica: 40%"}, {"source": "work_2", "target": "work_12", "value": 0.458, "weight": 0.458, "relation": "semantic", "note": "Afinidade Semântica: 45%"}, {"source": "work_2", "target": "work_13", "value": 0.44, "weight": 0.44, "relation": "semantic", "note": "Afinidade Semântica: 44%"}, {"source": "work_2", "target": "work_15", "value": 0.498, "weight": 0.498, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "work_3", "target": "work_5", "value": 0.49, "weight": 0.49, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_3", "target": "work_9", "value": 0.485, "weight": 0.485, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_3", "target": "work_10", "value": 0.471, "weight": 0.471, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_4", "target": "work_5", "value": 0.469, "weight": 0.469, "relation": "semantic", "note": "Afinidade Semântica: 46%"}, {"source": "work_4", "target": "work_19", "value": 0.464, "weight": 0.464, "relation": "semantic", "note": "Afinidade Semântica: 46%"}, {"source": "work_5", "target": "work_6", "value": 0.474, "weight": 0.474, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_5", "target": "work_12", "value": 0.483, "weight": 0.483, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_5", "target": "work_13", "value": 0.476, "weight": 0.476, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_5", "target": "work_14", "value": 0.48, "weight": 0.48, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_5", "target": "work_17", "value": 0.498, "weight": 0.498, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "work_5", "target": "work_18", "value": 0.456, "weight": 0.456, "relation": "semantic", "note": "Afinidade Semântica: 45%"}, {"source": "work_5", "target": "work_19", "value": 0.47, "weight": 0.47, "relation": "semantic", "note": "Afinidade Semântica: 47%"}, {"source": "work_5", "target": "work_20", "value": 0.498, "weight": 0.498, "relation": "semantic", "note": "Afinidade Semântica: 49%"}, {"source": "work_6", "target": "work_13", "value": 0.551, "weight": 0.551, "relation": "semantic", "note": "Afinidade Semântica: 55%"}, {"source": "work_17", "target": "work_18", "value": 0.484, "weight": 0.484, "relation": "semantic", "note": "Afinidade Semântica: 48%"}, {"source": "work_17", "target": "work_20", "value": 1.0, "weight": 1.0, "relation": "semantic", "note": "Afinidade Semântica: 100%"}, {"source": "work_18", "target": "work_20", "value": 0.484, "weight": 0.484, "relation": "semantic", "note": "Afinidade Semântica: 48%"}], "clusters": [{"id": 1, "name": "Cluster: Prisioneiro / Grade / Ferro", "color": "#896200", "keywords": "prisioneiro, grade, ferro", "count": 3}, {"id": 2, "name": "Cluster: Governo / Vivos / Chico", "color": "#5A6B7C", "keywords": "governo, vivos, chico", "count": 4}, {"id": 3, "name": "Cluster: Neoliberalismo / Direito / Crise", "color": "#8C5E58", "keywords": "neoliberalismo, direito, crise", "count": 4}, {"id": 4, "name": "Cluster: Portanto / Prisioneiro / Senhor", "color": "#4A7A68", "keywords": "portanto, prisioneiro, senhor", "count": 4}, {"id": 5, "name": "Cluster: Revista / Tribunais / Arias", "color": "#7D6285", "keywords": "revista, tribunais, arias", "count": 3}, {"id": 6, "name": "Cluster: Tertuliano / Batismo / Penitência", "color": "#A88942", "keywords": "tertuliano, batismo, penitência", "count": 3}]};
+
+    document.getElementById("stat-nodes").innerText = (graphData.nodes || []).length + " Nós";
+    document.getElementById("stat-links").innerText = (graphData.links || []).length + " Ressonâncias";
+    document.getElementById("stat-clusters").innerText = (graphData.clusters || []).length + " Clusters";
+
+    const svg = d3.select("#network-svg");
+    const container = d3.select("#graph-container");
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    svg.attr("viewBox", [0, 0, width, height]);
+
+    const g = svg.append("g");
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.15, 5])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+    svg.call(zoom);
+
+    function resetZoom() {
+      svg.transition().duration(750).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
+      );
+    }
+
+    // D3 Force Simulation
+    const nodes = (graphData.nodes || []).map(d => Object.assign({}, d));
+    const links = (graphData.links || []).map(d => Object.assign({}, d));
+
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(d => 110 - (d.weight || 0.5) * 40))
+      .force("charge", d3.forceManyBody().strength(-240))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius(d => (d.size || 14) + 12));
+
+    // Render Links
+    const link = g.append("g")
+      .attr("class", "links")
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("class", "link")
+      .attr("stroke-width", d => Math.max(1, (d.weight || 0.5) * 3));
+
+    // Render Nodes
+    const node = g.append("g")
+      .attr("class", "nodes")
+      .selectAll("g")
+      .data(nodes)
+      .join("g")
+      .attr("class", "node")
+      .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended));
+
+    // Circle shape
+    node.append("circle")
+      .attr("r", d => d.size || 14)
+      .attr("fill", d => d.color || "#896200")
+      .attr("stroke", "#FFFFFF")
+      .attr("fill-opacity", 0.85);
+
+    // Inner icon or label
+    node.append("text")
+      .attr("class", "node-label")
+      .attr("dx", d => (d.size || 14) + 6)
+      .attr("dy", ".35em")
+      .text(d => {
+        const lbl = d.label || "";
+        return lbl.length > 25 ? lbl.substring(0, 22) + "..." : lbl;
+      });
+
+    // Ticks
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    // Drag handlers
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    function triggerPhysicsRestart() {
+      simulation.alpha(1).restart();
+    }
+
+    // Selection & Highlighting
+    node.on("click", (event, d) => {
+      event.stopPropagation();
+      selectNode(d);
+    });
+
+    svg.on("click", () => {
+      clearHighlight();
+      closeCard();
+    });
+
+    function selectNode(d) {
+      // Highlight neighbors
+      const connectedNodeIds = new Set();
+      connectedNodeIds.add(d.id);
+
+      links.forEach(l => {
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        if (sId === d.id) connectedNodeIds.add(tId);
+        if (tId === d.id) connectedNodeIds.add(sId);
+      });
+
+      node.classed("dimmed", n => !connectedNodeIds.has(n.id));
+      link.classed("highlighted", l => {
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        return sId === d.id || tId === d.id;
+      });
+
+      openCard(d);
+    }
+
+    function clearHighlight() {
+      node.classed("dimmed", false);
+      link.classed("highlighted", false);
+    }
+
+    function openCard(d) {
+      const card = document.getElementById("detail-card");
+      document.getElementById("card-type-badge").innerText = (d.type || "Nó").toUpperCase();
+      document.getElementById("card-title").innerText = d.label || "Sem título";
+      document.getElementById("card-meta").innerText = d.work_title ? ("Obra: " + d.work_title) : (d.cluster_name ? ("Cluster: " + d.cluster_name) : "");
+      document.getElementById("card-excerpt").innerText = d.full_text || "Sem conteúdo textual.";
+
+      // Populate resonances
+      const resContainer = document.getElementById("card-resonances");
+      resContainer.innerHTML = "";
+      const connected = links
+        .filter(l => {
+          const sId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tId = typeof l.target === 'object' ? l.target.id : l.target;
+          return sId === d.id || tId === d.id;
+        })
+        .map(l => {
+          const sId = typeof l.source === 'object' ? l.source.id : l.source;
+          const targetId = (sId === d.id) ? (typeof l.target === 'object' ? l.target.id : l.target) : sId;
+          const targetNode = nodes.find(n => n.id === targetId);
+          return { node: targetNode, weight: l.weight };
+        })
+        .filter(c => c.node);
+
+      if (connected.length === 0) {
+        resContainer.innerHTML = '<div style="font-size: 11px; color: #666666; padding: 6px 0;">Nenhuma ressonância detectada com os parâmetros atuais.</div>';
+      } else {
+        connected.forEach(c => {
+          const item = document.createElement("div");
+          item.className = "resonance-item";
+          const pct = Math.round((c.weight || 0) * 100);
+          item.innerHTML = `<strong>${c.node.label || "Nó"}</strong> (${pct}% ressonância)`;
+          item.onclick = () => selectNode(c.node);
+          resContainer.appendChild(item);
+        });
+      }
+
+      card.classList.add("visible");
+    }
+
+    function closeCard() {
+      document.getElementById("detail-card").classList.remove("visible");
+    }
+
+    // Search Box Filter
+    document.getElementById("search-input").addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      if (!query) {
+        clearHighlight();
+        return;
+      }
+      node.classed("dimmed", d => {
+        const text = ((d.label || "") + " " + (d.full_text || "") + " " + (d.work_title || "")).toLowerCase();
+        return !text.includes(query);
+      });
+    });
+  </script>
+</body>
+</html>

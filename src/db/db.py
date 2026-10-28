@@ -226,6 +226,15 @@ def _ensure_legacy_columns() -> None:
                     'preserve_title_spelling BOOLEAN NOT NULL DEFAULT 0'
                 ))
                 columns.add('preserve_title_spelling')
+        if 'bibliographic_resources' in table_columns:
+            br_columns = table_columns['bibliographic_resources']
+            if 'llm_description' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN llm_description TEXT'))
+                br_columns.add('llm_description')
+            if 'custom_description' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN custom_description TEXT'))
+                br_columns.add('custom_description')
+
         if 'fragments' in table_columns:
             fragment_columns = table_columns['fragments']
             fragment_migrations = {
@@ -412,6 +421,11 @@ def _ensure_compilation_fragment_columns() -> None:
             conn.execute(text(
                 'ALTER TABLE compilation_fragments ADD COLUMN work_note TEXT'
             ))
+        if 'is_member' not in columns:
+            conn.execute(text(
+                'ALTER TABLE compilation_fragments ADD COLUMN '
+                'is_member BOOLEAN NOT NULL DEFAULT 1'
+            ))
 
         if added_position and 'fragments' in tables:
             rows = conn.execute(text(
@@ -531,7 +545,11 @@ def _migrate_periodical_parent_links() -> None:
         raise
 
 
+_initialized_engine = None
+
+
 def init_db():
+    global _initialized_engine
     _import_domain_models()
     _rename_legacy_citations_table()
     Base.metadata.create_all(bind=engine)
@@ -541,12 +559,13 @@ def init_db():
     _cleanup_duplicate_specific_works()
     _split_resources_with_multiple_work_types()
     _migrate_periodical_parent_links()
+    _initialized_engine = engine
 
 
 class _SessionLocal(sessionmaker):
     def __call__(self, **local_kw):
-        _import_domain_models()
-        init_db()
+        if _initialized_engine is not engine:
+            init_db()
         return super().__call__(**local_kw)
 
 

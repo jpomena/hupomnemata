@@ -26,6 +26,12 @@ from .proceedings import MonographicProceedings, PeriodicalProceedings
 from .patent import Patent
 from .legal_documents import Statute, CaseLaw
 from .multimedia import AudiovisualDocument, AudioDocument, VisualDocument, ThreeDimensionalDocument, CartographicDocument, MusicalScore  # noqa: E501
+from .knowledge import (
+    KnowledgeEmbedding,
+    KnowledgeCluster,
+    KnowledgeClusterItem,
+    KnowledgeLink,
+)
 
 __all__ = [
     'DatePrecision',
@@ -38,6 +44,10 @@ __all__ = [
     'CompilationWork',
     'CompilationFragment',
     'CompilationSection',
+    'KnowledgeEmbedding',
+    'KnowledgeCluster',
+    'KnowledgeClusterItem',
+    'KnowledgeLink',
     'EditorialMonograph',
     'AcademicMonograph',
     'CorrespondenceMonograph',

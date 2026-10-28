@@ -27,9 +27,12 @@ class ABNTUtils:
         for a in authors:
             if not a.corporation:
                 # 1. Sem espaço no começo (o join já cuida da separação)
-                authors_strs.append(
-                    f'{a.last_name.upper()}, {a.given_names_initials}'
-                )
+                if a.given_names_initials:
+                    authors_strs.append(
+                        f'{a.last_name.upper()}, {a.given_names_initials}'
+                    )
+                else:
+                    authors_strs.append(a.last_name.upper())
             else:
                 full_name = f'{a.given_names}'.strip()
 

@@ -1,0 +1,552 @@
+import json
+from typing import Any, Dict
+
+
+def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", scale: float = 1.0) -> str:
+    """
+    Gera uma página HTML completa, autônoma e interativa com visualização D3.js v7.
+    Apresenta física de forças (force-directed), zoom/pan, realce de ressonâncias,
+    filtros e cartão de inspeção de nós, estilizado com a estética editorial clássica.
+    """
+    is_dark = (theme_mode or "dark").lower() == "dark"
+    bg_color = "#121212" if is_dark else "#F9F9FB"
+    surface_color = "#1E1E1E" if is_dark else "#FFFFFF"
+    text_color = "#E7E7E7" if is_dark else "#1A1A1A"
+    text_muted = "#A0A0A0" if is_dark else "#666666"
+    border_color = "#2E2E2E" if is_dark else "#E0E0E0"
+    gold_accent = "#D4AF37" if is_dark else "#896200"
+    link_stroke = "rgba(212, 175, 55, 0.35)" if is_dark else "rgba(137, 98, 0, 0.28)"
+
+    data_json = json.dumps(graph_data, ensure_ascii=False)
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hupomnemata — Malha de Saberes (Estruturas de Saber)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * {{
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }}
+    body {{
+      background-color: {bg_color};
+      color: {text_color};
+      font-family: 'Montserrat', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }}
+    #graph-container {{
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }}
+    svg {{
+      width: 100%;
+      height: 100%;
+      display: block;
+    }}
+    /* Top Bar HUD */
+    .hud-bar {{
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: {surface_color}CC;
+      backdrop-filter: blur(12px);
+      border: 1px solid {border_color};
+      border-radius: 12px;
+      padding: 10px 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      z-index: 10;
+      pointer-events: auto;
+    }}
+    .hud-title {{
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: {gold_accent};
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .hud-controls {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    .search-box {{
+      background: {surface_color};
+      border: 1px solid {border_color};
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: {text_color};
+      font-family: 'Montserrat', sans-serif;
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.2s;
+    }}
+    .search-box:focus {{
+      border-color: {gold_accent};
+    }}
+    .btn {{
+      background: {gold_accent};
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s, transform 0.1s;
+    }}
+    .btn:hover {{
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }}
+    .btn-secondary {{
+      background: {surface_color};
+      color: {text_color};
+      border: 1px solid {border_color};
+    }}
+    /* Legends & Stats */
+    .hud-footer {{
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: {surface_color}CC;
+      backdrop-filter: blur(12px);
+      border: 1px solid {border_color};
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 11px;
+      color: {text_muted};
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      z-index: 10;
+    }}
+    .legend-item {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .legend-dot {{
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }}
+    /* Detail Panel */
+    .detail-panel {{
+      position: absolute;
+      top: 80px;
+      right: 20px;
+      width: 380px;
+      max-height: calc(100vh - 120px);
+      background: {surface_color}F2;
+      backdrop-filter: blur(16px);
+      border: 1px solid {border_color};
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      z-index: 20;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }}
+    .detail-panel.visible {{
+      display: flex;
+    }}
+    .panel-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid {border_color};
+      padding-bottom: 10px;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .close-btn {{
+      background: none;
+      border: none;
+      color: {text_muted};
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+    }}
+    .close-btn:hover {{
+      color: {text_color};
+    }}
+    .node-title {{
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: {gold_accent};
+      line-height: 1.3;
+    }}
+    .node-excerpt {{
+      font-size: 13px;
+      line-height: 1.6;
+      color: {text_color};
+      font-style: italic;
+      background: {bg_color}80;
+      padding: 12px;
+      border-left: 3px solid {gold_accent};
+      border-radius: 4px;
+      max-height: 180px;
+      overflow-y: auto;
+    }}
+    .resonance-title {{
+      font-size: 12px;
+      font-weight: 600;
+      color: {gold_accent};
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .resonance-item {{
+      background: {bg_color};
+      border: 1px solid {border_color};
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      margin-top: 6px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }}
+    .resonance-item:hover {{
+      border-color: {gold_accent};
+    }}
+    /* SVG Elements */
+    .link {{
+      stroke: {link_stroke};
+      stroke-linecap: round;
+      transition: stroke 0.2s, stroke-width 0.2s;
+    }}
+    .link.highlighted {{
+      stroke: {gold_accent};
+      stroke-width: 2.5px !important;
+      stroke-opacity: 0.9;
+    }}
+    .node {{
+      cursor: pointer;
+    }}
+    .node circle {{
+      stroke-width: 2px;
+      transition: stroke 0.2s, r 0.2s, filter 0.2s;
+    }}
+    .node:hover circle {{
+      stroke: {gold_accent};
+      filter: drop-shadow(0 0 8px {gold_accent}80);
+    }}
+    .node.dimmed {{
+      opacity: 0.15;
+    }}
+    .node-label {{
+      font-family: 'Montserrat', sans-serif;
+      font-size: 10px;
+      fill: {text_muted};
+      pointer-events: none;
+      transition: fill 0.2s, font-weight 0.2s;
+    }}
+    .node:hover .node-label {{
+      fill: {text_color};
+      font-weight: 600;
+    }}
+  </style>
+</head>
+<body>
+  <div id="graph-container">
+    <svg id="network-svg"></svg>
+  </div>
+
+  <!-- HUD Header -->
+  <div class="hud-bar">
+    <div class="hud-title">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{gold_accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      Estruturas de Saber
+    </div>
+    <div class="hud-controls">
+      <input type="text" id="search-input" class="search-box" placeholder="Buscar nós, autores ou conceitos..." />
+      <button class="btn btn-secondary" onclick="resetZoom()">Centralizar</button>
+      <button class="btn" onclick="triggerPhysicsRestart()">Reorganizar Malha</button>
+    </div>
+  </div>
+
+  <!-- Footer Stats -->
+  <div class="hud-footer">
+    <div class="legend-item">
+      <div class="legend-dot" style="background: {gold_accent};"></div>
+      <span id="stat-nodes">0 Nós</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: rgba(212, 175, 55, 0.6);"></div>
+      <span id="stat-links">0 Ressonâncias</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #2E7D32;"></div>
+      <span id="stat-clusters">0 Clusters</span>
+    </div>
+  </div>
+
+  <!-- Detail Card -->
+  <div id="detail-card" class="detail-panel">
+    <div class="panel-header">
+      <span id="card-type-badge" class="badge" style="background: {gold_accent}33; color: {gold_accent};">CITAÇÃO</span>
+      <button class="close-btn" onclick="closeCard()">&times;</button>
+    </div>
+    <div id="card-title" class="node-title">Título do Nó</div>
+    <div id="card-meta" style="font-size: 11px; color: {text_muted};">Metadados da Obra</div>
+    <div id="card-excerpt" class="node-excerpt">Texto do fragmento ou descrição conceitual...</div>
+    <div>
+      <div class="resonance-title">Ressonâncias Semânticas</div>
+      <div id="card-resonances">
+        <!-- Injetado dinamicamente -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const graphData = {data_json};
+
+    document.getElementById("stat-nodes").innerText = (graphData.nodes || []).length + " Nós";
+    document.getElementById("stat-links").innerText = (graphData.links || []).length + " Ressonâncias";
+    document.getElementById("stat-clusters").innerText = (graphData.clusters || []).length + " Clusters";
+
+    const svg = d3.select("#network-svg");
+    const container = d3.select("#graph-container");
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    svg.attr("viewBox", [0, 0, width, height]);
+
+    const g = svg.append("g");
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.15, 5])
+      .on("zoom", (event) => {{
+        g.attr("transform", event.transform);
+      }});
+
+    svg.call(zoom);
+
+    function resetZoom() {{
+      svg.transition().duration(750).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
+      );
+    }}
+
+    // D3 Force Simulation
+    const nodes = (graphData.nodes || []).map(d => Object.assign({{}}, d));
+    const links = (graphData.links || []).map(d => Object.assign({{}}, d));
+
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(d => 110 - (d.weight || 0.5) * 40))
+      .force("charge", d3.forceManyBody().strength(-240))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius(d => (d.size || 14) + 12));
+
+    // Render Links
+    const link = g.append("g")
+      .attr("class", "links")
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("class", "link")
+      .attr("stroke-width", d => Math.max(1, (d.weight || 0.5) * 3));
+
+    // Render Nodes
+    const node = g.append("g")
+      .attr("class", "nodes")
+      .selectAll("g")
+      .data(nodes)
+      .join("g")
+      .attr("class", "node")
+      .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended));
+
+    // Circle shape
+    node.append("circle")
+      .attr("r", d => d.size || 14)
+      .attr("fill", d => d.color || "{gold_accent}")
+      .attr("stroke", "{surface_color}")
+      .attr("fill-opacity", 0.85);
+
+    // Inner icon or label
+    node.append("text")
+      .attr("class", "node-label")
+      .attr("dx", d => (d.size || 14) + 6)
+      .attr("dy", ".35em")
+      .text(d => {{
+        const lbl = d.label || "";
+        return lbl.length > 25 ? lbl.substring(0, 22) + "..." : lbl;
+      }});
+
+    // Ticks
+    simulation.on("tick", () => {{
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
+    }});
+
+    // Drag handlers
+    function dragstarted(event, d) {{
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }}
+
+    function dragged(event, d) {{
+      d.fx = event.x;
+      d.fy = event.y;
+    }}
+
+    function dragended(event, d) {{
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }}
+
+    function triggerPhysicsRestart() {{
+      simulation.alpha(1).restart();
+    }}
+
+    // Selection & Highlighting
+    node.on("click", (event, d) => {{
+      event.stopPropagation();
+      selectNode(d);
+    }});
+
+    svg.on("click", () => {{
+      clearHighlight();
+      closeCard();
+    }});
+
+    function selectNode(d) {{
+      // Highlight neighbors
+      const connectedNodeIds = new Set();
+      connectedNodeIds.add(d.id);
+
+      links.forEach(l => {{
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        if (sId === d.id) connectedNodeIds.add(tId);
+        if (tId === d.id) connectedNodeIds.add(sId);
+      }});
+
+      node.classed("dimmed", n => !connectedNodeIds.has(n.id));
+      link.classed("highlighted", l => {{
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        return sId === d.id || tId === d.id;
+      }});
+
+      openCard(d);
+    }}
+
+    function clearHighlight() {{
+      node.classed("dimmed", false);
+      link.classed("highlighted", false);
+    }}
+
+    function openCard(d) {{
+      const card = document.getElementById("detail-card");
+      document.getElementById("card-type-badge").innerText = (d.type || "Nó").toUpperCase();
+      document.getElementById("card-title").innerText = d.label || "Sem título";
+      document.getElementById("card-meta").innerText = d.work_title ? ("Obra: " + d.work_title) : (d.cluster_name ? ("Cluster: " + d.cluster_name) : "");
+      document.getElementById("card-excerpt").innerText = d.full_text || "Sem conteúdo textual.";
+
+      // Populate resonances
+      const resContainer = document.getElementById("card-resonances");
+      resContainer.innerHTML = "";
+      const connected = links
+        .filter(l => {{
+          const sId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tId = typeof l.target === 'object' ? l.target.id : l.target;
+          return sId === d.id || tId === d.id;
+        }})
+        .map(l => {{
+          const sId = typeof l.source === 'object' ? l.source.id : l.source;
+          const targetId = (sId === d.id) ? (typeof l.target === 'object' ? l.target.id : l.target) : sId;
+          const targetNode = nodes.find(n => n.id === targetId);
+          return {{ node: targetNode, weight: l.weight }};
+        }})
+        .filter(c => c.node);
+
+      if (connected.length === 0) {{
+        resContainer.innerHTML = '<div style="font-size: 11px; color: {text_muted}; padding: 6px 0;">Nenhuma ressonância detectada com os parâmetros atuais.</div>';
+      }} else {{
+        connected.forEach(c => {{
+          const item = document.createElement("div");
+          item.className = "resonance-item";
+          const pct = Math.round((c.weight || 0) * 100);
+          item.innerHTML = `<strong>${{c.node.label || "Nó"}}</strong> (${{pct}}% ressonância)`;
+          item.onclick = () => selectNode(c.node);
+          resContainer.appendChild(item);
+        }});
+      }}
+
+      card.classList.add("visible");
+    }}
+
+    function closeCard() {{
+      document.getElementById("detail-card").classList.remove("visible");
+    }}
+
+    // Search Box Filter
+    document.getElementById("search-input").addEventListener("input", (e) => {{
+      const query = e.target.value.toLowerCase().trim();
+      if (!query) {{
+        clearHighlight();
+        return;
+      }}
+      node.classed("dimmed", d => {{
+        const text = ((d.label || "") + " " + (d.full_text || "") + " " + (d.work_title || "")).toLowerCase();
+        return !text.includes(query);
+      }});
+    }});
+  </script>
+</body>
+</html>
+"""

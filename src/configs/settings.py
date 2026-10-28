@@ -19,6 +19,8 @@ PHYSICAL_ATTRIBUTES = parameters['PHYSICAL_ATTRIBUTES']
 
 COLORS_LIGHT = parameters['COLORS_LIGHT']
 COLORS_DARK = parameters['COLORS_DARK']
+CLUSTER_PALETTE_LIGHT = COLORS_LIGHT.get('cluster_palette', [])
+CLUSTER_PALETTE_DARK = COLORS_DARK.get('cluster_palette', [])
 
 CORE_MENUS = parameters['CORE_MENUS']
 

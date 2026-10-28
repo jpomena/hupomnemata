@@ -26,3 +26,22 @@ messages:
 
 
     Foucault, Michel — A escrita de si
+
+settings:
+  title: 'Configurações'
+  subtitle: 'Personalize a aparência, tema e proporções visuais do gabinete.'
+  theme_title: 'Tema da Interface'
+  theme_subtitle: 'Alterne entre a paleta escura, clara ou acompanhe o sistema.'
+  theme_light: 'Claro'
+  theme_dark: 'Escuro'
+  theme_system: 'Sistema'
+  scale_title: 'Escala e Proporções'
+  scale_subtitle: 'Ajuste o zoom dos elementos da interface de forma responsiva.'
+  auto_scale_label: 'Escala Automática'
+  auto_scale_description: 'Recalcular proporções dinamicamente conforme a janela é redimensionada.'
+  manual_scale_label: 'Zoom Manual da UI'
+  preview_title: 'Amostra Visual & Padrões'
+  preview_subtitle: 'Pré-visualize a tipografia ativa ou restaure os valores originais.'
+  reset_button: 'Restaurar Padrões'
+  reset_success: 'Configurações restauradas para os padrões originais.'
+

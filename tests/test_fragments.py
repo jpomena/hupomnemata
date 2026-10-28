@@ -6,7 +6,7 @@ import flet as ft
 from sqlalchemy import create_engine, select, text
 
 from src.configs.settings import (
-    COLORS,
+    COLORS_LIGHT,
     FONT_FAMILIES,
     FONT_SIZES,
     FONT_WEIGHTS,
@@ -273,7 +273,7 @@ def test_fragment_form_applies_location_rules():
         copied_references.append(reference)
 
     config = ViewConfig(
-        colors=COLORS,
+        colors=COLORS_LIGHT,
         page_fonts=PAGE_FONTS,
         font_families=FONT_FAMILIES,
         font_sizes=FONT_SIZES,
@@ -303,22 +303,22 @@ def test_fragment_form_applies_location_rules():
         composer.excerpt,
         composer.location_value,
     ):
-        assert field.color == COLORS['text']
-        assert field.text_style.color == COLORS['text']
-        assert field.hint_style.color == COLORS['muted']
-        assert field.label_style.color == COLORS['muted']
-        assert field.bgcolor == COLORS['surface']
-        assert field.border_color == COLORS['border']
-        assert field.focused_border_color == COLORS['gold']
+        assert field.color == COLORS_LIGHT['text']
+        assert field.text_style.color == COLORS_LIGHT['text']
+        assert field.hint_style.color == COLORS_LIGHT['muted']
+        assert field.label_style.color == COLORS_LIGHT['muted']
+        assert field.bgcolor == COLORS_LIGHT['surface']
+        assert field.border_color == COLORS_LIGHT['border']
+        assert field.focused_border_color == COLORS_LIGHT['gold']
     for dropdown in (composer.fragment_type, composer.location_type):
-        assert dropdown.color == COLORS['text']
-        assert dropdown.text_style.color == COLORS['text']
-        assert dropdown.label_style.color == COLORS['text']
-        assert dropdown.bgcolor == COLORS['surface']
-        assert dropdown.border_color == COLORS['border']
-        assert dropdown.focused_border_color == COLORS['gold']
+        assert dropdown.color == COLORS_LIGHT['text']
+        assert dropdown.text_style.color == COLORS_LIGHT['text']
+        assert dropdown.label_style.color == COLORS_LIGHT['text']
+        assert dropdown.bgcolor == COLORS_LIGHT['surface']
+        assert dropdown.border_color == COLORS_LIGHT['border']
+        assert dropdown.focused_border_color == COLORS_LIGHT['gold']
         assert all(
-            option.content.color == COLORS['text']
+            option.content.color == COLORS_LIGHT['text']
             and option.content.font_family == FONT_FAMILIES['montserrat']
             for option in dropdown.options
         )
@@ -431,7 +431,7 @@ def test_fragment_form_applies_location_rules():
     assert header_controls[0].controls[0].font_family == (
         FONT_FAMILIES['cormorant']
     )
-    assert header_controls[0].controls[0].color == COLORS['text']
+    assert header_controls[0].controls[0].color == COLORS_LIGHT['text']
     assert header.padding.top == UI['header_top_padding']
     assert header_controls[1].content.value == (
         '+ Novo fragmento'
@@ -442,7 +442,7 @@ def test_fragment_form_applies_location_rules():
     assert new_fragment_text.weight == FONT_WEIGHTS['montserrat_semibold']
     content_area = screen.content.controls[1]
     assert content_area.padding == UI['content_padding']
-    assert content_area.bgcolor == COLORS['bg']
+    assert content_area.bgcolor == COLORS_LIGHT['bg']
     assert content_area.content.controls == [
         composer.work_filter_group,
         composer.fragment_list,
@@ -458,8 +458,8 @@ def test_fragment_form_applies_location_rules():
     )
     assert not composer.work_filter.expand
     assert composer.work_filter.filled
-    assert composer.work_filter.fill_color == COLORS['surface']
-    assert composer.work_filter.bgcolor == COLORS['surface']
+    assert composer.work_filter.fill_color == COLORS_LIGHT['surface']
+    assert composer.work_filter.bgcolor == COLORS_LIGHT['surface']
     assert content_area.content.spacing == UI['modal_gap']
     assert len(composer.fragment_list.controls) == 2
     composer.work_filter.value = 'obra'
@@ -532,7 +532,7 @@ def test_fragment_form_applies_location_rules():
         'location_value': '42',
     })
     assert callable(fragment_card.on_hover)
-    assert fragment_card.bgcolor == COLORS['surface']
+    assert fragment_card.bgcolor == COLORS_LIGHT['surface']
     assert fragment_card.border_radius == UI['card_radius']
     assert not fragment_card.expand
     card_content = fragment_card.content
@@ -555,7 +555,7 @@ def test_fragment_form_applies_location_rules():
     assert title_text.font_family == FONT_FAMILIES['cormorant']
     assert title_text.size == FONT_SIZES['cormorant_medium']
     assert title_text.weight == FONT_WEIGHTS['cormorant_semibold']
-    assert title_text.color == COLORS['gold']
+    assert title_text.color == COLORS_LIGHT['gold']
     assert excerpt_text.font_family == FONT_FAMILIES['montserrat']
     assert excerpt_text.size == FONT_SIZES['montserrat_small']
     assert excerpt_text.weight == FONT_WEIGHTS['montserrat_normal']
@@ -564,11 +564,11 @@ def test_fragment_form_applies_location_rules():
     assert notation_text.value == '(Silva, 2024, p. 42)'
     fragment_card.update = lambda: None
     fragment_card.on_hover(SimpleNamespace(data='true'))
-    assert fragment_card.bgcolor == COLORS['card_hover']
-    assert title_text.color == COLORS['text']
+    assert fragment_card.bgcolor == COLORS_LIGHT['card_hover']
+    assert title_text.color == COLORS_LIGHT['text']
     fragment_card.on_hover(SimpleNamespace(data=''))
-    assert fragment_card.bgcolor == COLORS['surface']
-    assert title_text.color == COLORS['gold']
+    assert fragment_card.bgcolor == COLORS_LIGHT['surface']
+    assert title_text.color == COLORS_LIGHT['gold']
     copy_button = action_controls[1]
     asyncio.run(copy_button.on_click(SimpleNamespace()))
     assert reference_text(copied_references[0]) == (

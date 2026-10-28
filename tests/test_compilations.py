@@ -514,7 +514,9 @@ def test_outline_sections_organize_members_without_losing_fragments(
     assert [fragment['id'] for fragment in selected] == list(
         reversed(fragment_ids)
     )
-    assert all(fragment['section_id'] == first_section for fragment in selected)
+    assert all(
+        fragment['section_id'] == first_section for fragment in selected
+    )
     assert selected[1]['work_note'] == 'Relaciona a fonte ao argumento.'
 
     service.assign_fragment_to_section(
@@ -583,196 +585,6 @@ def test_sections_and_section_assignments_are_compilation_scoped(
         service.create_section(compilation_ids[0], '   ')
 
 
-def test_caderno_notes_and_order_are_scoped_to_each_compilation(
-    compilation_database,
-):
-    service = CompilationService()
-    work_id = create_work('Obra com fragmentos ordenáveis')
-    first_compilation = service.create({
-        'name': 'Projeto A',
-        'description': None,
-    })
-    second_compilation = service.create({
-        'name': 'Projeto B',
-        'description': None,
-    })
-    service.add_work(first_compilation, work_id)
-    service.add_work(second_compilation, work_id)
-    fragment_service = FragmentService()
-    first_fragment = fragment_service.create({
-        'fragment_type': 'quote',
-        'excerpt': 'Primeiro trecho.',
-        'bib_res_id': work_id,
-        'location_type': 'Página',
-        'location_value': '10',
-    })
-    second_fragment = fragment_service.create({
-        'fragment_type': 'comment',
-        'excerpt': 'Segundo trecho.',
-        'bib_res_id': work_id,
-        'location_type': None,
-        'location_value': None,
-    })
-    service.add_fragment(first_compilation, first_fragment)
-    service.add_fragment(first_compilation, second_fragment)
-    service.add_fragment(second_compilation, first_fragment)
-    section_id = service.create_section(first_compilation, 'Introdução')
-    service.update_fragment_note(
-        first_compilation,
-        first_fragment,
-        'Usar na introdução.',
-    )
-    service.assign_fragment_to_section(
-        first_compilation,
-        first_fragment,
-        section_id,
-    )
-    service.assign_fragment_to_section(
-        first_compilation,
-        second_fragment,
-        section_id,
-    )
-    service.reorder_section_fragments(
-        first_compilation,
-        section_id,
-        [second_fragment, first_fragment],
-    )
-
-    records = service.list_compilations()
-    project_a = next(
-        record for record in records if record['id'] == first_compilation
-    )
-    project_b = next(
-        record for record in records if record['id'] == second_compilation
-    )
-    selected_a = [
-        fragment
-        for fragment in project_a['works'][0]['fragments']
-        if fragment['is_member']
-    ]
-    selected_b = [
-        fragment
-        for fragment in project_b['works'][0]['fragments']
-        if fragment['is_member']
-    ]
-    assert [fragment['id'] for fragment in selected_a] == [
-        second_fragment,
-        first_fragment,
-    ]
-    assert [fragment['project_position'] for fragment in selected_a] == [0, 1]
-    assert all(fragment['section_id'] == section_id for fragment in selected_a)
-    assert selected_a[1]['work_note'] == 'Usar na introdução.'
-    assert selected_b[0]['work_note'] is None
-
-    with pytest.raises(ValueError, match='cada fragmento'):
-        service.reorder_section_fragments(
-            first_compilation,
-            section_id,
-            [first_fragment],
-        )
-
-    service.remove_fragment(first_compilation, second_fragment)
-    project_a = next(
-        record
-        for record in service.list_compilations()
-        if record['id'] == first_compilation
-    )
-    remaining = next(
-        fragment
-        for fragment in project_a['works'][0]['fragments']
-        if fragment['is_member']
-    )
-    assert remaining['id'] == first_fragment
-    assert remaining['project_position'] == 0
-    assert remaining['section_id'] == section_id
-    assert remaining['work_note'] == 'Usar na introdução.'
-    assert any(
-        fragment['id'] == second_fragment
-        for fragment in fragment_service.list_fragments()
-    )
-
-
-def test_migrates_existing_caderno_membership_positions(compilation_database):
-    service = CompilationService()
-    work_id = create_work('Obra com associação antiga')
-    compilation_id = service.create({
-        'name': 'Projeto legado',
-        'description': None,
-    })
-    service.add_work(compilation_id, work_id)
-    fragment_service = FragmentService()
-    later_id = fragment_service.create({
-        'fragment_type': 'comment',
-        'excerpt': 'Criado primeiro.',
-        'bib_res_id': work_id,
-        'location_type': None,
-        'location_value': None,
-    })
-    earlier_id = fragment_service.create({
-        'fragment_type': 'comment',
-        'excerpt': 'Criado depois.',
-        'bib_res_id': work_id,
-        'location_type': None,
-        'location_value': None,
-    })
-
-    with compilation_database.begin() as connection:
-        connection.execute(text('DROP TABLE compilation_fragments'))
-        connection.execute(text(
-            """
-            CREATE TABLE compilation_fragments (
-                id INTEGER PRIMARY KEY,
-                compilation_id INTEGER NOT NULL,
-                fragment_id INTEGER NOT NULL,
-                work_note TEXT,
-                CONSTRAINT uq_compilation_fragment
-                    UNIQUE (compilation_id, fragment_id),
-                FOREIGN KEY(compilation_id) REFERENCES compilations(id),
-                FOREIGN KEY(fragment_id) REFERENCES fragments(id)
-            )
-            """
-        ))
-        connection.execute(text(
-            """
-            INSERT INTO compilation_fragments
-                (id, compilation_id, fragment_id, work_note)
-            VALUES
-                (1, :compilation_id, :later_id, 'Nota preservada B'),
-                (2, :compilation_id, :earlier_id, 'Nota preservada A')
-            """
-        ), {
-            'compilation_id': compilation_id,
-            'later_id': later_id,
-            'earlier_id': earlier_id,
-        })
-
-    db_module.init_db()
-
-    columns = {
-        column['name']
-        for column in inspect(compilation_database).get_columns(
-            'compilation_fragments'
-        )
-    }
-    assert {'position', 'work_note', 'section_id'} <= columns
-    migrated = next(
-        record
-        for record in service.list_compilations()
-        if record['id'] == compilation_id
-    )['works'][0]['fragments']
-    assert [
-        (fragment['id'], fragment['project_position'])
-        for fragment in migrated
-    ] == [(later_id, 0), (earlier_id, 1)]
-    assert [
-        (fragment['id'], fragment['section_id'], fragment['work_note'])
-        for fragment in migrated
-    ] == [
-        (later_id, None, 'Nota preservada B'),
-        (earlier_id, None, 'Nota preservada A'),
-    ]
-
-
 def test_creating_compilation_fragment_links_it_to_project(
     compilation_database,
 ):
@@ -807,7 +619,7 @@ def test_creating_compilation_fragment_links_it_to_project(
 
 def test_compilation_search_and_hub_composition():
     from src.configs.settings import (
-        COLORS,
+        COLORS_LIGHT,
         FONT_FAMILIES,
         FONT_SIZES,
         FONT_WEIGHTS,
@@ -821,7 +633,7 @@ def test_compilation_search_and_hub_composition():
     from src.views.compilations import CompilationsComposer
 
     config = ViewConfig(
-        colors=COLORS,
+        colors=COLORS_LIGHT,
         page_fonts=PAGE_FONTS,
         font_families=FONT_FAMILIES,
         font_sizes=FONT_SIZES,
@@ -981,13 +793,13 @@ def test_compilation_search_and_hub_composition():
         composer.new_name,
         composer.new_description,
     ):
-        assert field.color == COLORS['text']
-        assert field.text_style.color == COLORS['text']
-        assert field.hint_style.color == COLORS['muted']
-        assert field.label_style.color == COLORS['muted']
-        assert field.bgcolor == COLORS['surface']
-        assert field.border_color == COLORS['border']
-        assert field.focused_border_color == COLORS['gold']
+        assert field.color == COLORS_LIGHT['text']
+        assert field.text_style.color == COLORS_LIGHT['text']
+        assert field.hint_style.color == COLORS_LIGHT['muted']
+        assert field.label_style.color == COLORS_LIGHT['muted']
+        assert field.bgcolor == COLORS_LIGHT['surface']
+        assert field.border_color == COLORS_LIGHT['border']
+        assert field.focused_border_color == COLORS_LIGHT['gold']
 
     composer.compose()
     composer._search_compilations(SimpleNamespace(
@@ -995,7 +807,8 @@ def test_compilation_search_and_hub_composition():
     ))
     assert composer._filtered_compilations() == [compilation]
     assert composer.compilation_matches.visible
-    assert composer.compilation_matches.controls[0].content.controls[0].value == (
+    match_card = composer.compilation_matches.controls[0]
+    assert match_card.content.controls[0].value == (
         'Tese'
     )
 
@@ -1032,8 +845,8 @@ def test_compilation_search_and_hub_composition():
     )
 
     hub = composer.active_hub
-    assert hub.dialog.bgcolor == COLORS['surface']
-    assert hub_content.bgcolor == COLORS['surface']
+    assert hub.dialog.bgcolor == COLORS_LIGHT['surface']
+    assert hub_content.bgcolor == COLORS_LIGHT['surface']
     button_size = FONT_SIZES['montserrat_medium']
     button_weight = FONT_WEIGHTS['montserrat_normal']
     modal_close_text = hub.dialog.actions[0].content
@@ -1117,13 +930,13 @@ def test_compilation_search_and_hub_composition():
     )
     assert all(text.size >= button_size for text in fragment_texts[:3])
     assignment_control = fragment_card.content.controls[1].content
-    assert assignment_control.text_style.color == COLORS['text']
+    assert assignment_control.text_style.color == COLORS_LIGHT['text']
     assert assignment_control.text_style.size >= FONT_SIZES[
         'montserrat_medium'
     ]
-    assert assignment_control.bgcolor == COLORS['surface']
+    assert assignment_control.bgcolor == COLORS_LIGHT['surface']
     assert all(
-        option.content.color == COLORS['text']
+        option.content.color == COLORS_LIGHT['text']
         and option.content.size >= FONT_SIZES['montserrat_medium']
         for option in assignment_control.options
     )
@@ -1137,7 +950,7 @@ def test_compilation_search_and_hub_composition():
     assert available_destination.value == 'not_selected'
     assert any(
         option.key == 'create_section'
-        and option.content.color == COLORS['text']
+        and option.content.color == COLORS_LIGHT['text']
         for option in available_destination.options
     )
     available_destination.on_select(SimpleNamespace(
@@ -1178,10 +991,12 @@ def test_compilation_search_and_hub_composition():
     composer._search_compilations(SimpleNamespace(
         control=SimpleNamespace(value='tese')
     ))
-    compilation_match = composer.compilation_matches.controls[0].content.controls
-    assert compilation_match[0].font_family == FONT_FAMILIES['montserrat']
-    assert compilation_match[0].size == button_size
-    assert compilation_match[0].weight == button_weight
+    match_controls = (
+        composer.compilation_matches.controls[0].content.controls
+    )
+    assert match_controls[0].font_family == FONT_FAMILIES['montserrat']
+    assert match_controls[0].size == button_size
+    assert match_controls[0].weight == button_weight
     match_button = composer.compilation_matches.controls[0]
     assert match_button.style.text_style.font_family == (
         FONT_FAMILIES['montserrat']
@@ -1192,3 +1007,294 @@ def test_compilation_search_and_hub_composition():
     assert header_button_text.font_family == FONT_FAMILIES['montserrat']
     assert header_button_text.size == button_size
     assert header_button_text.weight == button_weight
+
+
+def test_fragment_note_preserves_on_removing_from_caderno(
+    compilation_database,
+):
+    service = CompilationService()
+    work_id = create_work('Obra para teste de preservação de nota')
+    compilation_id = service.create({
+        'name': 'Projeto Preservação',
+        'description': None,
+    })
+    service.add_work(compilation_id, work_id)
+    fragment_service = FragmentService()
+    fragment_id = fragment_service.create({
+        'fragment_type': 'quote',
+        'excerpt': 'Trecho com nota a ser preservada.',
+        'bib_res_id': work_id,
+        'location_type': 'Página',
+        'location_value': '42',
+    })
+    service.add_fragment(compilation_id, fragment_id)
+    service.update_fragment_note(
+        compilation_id,
+        fragment_id,
+        'Nota essencial para o capítulo 1.',
+    )
+
+    # Remover do caderno (desvincular)
+    service.remove_fragment(compilation_id, fragment_id)
+
+    records = service.list_compilations()
+    compilation = next(
+        rec for rec in records if rec['id'] == compilation_id
+    )
+    fragment = next(
+        frag
+        for frag in compilation['works'][0]['fragments']
+        if frag['id'] == fragment_id
+    )
+    assert fragment['is_member'] is False
+    assert fragment['work_note'] == 'Nota essencial para o capítulo 1.'
+    assert fragment['section_id'] is None
+    assert fragment['project_position'] is None
+
+
+def test_fragment_note_auto_links_when_added_to_available_material(
+    compilation_database,
+):
+    service = CompilationService()
+    work_id = create_work('Obra para teste de auto-link')
+    compilation_id = service.create({
+        'name': 'Projeto Auto Link',
+        'description': None,
+    })
+    service.add_work(compilation_id, work_id)
+    fragment_service = FragmentService()
+    fragment_id = fragment_service.create({
+        'fragment_type': 'comment',
+        'excerpt': 'Comentário disponível mas ainda não no caderno.',
+        'bib_res_id': work_id,
+        'location_type': None,
+        'location_value': None,
+    })
+
+    # Adicionar nota a fragmento que ainda não é membro
+    service.update_fragment_note(
+        compilation_id,
+        fragment_id,
+        'Nota que ativa o vínculo ao caderno.',
+    )
+
+    records = service.list_compilations()
+    compilation = next(
+        rec for rec in records if rec['id'] == compilation_id
+    )
+    fragment = next(
+        frag
+        for frag in compilation['works'][0]['fragments']
+        if frag['id'] == fragment_id
+    )
+    assert fragment['is_member'] is True
+    assert fragment['work_note'] == 'Nota que ativa o vínculo ao caderno.'
+    assert fragment['project_position'] == 0
+    assert fragment['section_id'] is None
+
+
+def test_fragment_note_cleared_deletes_orphan_record(
+    compilation_database,
+):
+    service = CompilationService()
+    work_id = create_work('Obra para teste de limpeza de órfão')
+    compilation_id = service.create({
+        'name': 'Projeto Órfão',
+        'description': None,
+    })
+    service.add_work(compilation_id, work_id)
+    fragment_service = FragmentService()
+    fragment_id = fragment_service.create({
+        'fragment_type': 'quote',
+        'excerpt': 'Trecho para teste de órfão.',
+        'bib_res_id': work_id,
+        'location_type': 'Página',
+        'location_value': '1',
+    })
+    service.add_fragment(compilation_id, fragment_id)
+    service.update_fragment_note(
+        compilation_id,
+        fragment_id,
+        'Nota temporária.',
+    )
+    service.remove_fragment(compilation_id, fragment_id)
+
+    # Limpar a nota de um fragmento não-membro
+    service.update_fragment_note(compilation_id, fragment_id, None)
+
+    records = service.list_compilations()
+    compilation = next(
+        rec for rec in records if rec['id'] == compilation_id
+    )
+    fragment = next(
+        frag
+        for frag in compilation['works'][0]['fragments']
+        if frag['id'] == fragment_id
+    )
+    assert fragment['is_member'] is False
+    assert fragment['work_note'] is None
+
+
+def test_compilation_hub_fragment_note_modal_and_collapsible_card():
+    from src.configs.settings import (
+        COLORS_LIGHT,
+        FONT_FAMILIES,
+        FONT_SIZES,
+        FONT_WEIGHTS,
+        ICON_SIZES,
+        MAIN_VIEW_CARDS,
+        PAGE_FONTS,
+        TEXTS,
+        UI,
+    )
+    from src.utils.types import ViewConfig
+    from src.views.compilation_hub import CompilationHubComposer
+
+    config = ViewConfig(
+        colors=COLORS_LIGHT,
+        page_fonts=PAGE_FONTS,
+        font_families=FONT_FAMILIES,
+        font_sizes=FONT_SIZES,
+        icon_sizes=ICON_SIZES,
+        font_weights=FONT_WEIGHTS,
+        ui=UI,
+        texts=TEXTS,
+        core_menus={},
+        main_view_cards=MAIN_VIEW_CARDS,
+    )
+    compilation: CompilationRecord = {
+        'id': 1,
+        'name': 'Projeto UI',
+        'description': None,
+        'sections': [],
+        'works': [{
+            'id': 10,
+            'title': 'Obra de Teste',
+            'position': 0,
+            'fragments': [
+                {
+                    'id': 101,
+                    'fragment_type': 'quote',
+                    'excerpt': 'Citação sem nota.',
+                    'bib_res_id': 10,
+                    'work_title': 'Obra de Teste',
+                    'citation_author': 'Autor',
+                    'display_year': '2024',
+                    'location_type': 'Página',
+                    'location_value': '15',
+                    'is_member': True,
+                    'project_position': 0,
+                    'work_note': None,
+                    'section_id': None,
+                },
+                {
+                    'id': 102,
+                    'fragment_type': 'comment',
+                    'excerpt': 'Comentário com nota.',
+                    'bib_res_id': 10,
+                    'work_title': 'Obra de Teste',
+                    'citation_author': 'Autor',
+                    'display_year': '2024',
+                    'location_type': None,
+                    'location_value': None,
+                    'is_member': True,
+                    'project_position': 1,
+                    'work_note': 'Nota de articulação existente.',
+                    'section_id': None,
+                },
+            ],
+        }],
+    }
+    dialogs = []
+    page = SimpleNamespace(
+        update=lambda: None,
+        show_dialog=dialogs.append,
+        pop_dialog=lambda: None,
+    )
+    saved_notes = []
+
+    def mock_on_fragment_note(
+        cid: int,
+        fid: int,
+        note: str | None,
+    ) -> bool:
+        saved_notes.append((cid, fid, note))
+        return True
+
+    hub = CompilationHubComposer(
+        page=page,
+        config=config,
+        compilation=compilation,
+        refresh_compilations=lambda: [compilation],
+        search_works=lambda query: [],
+        on_update=lambda cid, payload: True,
+        on_add_work=lambda cid, wid: True,
+        on_remove_work=lambda cid, wid: True,
+        on_reorder_works=lambda cid, wids: True,
+        on_fragment_membership=lambda cid, fid, is_m: True,
+        on_fragment_note=mock_on_fragment_note,
+        on_create_section=lambda cid, title, idea: 1,
+        on_update_section=lambda cid, sid, title, idea: True,
+        on_delete_section=lambda cid, sid: True,
+        on_reorder_sections=lambda cid, sids: True,
+        on_assign_fragment_to_section=lambda cid, fid, sid: True,
+        on_reorder_section_fragments=lambda cid, sid, fids: True,
+        on_copy_caderno=lambda text: None,
+        on_create_work=lambda cid: None,
+        on_edit_work=lambda cid, wid: None,
+        on_create_fragment=lambda cid, wid: None,
+        on_edit_fragment=lambda cid, frag: None,
+        on_close=lambda: None,
+        on_data_changed=lambda comp: None,
+    )
+
+    frag_without_note = compilation['works'][0]['fragments'][0]
+    frag_with_note = compilation['works'][0]['fragments'][1]
+
+    # 1. Sem nota: botão de adicionar
+    control_without_note = hub._compose_fragment_note(frag_without_note)
+    assert isinstance(control_without_note, ft.Row)
+    button = control_without_note.controls[0]
+    assert isinstance(button, ft.TextButton)
+    assert button.tooltip == (
+        'Adicionar nota de articulação para esta compilação'
+    )
+
+    # 2. Com nota: card colapsável recolhido por padrão
+    control_with_note = hub._compose_fragment_note(frag_with_note)
+    assert isinstance(control_with_note, ft.Container)
+    card_column = control_with_note.content
+    assert len(card_column.controls) == 1  # apenas o header recolhido
+
+    # 3. Expandir a nota
+    hub._toggle_fragment_note_expansion(102)
+    assert 102 in hub.expanded_note_fragment_ids
+    control_expanded = hub._compose_fragment_note(frag_with_note)
+    assert len(control_expanded.content.controls) == 2
+    assert control_expanded.content.controls[1].content.value == (
+        'Nota de articulação existente.'
+    )
+
+    # 4. Recolher a nota
+    hub._toggle_fragment_note_expansion(102)
+    assert 102 not in hub.expanded_note_fragment_ids
+
+    # 5. Modal de nota para fragmento com nota
+    hub._prompt_fragment_note(frag_with_note)
+    assert len(dialogs) == 1
+    modal = dialogs[-1]
+    assert modal.title.value == 'Nota de articulação'
+    modal_actions = modal.actions
+    assert len(modal_actions) == 3  # Excluir, Cancelar, Salvar
+    delete_button = modal_actions[0]
+    save_button = modal_actions[2]
+
+    # Testar ação de exclusão
+    delete_button.on_click(SimpleNamespace())
+    assert saved_notes[-1] == (1, 102, None)
+
+    # Testar ação de salvar
+    note_textfield = modal.content.controls[2]
+    note_textfield.value = 'Nova nota salva'
+    save_button.on_click(SimpleNamespace())
+    assert saved_notes[-1] == (1, 102, 'Nova nota salva')

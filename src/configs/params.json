@@ -7,7 +7,24 @@
     "muted": "#A09EA8",
     "text": "#e2e1e8",
     "black": "#101010",
-    "card_hover": "#1a1a1f"
+    "card_hover": "#1a1a1f",
+    "constellation_ring": "#C5A059",
+    "constellation_grid": "#A89260",
+    "constellation_grid_tick": "#C5A059",
+    "constellation_node_work": "#E5C158",
+    "constellation_node_fragment": "#7E9DB5",
+    "constellation_filament": "#C5A059",
+    "star_dust": "#E2E1E8",
+    "cluster_palette": [
+      "#C5A059",
+      "#7E9DB5",
+      "#B87D75",
+      "#6B9B88",
+      "#9D80A6",
+      "#C7AA64",
+      "#6C93A5",
+      "#988979"
+    ]
   },
 
   "COLORS_LIGHT": {
@@ -18,7 +35,24 @@
     "muted": "#86868f",
     "text": "#1D1D21",
     "black": "#101010",
-    "card_hover": "#f2f2f7"
+    "card_hover": "#f2f2f7",
+    "constellation_ring": "#7A5C00",
+    "constellation_grid": "#8C733E",
+    "constellation_grid_tick": "#7A5C00",
+    "constellation_node_work": "#5C4600",
+    "constellation_node_fragment": "#3D5A73",
+    "constellation_filament": "#8C733E",
+    "star_dust": "#86868F",
+    "cluster_palette": [
+      "#7A5C00",
+      "#3D5A73",
+      "#7A4E48",
+      "#3E6657",
+      "#684E72",
+      "#8E7234",
+      "#3B5C6C",
+      "#665749"
+    ]
   },
 
   "FONTS": {
@@ -116,7 +150,7 @@
   "UI": {
     "sidebar_width": 350,
     "sidebar_padding": 20,
-    "sidebar_footnote_height": 300,
+    "sidebar_footnote_height": 180,
     "navigation_padding": 15,
     "card_padding": 12,
     "card_height": 283,
@@ -155,8 +189,8 @@
   "CORE_MENUS": {
     "Acervo": "book_outlined",
     "Fragmentos": "note_outlined",
-    "Estruturas de Saber": "hub_outlined",
     "Compilações": "bookmark",
+    "Estruturas de Saber": "hub_outlined",
     "Nous": "analytics",
     "Configurações": "settings",
     "Limbo": "thrash"

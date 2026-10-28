@@ -16,6 +16,10 @@ from src.views.works import WorksComposer
 from src.views.fragments import FragmentsComposer
 from src.views.compilations import CompilationsComposer
 from src.views.sidebar import SidebarComposer
+from src.views.settings import SettingsComposer
+from src.views.knowledge import KnowledgeComposer
+from src.views.nous_composer import NousComposer
+from src.services.nous_service import NousAIService
 from src.utils.types import ViewConfig
 from src.utils.types import ViewReference
 from src.views.work_insert_modal import WorkInsertModalComposer
@@ -86,6 +90,20 @@ class CoreComposer:
         on_compilation_edit_fragment: Callable[
             [int, FragmentRecord], None
         ],
+        get_knowledge_graph: Callable[..., dict] | None = None,
+        sync_knowledge_mesh: Callable[[], dict] | None = None,
+        get_knowledge_resonances: Callable[..., list] | None = None,
+        on_create_knowledge_link: Callable[..., bool] | None = None,
+        on_add_knowledge_to_compilation: Callable[[int, int], bool] | None = None,
+        current_theme_mode: str = "light",
+        auto_scale: bool = True,
+        manual_scale: float = 1.0,
+        on_change_theme: Callable[[str], None] | None = None,
+        on_toggle_auto_scale: Callable[[bool], None] | None = None,
+        on_change_scale: Callable[[float], None] | None = None,
+        on_reset_settings: Callable[[], None] | None = None,
+        on_toggle_maximize: Callable[[], None] | None = None,
+        nous_service: NousAIService | None = None,
     ):
         self.page = page
         self.scale = scale
@@ -129,18 +147,36 @@ class CoreComposer:
             on_compilation_create_fragment
         )
         self.on_compilation_edit_fragment = on_compilation_edit_fragment
+        self.get_knowledge_graph = get_knowledge_graph
+        self.sync_knowledge_mesh = sync_knowledge_mesh
+        self.get_knowledge_resonances = get_knowledge_resonances
+        self.on_create_knowledge_link = on_create_knowledge_link
+        self.on_add_knowledge_to_compilation = on_add_knowledge_to_compilation
+        self.knowledge_composer: KnowledgeComposer | None = None
+        self.current_theme_mode = current_theme_mode
+        self.auto_scale = auto_scale
+        self.manual_scale = manual_scale
+        self.on_change_theme = on_change_theme
+        self.on_toggle_auto_scale = on_toggle_auto_scale
+        self.on_change_scale = on_change_scale
+        self.on_reset_settings = on_reset_settings
+        self.on_toggle_maximize = on_toggle_maximize
         self.compilations_composer: CompilationsComposer | None = None
+        self.nous_service = nous_service
+        self.nous_composer: NousComposer | None = None
 
     def _window_control_button(
         self,
         icon: ft.IconData | ft.Control | None,
         on_click: Callable[..., object] | None,
         color: str,
+        tooltip: str | None = None,
     ) -> ft.IconButton:
         return ft.IconButton(
             icon=icon,
             icon_color=color,
             icon_size=16,
+            tooltip=tooltip,
             on_click=on_click,
             style=ft.ButtonStyle(
                 shape=ft.CircleBorder(),
@@ -154,11 +190,24 @@ class CoreComposer:
             self.page.update()
 
         def toggle_maximize_window(_):
-            self.page.window.maximized = not self.page.window.maximized
-            self.page.update()
+            if self.on_toggle_maximize is not None:
+                self.on_toggle_maximize()
+            else:
+                self.page.window.maximized = not self.page.window.maximized
+                self.page.update()
 
         async def close_window(_):
             await self.page.window.close()
+
+        is_maximized = bool(
+            getattr(getattr(self.page, "window", None), "maximized", False)
+        )
+        maximize_icon = (
+            ft.Icons.FILTER_NONE
+            if is_maximized
+            else ft.Icons.CROP_SQUARE
+        )
+        maximize_tooltip = "Restaurar" if is_maximized else "Maximizar"
 
         title_controls: list[ft.Control] = [
             ft.Image(
@@ -167,21 +216,25 @@ class CoreComposer:
                 height=56
             ),
         ]
+        self.maximize_button = self._window_control_button(
+            icon=maximize_icon,
+            on_click=toggle_maximize_window,
+            color=self.config.colors["text"],
+            tooltip=maximize_tooltip,
+        )
         toolbar_controls: list[ft.Control] = [
             self._window_control_button(
                 icon=ft.Icons.REMOVE,
                 on_click=minimize_window,
                 color=self.config.colors["text"],
+                tooltip="Minimizar",
             ),
-            self._window_control_button(
-                icon=ft.Icons.CROP_SQUARE,
-                on_click=toggle_maximize_window,
-                color=self.config.colors["text"],
-            ),
+            self.maximize_button,
             self._window_control_button(
                 icon=ft.Icons.CLOSE,
                 on_click=close_window,
                 color=self.config.colors["text"],
+                tooltip="Fechar",
             ),
         ]
 
@@ -209,6 +262,18 @@ class CoreComposer:
                 height=52,
             )
         )
+
+    def update_window_state(self, is_maximized: bool) -> None:
+        """Atualiza dinamicamente o ícone e tooltip do botão de maximizar/restaurar sem recriar a UI."""
+        if hasattr(self, "maximize_button") and self.maximize_button is not None:
+            self.maximize_button.icon = (
+                ft.Icons.FILTER_NONE if is_maximized else ft.Icons.CROP_SQUARE
+            )
+            self.maximize_button.tooltip = "Restaurar" if is_maximized else "Maximizar"
+            try:
+                self.maximize_button.update()
+            except Exception:
+                pass
 
     def compose_main(self) -> ft.Column:
         """Monta a barra lateral e o dashboard em uma linha principal."""
@@ -249,6 +314,7 @@ class CoreComposer:
             ],
             expand=True,
             spacing=0,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def show_view(
@@ -263,6 +329,9 @@ class CoreComposer:
             "Acervo": lambda: self._compose_works(works),
             "Fragmentos": lambda: self._compose_fragments(fragments),
             "Compilações": lambda: self._compose_compilations(compilations),
+            "Estruturas de Saber": self._compose_knowledge,
+            "Nous": self._compose_nous,
+            "Configurações": self._compose_settings,
         }
         view_factory = views.get(destination)
         if not view_factory:
@@ -273,7 +342,10 @@ class CoreComposer:
             )
         else:
             self.content.content = view_factory()
-        self.content.update()
+        try:
+            self.content.update()
+        except RuntimeError:
+            pass
 
     def _compose_dashboard(self) -> ft.Control:
         return DashboardComposer(
@@ -288,6 +360,48 @@ class CoreComposer:
             config=self.config,
             on_navigate=self.on_navigate,
         ).compose_placeholder(section)
+
+    def _compose_settings(self) -> ft.Control:
+        return SettingsComposer(
+            scale=self.scale,
+            config=self.config,
+            current_theme_mode=self.current_theme_mode,
+            auto_scale=self.auto_scale,
+            manual_scale=self.manual_scale,
+            effective_scale=self.scale,
+            on_navigate=self.on_navigate,
+            on_change_theme=self.on_change_theme or (lambda _: None),
+            on_toggle_auto_scale=self.on_toggle_auto_scale or (lambda _: None),
+            on_change_scale=self.on_change_scale or (lambda _: None),
+            on_reset_settings=self.on_reset_settings or (lambda: None),
+        ).compose()
+
+    def _compose_nous(self) -> ft.Control:
+        self.nous_composer = NousComposer(
+            page=getattr(self, "page", None),
+            config=self.config,
+            scale=self.scale,
+            on_navigate=self.on_navigate,
+            nous_service=getattr(self, "nous_service", None),
+            current_theme_mode=getattr(self, "current_theme_mode", "light"),
+        )
+        return self.nous_composer.compose()
+
+    def _compose_knowledge(self) -> ft.Control:
+        self.knowledge_composer = KnowledgeComposer(
+            page=getattr(self, "page", None),
+            config=self.config,
+            scale=self.scale,
+            on_navigate=self.on_navigate,
+            get_graph_data=getattr(self, "get_knowledge_graph", None) or (lambda _: {"nodes": [], "links": [], "clusters": []}),
+            sync_mesh=getattr(self, "sync_knowledge_mesh", None) or (lambda: {"vectorized": 0, "clusters": 0}),
+            get_resonances=getattr(self, "get_knowledge_resonances", None) or (lambda *_: []),
+            on_add_to_compilation=getattr(self, "on_add_knowledge_to_compilation", None),
+            list_compilations=getattr(self, "refresh_compilations", None),
+            on_create_link=getattr(self, "on_create_knowledge_link", None),
+            current_theme_mode=getattr(self, "current_theme_mode", "light"),
+        )
+        return self.knowledge_composer.compose()
 
     def _compose_works(
         self,
@@ -365,9 +479,19 @@ class CoreComposer:
 
     @staticmethod
     def compose_work_details_popup(
-        resource, config: ViewConfig, on_close: Callable[[], None]
+        resource,
+        config: ViewConfig,
+        on_close: Callable[[], None],
+        page: ft.Page | None = None,
+        nous_service: object | None = None,
     ) -> ft.AlertDialog:
-        return WorkDetailsPopup(resource, config, on_close).compose()
+        return WorkDetailsPopup(
+            resource=resource,
+            config=config,
+            on_close=on_close,
+            page=page,
+            nous_service=nous_service,
+        ).compose()
 
     @staticmethod
     def compose_work_insert_modal(

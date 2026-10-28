@@ -80,7 +80,7 @@ class CompilationService:
         normalized_note = note.strip() if isinstance(note, str) else ''
         if len(normalized_note) > 2000:
             raise ValueError(
-                'A nota de trabalho deve ter no máximo 2000 caracteres.'
+                'A nota de articulação deve ter no máximo 2000 caracteres.'
             )
         with SessionLocal() as session:
             CompilationRepository(session).update_fragment_note(

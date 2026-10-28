@@ -71,6 +71,8 @@ class BibliographicResource(Base):
     __tablename__ = 'bibliographic_resources'
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    llm_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    custom_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     authorships: Mapped[list['Authorship']] = relationship(
         'Authorship',
         back_populates='bibliographic_resource',
@@ -247,6 +249,20 @@ class BibliographicResource(Base):
                 'associada; o modelo exige um único trabalho específico.'
             )
         return matches[0]
+
+    @property
+    def effective_description(self) -> str:
+        """Retorna a síntese da obra respeitando a precedência intelectual do usuário:
+        custom_description (manual/sobreposta) > llm_description (IA) > abstract > vazio.
+        """
+        if self.custom_description and self.custom_description.strip():
+            return self.custom_description.strip()
+        if self.llm_description and self.llm_description.strip():
+            return self.llm_description.strip()
+        sw = self.specific_work
+        if sw:
+            return (getattr(sw, 'abstract', '') or getattr(sw, 'subtitle', '') or '').strip()
+        return ""
 
 
 class PartialWorkMixin:

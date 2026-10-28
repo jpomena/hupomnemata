@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     ForeignKey,
     Integer,
     String,
@@ -137,6 +138,12 @@ class CompilationFragment(Base):
         server_default=text('0'),
     )
     work_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_member: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text('1'),
+    )
     section_id: Mapped[int | None] = mapped_column(
         ForeignKey('compilation_sections.id', ondelete='SET NULL'),
         nullable=True,

@@ -58,30 +58,29 @@ class CompilationRepository:
                 work = item.bibliographic_resource.specific_work
                 if work is None:
                     continue
-                work_fragments: list[CompilationFragmentRecord] = [
-                    {
+                work_fragments: list[CompilationFragmentRecord] = []
+                for fragment in fragments_by_resource.get(item.bib_res_id, []):
+                    fragment_item = member_fragments.get(fragment['id'])
+                    is_member = bool(fragment_item and fragment_item.is_member)
+                    work_fragments.append({
                         **fragment,
-                        'is_member': fragment['id'] in member_fragments,
+                        'is_member': is_member,
                         'project_position': (
-                            member_fragments[fragment['id']].position
-                            if fragment['id'] in member_fragments
+                            fragment_item.position
+                            if is_member and fragment_item is not None
                             else None
                         ),
                         'work_note': (
-                            member_fragments[fragment['id']].work_note
-                            if fragment['id'] in member_fragments
+                            fragment_item.work_note
+                            if fragment_item is not None
                             else None
                         ),
                         'section_id': (
-                            member_fragments[fragment['id']].section_id
-                            if fragment['id'] in member_fragments
+                            fragment_item.section_id
+                            if is_member and fragment_item is not None
                             else None
                         ),
-                    }
-                    for fragment in fragments_by_resource.get(
-                        item.bib_res_id, []
-                    )
-                ]
+                    })
                 work_fragments.sort(key=lambda fragment: (
                     not fragment['is_member'],
                     (
@@ -233,6 +232,15 @@ class CompilationRepository:
                 'Inclua a obra do fragmento na compilação antes de '
                 'adicionar o fragmento.'
             )
+        item = self.session.scalar(
+            select(CompilationFragment).where(
+                CompilationFragment.compilation_id == compilation_id,
+                CompilationFragment.fragment_id == fragment_id,
+            )
+        )
+        if item is not None and item.is_member:
+            raise ValueError('Este fragmento já pertence à compilação.')
+
         current_position = self.session.scalar(
             select(func.max(CompilationFragment.position))
             .join(
@@ -241,15 +249,26 @@ class CompilationRepository:
             )
             .where(
                 CompilationFragment.compilation_id == compilation_id,
+                CompilationFragment.section_id.is_(None),
+                CompilationFragment.is_member.is_(True),
                 Fragment.bib_res_id == fragment.bib_res_id,
             )
         )
-        self.session.add(CompilationFragment(
-            compilation_id=compilation_id,
-            fragment_id=fragment_id,
-            position=(current_position if current_position is not None else -1)
-            + 1,
-        ))
+        new_position = (
+            current_position if current_position is not None else -1
+        ) + 1
+
+        if item is not None:
+            item.is_member = True
+            item.section_id = None
+            item.position = new_position
+        else:
+            self.session.add(CompilationFragment(
+                compilation_id=compilation_id,
+                fragment_id=fragment_id,
+                position=new_position,
+                is_member=True,
+            ))
         try:
             self.session.commit()
         except IntegrityError as error:
@@ -269,13 +288,18 @@ class CompilationRepository:
                 CompilationFragment.fragment_id == fragment_id,
             )
         )
-        if item is None:
+        if item is None or not item.is_member:
             raise ValueError('O fragmento não pertence a esta compilação.')
         fragment = self.session.get(Fragment, fragment_id)
         if fragment is None:
             raise ValueError('O fragmento não está mais disponível.')
         section_id = item.section_id
-        self.session.delete(item)
+        if item.work_note:
+            item.is_member = False
+            item.section_id = None
+            item.position = 0
+        else:
+            self.session.delete(item)
         self.session.flush()
         if section_id is None:
             self._normalize_fragment_positions(
@@ -295,15 +319,85 @@ class CompilationRepository:
         fragment_id: int,
         note: str | None,
     ) -> None:
+        if self.session.get(Compilation, compilation_id) is None:
+            raise ValueError('A compilação não está mais disponível.')
+        fragment = self.session.get(Fragment, fragment_id)
+        if fragment is None:
+            raise ValueError('O fragmento não está mais disponível.')
+        clean_note = note.strip() if isinstance(note, str) else ''
+        if len(clean_note) > 2000:
+            raise ValueError(
+                'A nota de articulação deve ter no máximo 2000 caracteres.'
+            )
+        clean_note = clean_note or None
+
         item = self.session.scalar(
             select(CompilationFragment).where(
                 CompilationFragment.compilation_id == compilation_id,
                 CompilationFragment.fragment_id == fragment_id,
             )
         )
-        if item is None:
-            raise ValueError('O fragmento não está no caderno do projeto.')
-        item.work_note = note
+
+        if clean_note is not None:
+            if not self.contains_work(compilation_id, fragment.bib_res_id):
+                raise ValueError(
+                    'Inclua a obra do fragmento na compilação antes de '
+                    'adicionar notas.'
+                )
+            if item is None:
+                current_position = self.session.scalar(
+                    select(func.max(CompilationFragment.position))
+                    .join(
+                        Fragment,
+                        Fragment.id == CompilationFragment.fragment_id,
+                    )
+                    .where(
+                        CompilationFragment.compilation_id == compilation_id,
+                        CompilationFragment.section_id.is_(None),
+                        CompilationFragment.is_member.is_(True),
+                        Fragment.bib_res_id == fragment.bib_res_id,
+                    )
+                )
+                new_position = (
+                    current_position if current_position is not None else -1
+                ) + 1
+                self.session.add(CompilationFragment(
+                    compilation_id=compilation_id,
+                    fragment_id=fragment_id,
+                    position=new_position,
+                    work_note=clean_note,
+                    is_member=True,
+                ))
+            else:
+                item.work_note = clean_note
+                if not item.is_member:
+                    current_position = self.session.scalar(
+                        select(func.max(CompilationFragment.position))
+                        .join(
+                            Fragment,
+                            Fragment.id == CompilationFragment.fragment_id,
+                        )
+                        .where(
+                            CompilationFragment.compilation_id
+                            == compilation_id,
+                            CompilationFragment.section_id.is_(None),
+                            CompilationFragment.is_member.is_(True),
+                            Fragment.bib_res_id == fragment.bib_res_id,
+                        )
+                    )
+                    new_position = (
+                        current_position
+                        if current_position is not None
+                        else -1
+                    ) + 1
+                    item.is_member = True
+                    item.section_id = None
+                    item.position = new_position
+        else:
+            if item is not None:
+                item.work_note = None
+                if not item.is_member:
+                    self.session.delete(item)
         self.session.commit()
 
     def create_section(
@@ -386,6 +480,7 @@ class CompilationRepository:
                     .where(
                         CompilationFragment.compilation_id == compilation_id,
                         CompilationFragment.section_id.is_(None),
+                        CompilationFragment.is_member.is_(True),
                         Fragment.bib_res_id == bib_res_id,
                     )
                 )
@@ -441,7 +536,7 @@ class CompilationRepository:
                 CompilationFragment.fragment_id == fragment_id,
             )
         )
-        if item is None:
+        if item is None or not item.is_member:
             raise ValueError('O fragmento não está selecionado no caderno.')
         old_section_id = item.section_id
         if old_section_id == section_id:
@@ -477,6 +572,7 @@ class CompilationRepository:
                 .where(
                     CompilationFragment.compilation_id == compilation_id,
                     CompilationFragment.section_id.is_(None),
+                    CompilationFragment.is_member.is_(True),
                     Fragment.bib_res_id == fragment.bib_res_id,
                     CompilationFragment.id != item.id,
                 )
@@ -511,6 +607,7 @@ class CompilationRepository:
             select(CompilationFragment).where(
                 CompilationFragment.compilation_id == compilation_id,
                 CompilationFragment.section_id == section_id,
+                CompilationFragment.is_member.is_(True),
             )
         ).all()
         current_ids = [item.fragment_id for item in items]
@@ -538,6 +635,7 @@ class CompilationRepository:
             .where(
                 CompilationFragment.compilation_id == compilation_id,
                 CompilationFragment.section_id.is_(None),
+                CompilationFragment.is_member.is_(True),
                 Fragment.bib_res_id == bib_res_id,
             )
             .order_by(
@@ -570,6 +668,7 @@ class CompilationRepository:
             .where(
                 CompilationFragment.compilation_id == compilation_id,
                 CompilationFragment.section_id == section_id,
+                CompilationFragment.is_member.is_(True),
             )
             .order_by(CompilationFragment.position, CompilationFragment.id)
         ).all()
@@ -608,6 +707,8 @@ class CompilationRepository:
             )
             .where(
                 CompilationFragment.compilation_id == compilation_id,
+                CompilationFragment.section_id.is_(None),
+                CompilationFragment.is_member.is_(True),
                 Fragment.bib_res_id == payload['bib_res_id'],
             )
         )
@@ -618,6 +719,7 @@ class CompilationRepository:
             fragment_id=fragment.id,
             position=(current_position if current_position is not None else -1)
             + 1,
+            is_member=True,
         ))
         self.session.commit()
         return fragment.id

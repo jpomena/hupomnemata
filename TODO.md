@@ -8,7 +8,7 @@
   referência vazia como se a formatação tivesse sido concluída.
 - [x] Integrar `DigitalFormatter` ao fluxo e exportá-lo em
   `src/strategies/__init__.py`.
-- [ ] Adicionar testes de dispatch que cubram todos os tipos documentais e
+- [x] Adicionar testes de dispatch que cubram todos os tipos documentais e
   confirmem que cada tipo chega ao formatter correspondente.
 
 ## 2. Completar e cobrir os formatters existentes
@@ -40,7 +40,7 @@
 
 ## 4. Encerrar a etapa de referências
 
-- [ ] Confirmar que todos os tipos cadastráveis têm formatter ligado à
+- [x] Confirmar que todos os tipos cadastráveis têm formatter ligado à
   interface e coberto por testes.
 - [ ] Comparar referências geradas com exemplos ABNT aprovados e documentar
   exceções por tipo documental.
