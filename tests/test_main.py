@@ -799,7 +799,7 @@ def test_core_controller_routes_digital_document_reference():
     )
 
 
-def test_core_controller_marks_unsupported_reference_formatter():
+def test_core_controller_formats_patent_reference():
     with db_module.SessionLocal() as session:
         resource = BibliographicResource()
         resource.patent = Patent(
@@ -811,7 +811,9 @@ def test_core_controller_marks_unsupported_reference_formatter():
         session.add(resource)
         session.flush()
 
-        assert CoreController.format_reference(resource) is None
+        reference = CoreController.format_reference(resource)
+        assert reference is not None
+        assert 'PATENTE de teste' in ''.join(part.content for part in reference.parts)
 
 
 def test_views_do_not_import_strategies_or_repositories():
@@ -1009,7 +1011,7 @@ def test_acervo_nesting_uses_parent_id_without_lazy_loading():
 def test_acervo_search_shows_matches_and_filters_in_real_time():
     from types import SimpleNamespace
     from src.configs.settings import (
-        COLORS,
+        COLORS_LIGHT,
         FONT_FAMILIES,
         FONT_SIZES,
         FONT_WEIGHTS,
@@ -1037,7 +1039,7 @@ def test_acervo_search_shows_matches_and_filters_in_real_time():
         ),
     ]
     config = ViewConfig(
-        colors=COLORS,
+        colors=COLORS_LIGHT,
         page_fonts=PAGE_FONTS,
         font_families=FONT_FAMILIES,
         font_sizes=FONT_SIZES,
@@ -1825,3 +1827,267 @@ def test_periodical_collection_formatter_uses_linked_magazine():
 
     assert 'REVISTA brasileira de estudos' in formatted
     assert 'Sao Paulo: [s.n.], 2018.' in formatted
+
+
+def test_natural_name_parser_handles_mononym():
+    normalizer = CoreNormalizer()
+    elements = normalizer.natural_name_parser('Platão')
+    assert elements.given_names == ''
+    assert elements.last_name == 'Platão'
+    assert elements.given_names_initials == ''
+    assert elements.last_name_initial == 'P'
+
+
+def test_abnt_utils_fmt_authors_handles_mononym():
+    author_platao = Author(
+        given_names='',
+        last_name='Platão',
+        given_names_initials='',
+        last_name_initial='P',
+        corporation=False,
+    )
+    author_silva = Author(
+        given_names='João',
+        last_name='Silva',
+        given_names_initials='J.',
+        last_name_initial='S',
+        corporation=False,
+    )
+    assert ABNTUtils.fmt_authors([author_platao]) == 'PLATÃO'
+    assert (
+        ABNTUtils.fmt_authors([author_platao, author_silva])
+        == 'PLATÃO; SILVA, J.'
+    )
+
+
+def test_patent_formatter_with_author_spacing_and_single_dot():
+    author = Author(
+        given_names='João',
+        last_name='Silva',
+        given_names_initials='J.',
+        last_name_initial='S',
+        corporation=False,
+    )
+    work = Patent(
+        title='Dispositivo de filtragem',
+        applicant='Empresa Alpha',
+        number='BR2024001',
+        filing_date=date(2024, 3, 10),
+    )
+    BibliographicResource(authors=[author], patent=work)
+    formatted = ''.join(
+        part.content for part in PatentFormatter.formatter(work).parts
+    )
+    assert formatted.startswith('SILVA, J. Dispositivo de filtragem.')
+    assert not formatted.startswith(' ')
+    assert '..' not in formatted
+
+
+def test_core_controller_format_reference_resilience_on_error(monkeypatch):
+    resource = BibliographicResource()
+    resource.editorial_monograph = EditorialMonograph(
+        title='Livro com erro',
+    )
+    monkeypatch.setattr(
+        MonographFormatter,
+        'formatter',
+        lambda _res: (_ for _ in ()).throw(ValueError('Erro simulado')),
+    )
+    result = CoreController.format_reference(resource)
+    assert result is None
+
+
+def test_core_controller_format_reference_dispatch_all_types():
+    from src.domains import (
+        AudiovisualDocument,
+        VisualDocument,
+        CartographicDocument,
+        ThreeDimensionalDocument,
+    )
+    mag_r = BibliographicResource(
+        magazine=Magazine(
+            title='Revista X',
+            publication_place='SP',
+        )
+    )
+
+    resources = [
+        BibliographicResource(
+            editorial_monograph=EditorialMonograph(
+                title='Monografia',
+                publication_place='SP',
+                publisher='Ed',
+                display_year='2020',
+            )
+        ),
+        BibliographicResource(
+            academic_monograph=AcademicMonograph(
+                title='Tese',
+                publication_place='RJ',
+                display_year='2021',
+                thesis_type='Tese',
+            )
+        ),
+        BibliographicResource(
+            correspondence_monograph=CorrespondenceMonograph(
+                title='Carta',
+                publication_place='BH',
+                display_year='2022',
+            )
+        ),
+        BibliographicResource(
+            periodical_collection=PeriodicalCollection(
+                title='Coleção',
+                parent_bibliographic_resource=mag_r,
+                is_partial=True,
+                first_volume_year=2015,
+                publisher='Ed',
+            )
+        ),
+        BibliographicResource(
+            magazine=Magazine(
+                title='Revista Científica',
+                publication_place='Curitiba',
+            )
+        ),
+        BibliographicResource(
+            journal_article=JournalArticle(
+                title='Artigo A',
+                parent_bibliographic_resource=mag_r,
+                is_partial=True,
+                publisher='Ed',
+                year_season=2023,
+            )
+        ),
+        BibliographicResource(
+            newspaper_article=NewspaperArticle(
+                title='Notícia',
+                journal_title='Jornal Hoje',
+                publication_place='SP',
+                date_anchor=date(2024, 1, 1),
+                display_year='2024',
+            )
+        ),
+        BibliographicResource(
+            monographic_proceeding=MonographicProceedings(
+                title='Anais',
+                event_name='Congresso',
+                event_number='1',
+                event_year='2023',
+                event_place='SP',
+                publication_place='SP',
+                publisher='Ed',
+                publication_year='2023',
+                display_year='2023',
+                published=False,
+            )
+        ),
+        BibliographicResource(
+            periodical_proceeding=PeriodicalProceedings(
+                title='Anais P',
+                event_name='Simpósio',
+                event_number='2',
+                event_year='2023',
+                event_place='RJ',
+                publication_place='RJ',
+                publisher='Ed',
+                publication_year='2023',
+                display_year='2023',
+            )
+        ),
+        BibliographicResource(
+            statute=Statute(
+                title='Lei 123',
+                promulgation_date=date(2024, 1, 1),
+                publication_media='DOU',
+                date_anchor=date(2024, 1, 2),
+                display_year='2024',
+            )
+        ),
+        BibliographicResource(
+            caselaw=CaseLaw(
+                title='Recurso Especial',
+                publication_media='DJ',
+                date_anchor=date(2024, 2, 1),
+                display_year='2024',
+            )
+        ),
+        BibliographicResource(
+            miscellaneous_digital_document=MiscDigitalDocument(
+                title='Doc Digital',
+                publication_place='SP',
+                display_year='2024',
+            )
+        ),
+        BibliographicResource(
+            audiovisual_document=AudiovisualDocument(
+                title='Filme',
+                carrier_type='DVD',
+                publication_place='SP',
+                publisher='Produtora',
+                display_year='2020',
+                seconds=5400,
+                sound=True,
+                colorized=True,
+                responsibilities={},
+            )
+        ),
+        BibliographicResource(
+            audio_document=AudioDocument(
+                title='Álbum',
+                carrier_type='CD',
+                publication_place='RJ',
+                publisher='Gravadora',
+                display_year='2019',
+                responsibilities={},
+                part_responsibilities={},
+            )
+        ),
+        BibliographicResource(
+            musical_score=MusicalScore(
+                title='Partitura',
+                publication_place='SP',
+                publisher='Editora',
+                display_year='2018',
+                instrumentation='Piano',
+            )
+        ),
+        BibliographicResource(
+            visual_document=VisualDocument(
+                title='Fotografia',
+                display_year='2022',
+            )
+        ),
+        BibliographicResource(
+            cartographic_document=CartographicDocument(
+                title='Mapa',
+                publication_place='Brasília',
+                publisher='IBGE',
+                display_year='2021',
+            )
+        ),
+        BibliographicResource(
+            three_dimensional_document=ThreeDimensionalDocument(
+                title='Escultura',
+                manufacturing_place='SP',
+                manufacturer='Ateliê',
+                display_year='2023',
+                physical_description='Bronze',
+            )
+        ),
+        BibliographicResource(
+            patent=Patent(
+                title='Patente X',
+                number='BR999',
+                filing_date=date(2024, 1, 1),
+                display_year='2024',
+            )
+        ),
+    ]
+
+    for res in resources:
+        ref = CoreController.format_reference(res)
+        assert ref is not None, f"Dispatch falhou para {res.specific_work}"
+        assert len(ref.parts) > 0
+
+    assert CoreController.format_reference(BibliographicResource()) is None

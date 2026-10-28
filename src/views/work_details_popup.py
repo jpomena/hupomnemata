@@ -107,10 +107,16 @@ class WorkDetailsPopup:
         resource: BibliographicResource,
         config: ViewConfig,
         on_close: Callable[[], None],
+        page: ft.Page | None = None,
+        nous_service: object | None = None,
     ) -> None:
         self.resource = resource
         self.config = config
         self.on_close = on_close
+        self.page = page
+        self.nous_service = nous_service
+        self._is_generating = False
+        self.synthesis_container = None
 
     def compose(self) -> ft.AlertDialog:
         work = self.resource.specific_work
@@ -155,6 +161,7 @@ class WorkDetailsPopup:
                 run_spacing=self.config.ui["control_gap"],
             )
         )
+        detail_controls.append(self._compose_synthesis_section())
         detail_controls.extend(self._section("Dados da obra", work))
         resource_fields = self._visible_fields(
             self.resource, self.RESOURCE_FIELDS
@@ -379,3 +386,356 @@ class WorkDetailsPopup:
         if isinstance(value, dict):
             return "; ".join(f"{key}: {item}" for key, item in value.items())
         return str(value)
+
+    def _compose_synthesis_section(self) -> ft.Control:
+        self.synthesis_container = ft.Container(
+            content=self._build_synthesis_body(),
+            bgcolor=self.config.colors["surface"],
+            border=ft.Border.all(
+                1,
+                self.config.colors["gold"]
+                if (
+                    self.resource.llm_description
+                    or self.resource.custom_description
+                )
+                else self.config.colors["border"],
+            ),
+            border_radius=self.config.ui["card_radius"],
+            padding=self.config.ui["card_padding"],
+        )
+        return ft.Column(
+            controls=[
+                self._section_title("Síntese Epistemológica (Nous)"),
+                self.synthesis_container,
+            ],
+            spacing=8,
+        )
+
+    def _build_synthesis_body(self) -> ft.Control:
+        has_custom = bool(
+            self.resource.custom_description
+            and self.resource.custom_description.strip()
+        )
+        has_llm = bool(
+            self.resource.llm_description
+            and self.resource.llm_description.strip()
+        )
+
+        if has_custom:
+            badge_text = "Personalizada pelo Usuário"
+            badge_icon = ft.Icons.EDIT_NOTE
+            badge_color = "#5A6B7C"
+        elif has_llm:
+            badge_text = "Síntese IA (Gemini)"
+            badge_icon = ft.Icons.AUTO_AWESOME
+            badge_color = self.config.colors["gold"]
+        else:
+            badge_text = "Pendente de Síntese"
+            badge_icon = ft.Icons.HELP_OUTLINE
+            badge_color = self.config.colors["muted"]
+
+        effective_text = self.resource.effective_description
+        has_any_text = bool(effective_text and effective_text.strip())
+
+        text_widget = ft.Text(
+            effective_text
+            if has_any_text
+            else "Nenhuma síntese epistemológica formulada ainda. Use o Nous para extrair os núcleos conceituais da obra.",
+            size=self.config.font_sizes["montserrat_small"],
+            color=(
+                self.config.colors["text"]
+                if has_any_text
+                else self.config.colors["muted"]
+            ),
+            font_family=self.config.font_families["montserrat"],
+            italic=not has_any_text,
+            selectable=True,
+        )
+
+        badge_control = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(badge_icon, size=13, color=badge_color),
+                    ft.Text(
+                        badge_text,
+                        size=self.config.font_sizes["montserrat_tiny"],
+                        weight=self.config.font_weights["montserrat_semibold"],
+                        color=badge_color,
+                        font_family=self.config.font_families["montserrat"],
+                    ),
+                ],
+                spacing=5,
+                tight=True,
+            ),
+            padding=ft.Padding(8, 3, 8, 3),
+            border_radius=6,
+            bgcolor=self.config.colors["surface"],
+            border=ft.Border.all(1, badge_color),
+        )
+
+        buttons = []
+        if self.nous_service is not None:
+            if self._is_generating:
+                buttons.append(
+                    ft.Container(
+                        bgcolor=self.config.colors["surface"],
+                        border=ft.Border.all(1, self.config.colors["border"]),
+                        border_radius=6,
+                        padding=ft.Padding(12, 8, 12, 8),
+                        content=ft.Row(
+                            controls=[
+                                ft.ProgressRing(
+                                    width=16,
+                                    height=16,
+                                    stroke_width=2.5,
+                                    color=self.config.colors["gold"],
+                                ),
+                                ft.Text(
+                                    "Nous está processando os conceitos com IA...",
+                                    size=self.config.font_sizes["montserrat_small"],
+                                    weight=self.config.font_weights["montserrat_semibold"],
+                                    color=self.config.colors["text"],
+                                    font_family=self.config.font_families["montserrat"],
+                                ),
+                            ],
+                            spacing=10,
+                            tight=True,
+                        ),
+                    )
+                )
+            else:
+                generate_label = "Regenerar com IA" if has_llm else "Gerar com Nous"
+                buttons.append(
+                    ft.FilledButton(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.AUTO_AWESOME,
+                                    size=14,
+                                    color=self.config.colors["surface"],
+                                ),
+                                ft.Text(
+                                    generate_label,
+                                    size=self.config.font_sizes["montserrat_tiny"],
+                                    weight=self.config.font_weights["montserrat_semibold"],
+                                    color=self.config.colors["surface"],
+                                    font_family=self.config.font_families["montserrat"],
+                                ),
+                            ],
+                            spacing=6,
+                            tight=True,
+                        ),
+                        style=ft.ButtonStyle(
+                            bgcolor=self.config.colors["gold"],
+                            shape=ft.RoundedRectangleBorder(radius=6),
+                            padding=ft.Padding(12, 6, 12, 6),
+                        ),
+                        on_click=self._handle_generate_click,
+                    )
+                )
+
+                buttons.append(
+                    ft.OutlinedButton(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.EDIT,
+                                    size=13,
+                                    color=self.config.colors["gold"],
+                                ),
+                                ft.Text(
+                                    "Sobrepor / Editar",
+                                    size=self.config.font_sizes["montserrat_tiny"],
+                                    color=self.config.colors["gold"],
+                                    font_family=self.config.font_families["montserrat"],
+                                ),
+                            ],
+                            spacing=6,
+                            tight=True,
+                        ),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, self.config.colors["gold"]),
+                            shape=ft.RoundedRectangleBorder(radius=6),
+                            padding=ft.Padding(12, 6, 12, 6),
+                        ),
+                        on_click=self._handle_edit_click,
+                    )
+                )
+
+        return ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.PSYCHOLOGY,
+                                    size=18,
+                                    color=self.config.colors["gold"],
+                                ),
+                                ft.Text(
+                                    "Síntese Conceitual",
+                                    size=self.config.font_sizes["montserrat_small"],
+                                    weight=self.config.font_weights["montserrat_semibold"],
+                                    color=self.config.colors["gold"],
+                                    font_family=self.config.font_families["montserrat"],
+                                ),
+                            ],
+                            spacing=6,
+                            tight=True,
+                        ),
+                        badge_control,
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                text_widget,
+                ft.Row(controls=buttons, spacing=8) if buttons else ft.Container(),
+            ],
+            spacing=10,
+        )
+
+    def _handle_generate_click(self, e) -> None:
+        if self.nous_service is None or self._is_generating:
+            return
+        self._is_generating = True
+        if self.synthesis_container is not None:
+            self.synthesis_container.content = self._build_synthesis_body()
+        if self.page:
+            self.page.update()
+
+        ok, msg = self.nous_service.generate_work_description(self.resource.id)
+        self._is_generating = False
+
+        if ok:
+            self.resource.llm_description = msg
+            if self.page:
+                self.page.show_dialog(
+                    ft.SnackBar(
+                        content=ft.Text(
+                            "Síntese epistemológica gerada e salva com sucesso!",
+                            color=self.config.colors["surface"],
+                        ),
+                        bgcolor=self.config.colors["gold"],
+                    )
+                )
+        else:
+            if self.page:
+                self.page.show_dialog(
+                    ft.SnackBar(
+                        content=ft.Text(f"Erro ao gerar síntese: {msg}"),
+                        bgcolor="#B00020",
+                    )
+                )
+
+        if self.synthesis_container is not None:
+            self.synthesis_container.content = self._build_synthesis_body()
+            self.synthesis_container.border = ft.Border.all(
+                1,
+                self.config.colors["gold"]
+                if (
+                    self.resource.llm_description
+                    or self.resource.custom_description
+                )
+                else self.config.colors["border"],
+            )
+        if self.page:
+            self.page.update()
+
+    def _handle_edit_click(self, e) -> None:
+        if self.nous_service is None or not self.page:
+            return
+
+        initial_value = (
+            self.resource.custom_description
+            or self.resource.llm_description
+            or ""
+        )
+        edit_field = ft.TextField(
+            value=initial_value,
+            multiline=True,
+            min_lines=4,
+            max_lines=8,
+            border_color=self.config.colors["border"],
+            bgcolor=self.config.colors["surface"],
+            hint_text="Redija sua síntese ou interpretação particular da obra...",
+        )
+
+        def save_edit(_):
+            new_text = edit_field.value.strip() if edit_field.value else ""
+            self.nous_service.override_work_description(
+                self.resource.id, new_text if new_text else None
+            )
+            self.resource.custom_description = new_text if new_text else None
+            edit_modal.open = False
+            if self.synthesis_container is not None:
+                self.synthesis_container.content = self._build_synthesis_body()
+            self.page.update()
+
+        def restore_ai(_):
+            self.nous_service.override_work_description(self.resource.id, None)
+            self.resource.custom_description = None
+            edit_modal.open = False
+            if self.synthesis_container is not None:
+                self.synthesis_container.content = self._build_synthesis_body()
+            self.page.update()
+
+        actions = [
+            ft.TextButton(
+                content=ft.Text(
+                    "Cancelar",
+                    color=self.config.colors["text"],
+                ),
+                on_click=lambda _: setattr(edit_modal, "open", False)
+                or self.page.update(),
+            ),
+        ]
+        if self.resource.custom_description and self.resource.llm_description:
+            actions.append(
+                ft.TextButton(
+                    content=ft.Text(
+                        "Restaurar Síntese IA",
+                        color=self.config.colors["gold"],
+                    ),
+                    on_click=restore_ai,
+                )
+            )
+        actions.append(
+            ft.FilledButton(
+                content=ft.Text(
+                    "Salvar",
+                    color=self.config.colors["surface"],
+                ),
+                style=ft.ButtonStyle(bgcolor=self.config.colors["gold"]),
+                on_click=save_edit,
+            )
+        )
+
+        edit_modal = ft.AlertDialog(
+            title=ft.Text(
+                "Personalizar Síntese Epistemológica",
+                size=self.config.font_sizes["montserrat_medium"],
+                weight=self.config.font_weights["montserrat_semibold"],
+                color=self.config.colors["gold"],
+                font_family=self.config.font_families["montserrat"],
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "Sua síntese manual terá precedência sobre a gerada por IA na malha de conhecimento.",
+                            size=self.config.font_sizes["montserrat_tiny"],
+                            italic=True,
+                            color=self.config.colors["muted"],
+                            font_family=self.config.font_families["montserrat"],
+                        ),
+                        edit_field,
+                    ],
+                    tight=True,
+                    spacing=10,
+                ),
+                width=550,
+            ),
+            actions=actions,
+            bgcolor=self.config.colors["bg"],
+        )
+        self.page.show_dialog(edit_modal)

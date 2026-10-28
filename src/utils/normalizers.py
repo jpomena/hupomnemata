@@ -48,6 +48,8 @@ class CoreNormalizer:
         last_name_initial = name_initials[-1]
         given_names_initials = (
             '. '.join(name_initials[:-1]) + '.'
+            if len(name_initials) > 1
+            else ''
         )
 
         return NameElements(

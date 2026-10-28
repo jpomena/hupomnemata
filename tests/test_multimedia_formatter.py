@@ -36,7 +36,7 @@ def test_formats_film_reference():
     assert reference.parts[0].style == TextStyle.NORMAL
     assert formatted_text(work) == (
         'BAGDAD Café. Direção: Percy Adlon. Alemanha: Paris Vídeo Filmes, '
-        '1988. 1 filme (1 h 36), son., color.'
+        '1988. 1 filme (96 min), son., color.'
     )
 
 
@@ -70,12 +70,12 @@ def test_formats_subtitle_notes_and_online_reference():
 
     assert formatted_text(work) == (
         'TECNOLOGIA para a educação: uma experiência. Brasília, DF: UnBTV, '
-        '2014. 1 vídeo (2 min 43), p&b. Publicado por UnBTV. '
+        '2014. 1 vídeo (2 min 43 s), p&b. Publicado por UnBTV. '
         'Disponível em: https://example.com/video. Acesso em: 19 out. 2026.'
     )
 
 
-def test_formats_duration_with_hours():
+def test_formats_duration_in_minutes_and_seconds():
     work = AudiovisualDocument(
         title='Currículo Lattes',
         responsibilities={},
@@ -88,7 +88,7 @@ def test_formats_duration_with_hours():
         colorized=True,
     )
 
-    assert '(4 h 9 min 23)' in formatted_text(work)
+    assert '(249 min 23 s)' in formatted_text(work)
 
 
 def test_controller_selects_multimedia_formatter():

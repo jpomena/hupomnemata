@@ -31,7 +31,7 @@ class PatentFormatter:
 
         author_text = Utils.fmt_authors(authors)
         if author_text:
-            parts.append(ReferencePart(f' {author_text}.'))
+            parts.append(ReferencePart(f"{author_text.rstrip('.')}."))
         formatted_title = ''.join(
             content
             for content, _ in Utils.format_title_and_subtitle(

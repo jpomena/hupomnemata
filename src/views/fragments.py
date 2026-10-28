@@ -421,7 +421,10 @@ class FragmentsComposer:
     def _compose_fragment_card(
         self, fragment: FragmentRecord
     ) -> ft.Container:
-        label = FRAGMENT_TYPE_LABELS[fragment['fragment_type']]
+        label = FRAGMENT_TYPE_LABELS.get(
+            fragment['fragment_type'],
+            'Citação' if fragment['fragment_type'] == 'quote' else 'Comentários/Paráfrases'
+        )
         notation = self._abnt_notation(fragment)
 
         async def copy_fragment(

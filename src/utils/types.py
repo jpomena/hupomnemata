@@ -1,5 +1,5 @@
 import flet as ft
-from typing import List
+from typing import List, Any
 from enum import Enum
 from dataclasses import dataclass
 
@@ -48,7 +48,7 @@ class ViewReference:
 class ViewConfig:
     """Agrupa os parametros visuais carregados pelo ponto de composicao."""
 
-    colors: dict[str, str]
+    colors: dict[str, Any]
     font_families: dict[str, str]
     page_fonts: dict[str, str]
     font_sizes: dict[str, int | float]

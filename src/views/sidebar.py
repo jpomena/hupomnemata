@@ -82,29 +82,33 @@ class SidebarComposer:
                 ],
                 spacing=self.config.ui["modal_gap"] - 6,
                 expand=True,
+                scroll=ft.ScrollMode.AUTO,
             ),
             padding=self.config.ui["navigation_padding"],
             expand=True,
         )
 
     def _compose_footnote(self) -> ft.Container:
-        """Cria a citacao exibida no rodape da barra lateral."""
-        return ft.Container(
-            content=ft.Text(
-                value=self.config.texts["messages"]["placeholder_citation"],
-                size=(
-                    self.config.font_sizes["cormorant_small"]
-                    * self.scale
-                ),
-                color=self.config.colors["muted"],
-                font_family=self.config.font_families["cormorant"],
-                align=ft.Alignment.CENTER_LEFT,
-                text_align=ft.TextAlign.JUSTIFY,
-                no_wrap=False,
-                expand=True,
-                weight=self.config.font_weights["cormorant_semibold"],
+        """Cria a citacao exibida no rodape com altura variavel auto-ajustavel."""
+        citation_text = ft.Text(
+            value=self.config.texts["messages"]["placeholder_citation"],
+            size=(
+                self.config.font_sizes["cormorant_small"]
+                * self.scale
             ),
-            height=self.config.ui["sidebar_footnote_height"] * self.scale,
+            color=self.config.colors["muted"],
+            font_family=self.config.font_families["cormorant"],
+            align=ft.Alignment.CENTER_LEFT,
+            text_align=ft.TextAlign.JUSTIFY,
+            no_wrap=False,
+            weight=self.config.font_weights["cormorant_semibold"],
+        )
+
+        return ft.Container(
+            content=ft.Column(
+                controls=[citation_text],
+                tight=True,
+            ),
             padding=self.config.ui["navigation_padding"],
             border=ft.Border(
                 top=ft.BorderSide(1, self.config.colors["border"])
@@ -125,7 +129,7 @@ class SidebarComposer:
                     self._compose_navigation(),
                     self._compose_footnote(),
                 ],
-                spacing=self.config.ui["modal_gap"] - 10,
+                spacing=0,
                 alignment=ft.MainAxisAlignment.START,
                 expand=True,
             ),
