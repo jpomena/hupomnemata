@@ -539,8 +539,8 @@ def test_armillary_sphere_3d_celestial_grid_and_starfield():
     assert is_shown is True
     assert sphere.show_celestial_grid is True
 
-    # 3. Poeira estelar com 3 magnitudes cósmicas
-    assert len(sphere.starfield) == 72
+    # 3. Campo estelar minimalista com 3 magnitudes cósmicas (180 micro-pontos 2D no infinito)
+    assert len(sphere.starfield) == 180
     magnitudes = {dust[5] for dust in sphere.starfield}
     assert magnitudes == {1, 2, 3}
 
@@ -1317,23 +1317,25 @@ def test_cosmic_tapestry_and_responsive_toolbar_adaptation():
         canvas_height=900.0,
     )
 
-    assert len(sphere.milky_way_stream) == 160
-    assert len(sphere.nebulae) == 4
-    assert len(sphere.starfield) == 72
+    # Eliminação completa de bolotas/nebulosas pesadas e via láctea (vácuo limpo sem overhead)
+    assert len(sphere.milky_way_stream) == 0
+    assert len(sphere.nebulae) == 0
+    assert len(sphere.starfield) == 180
 
     sphere.render(high_detail=True)
 
-    # Presença do rio estelar da Via Láctea via cv.Points
+    # Presença do firmamento estelar 2D no infinito agrupado em 3 lotes Skia (cv.Points)
     points_shapes = [s for s in sphere.canvas.shapes if isinstance(s, cv.Points)]
-    assert len(points_shapes) >= 1
-    assert len(points_shapes[0].points) == 160
+    assert len(points_shapes) == 3
+    total_star_points = sum(len(ps.points) for ps in points_shapes)
+    assert total_star_points == 180
 
-    # Presença de centelhas estelares de magnitude 1 com spikes ópticos de difração
+    # Ausência de espículas ópticas de difração (zero poluição e zero linhas de artefato)
     diffraction_spikes = [
         s for s in sphere.canvas.shapes
         if isinstance(s, cv.Line) and s.data != "filament"
     ]
-    assert len(diffraction_spikes) >= 28  # 14 estrelas-guia x 2 linhas ortogonais
+    assert len(diffraction_spikes) == 0
 
     # 2. Validação da Toolbar Responsiva e do Gradiente Cósmico
     composer = KnowledgeComposer(

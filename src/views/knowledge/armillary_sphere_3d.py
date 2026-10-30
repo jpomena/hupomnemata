@@ -280,71 +280,92 @@ class ArmillaryConstellation3D:
 
         return ticks
 
-    def _generate_cosmic_dust(self, count: int = 72) -> List[Tuple[float, float, float, float, float, int]]:
-        """Gera partículas estelares do firmamento com 3 magnitudes e distribuição harmônica em Fibonacci."""
-        dust: List[Tuple[float, float, float, float, float, int]] = []
-        golden_ratio = (1.0 + math.sqrt(5.0)) / 2.0
-        r = self.sphere_radius * 1.42
-
+    def _generate_static_starfield(self, count: int = 180) -> List[Tuple[float, float, float, float, float, int]]:
+        """Gera campo estelar 2D estático (estrelas no infinito) distribuído deterministicamente com 3 magnitudes."""
+        stars: List[Tuple[float, float, float, float, float, int]] = []
+        rng = random.Random(42)
         for i in range(count):
-            # Variação radial sutil de profundidade na abóboda
-            r_layer = r * (0.95 + ((i * 19) % 17) * 0.012)
-            theta = 2.0 * math.pi * i / golden_ratio
-            phi = math.acos(max(-1.0, min(1.0, 1.0 - 2.0 * (i + 0.5) / count)))
-            x = r_layer * math.sin(phi) * math.cos(theta)
-            y = r_layer * math.cos(phi)
-            z = r_layer * math.sin(phi) * math.sin(theta)
-
-            # Hierarquia de 3 magnitudes celestes com diâmetros e intensidades estelares
-            if i < 14:
-                magnitude = 1  # Estrela Principal / Guia Majestosa com cruz de difração
-                brightness = 0.95
-                base_radius = 2.4
-            elif i < 38:
-                magnitude = 2  # Estrela Média
-                brightness = 0.65
-                base_radius = 1.5
+            u = rng.random()
+            v = rng.random()
+            if i < 28:
+                # Magnitude 1: Estrelas discretas mais nítidas (1.8px, ~80% alpha)
+                mag = 1
+                bright = 0.80
+                base_r = 1.8
+            elif i < 84:
+                # Magnitude 2: Estrelas médias (1.3px, ~50% alpha)
+                mag = 2
+                bright = 0.50
+                base_r = 1.3
             else:
-                magnitude = 3  # Poeira Estelar Fina
-                brightness = 0.38
-                base_radius = 0.90
+                # Magnitude 3: Micro-pontos finos (0.9px, ~25% alpha)
+                mag = 3
+                bright = 0.25
+                base_r = 0.9
+            # Formato compatível: (u, v, z=0.0, bright, base_r, mag)
+            stars.append((u, v, 0.0, bright, base_r, mag))
+        return stars
 
-            dust.append((x, y, z, brightness, base_radius, magnitude))
-        return dust
+    def _rebuild_starfield_shapes(self) -> None:
+        """Gera shapes Skia (cv.Points) para o firmamento 2D no infinito (custo zero por quadro)."""
+        w = max(100.0, self.canvas_width)
+        h = max(100.0, self.canvas_height)
 
-    def _generate_milky_way_stream(self, count: int = 160) -> List[Tuple[float, float, float]]:
-        """Gera o rio de poeira cósmica da Via Láctea em plano galáctico inclinado a 58°."""
-        milky_way: List[Tuple[float, float, float]] = []
-        r = self.sphere_radius * 1.46
-        tilt = 58.0 * (math.pi / 180.0)
-        sin_t = math.sin(tilt)
-        cos_t = math.cos(tilt)
+        pts_mag1: List[Tuple[float, float]] = []
+        pts_mag2: List[Tuple[float, float]] = []
+        pts_mag3: List[Tuple[float, float]] = []
 
-        for i in range(count):
-            angle = 2.0 * math.pi * (i / count)
-            # Dispersão pseudo-randômica harmônica (determinística)
-            disp_rad = ((i * 17) % 23 - 11.0) * 0.016 * r
-            disp_lat = ((i * 13) % 19 - 9.5) * 0.022 * r
-            rad = r + disp_rad
-            ca = math.cos(angle)
-            sa = math.sin(angle)
-            x = rad * ca
-            y = rad * sa * sin_t + disp_lat
-            z = rad * sa * cos_t
-            milky_way.append((x, y, z))
-        return milky_way
+        for u, v, _z, _bright, _base_r, mag in self.starfield:
+            px = u * w
+            py = v * h
+            if mag == 1:
+                pts_mag1.append((px, py))
+            elif mag == 2:
+                pts_mag2.append((px, py))
+            else:
+                pts_mag3.append((px, py))
+
+        self._cached_star_shapes = [
+            cv.Points(
+                points=pts_mag3,
+                point_mode=cv.PointMode.POINTS,
+                paint=ft.Paint(
+                    color="#FFFFFF40",  # ~25% opacidade
+                    stroke_width=1.0 * self.scale,
+                    stroke_cap=ft.StrokeCap.ROUND,
+                ),
+            ),
+            cv.Points(
+                points=pts_mag2,
+                point_mode=cv.PointMode.POINTS,
+                paint=ft.Paint(
+                    color="#FFFFFF80",  # ~50% opacidade
+                    stroke_width=1.4 * self.scale,
+                    stroke_cap=ft.StrokeCap.ROUND,
+                ),
+            ),
+            cv.Points(
+                points=pts_mag1,
+                point_mode=cv.PointMode.POINTS,
+                paint=ft.Paint(
+                    color="#FFFFFFD0",  # ~82% opacidade
+                    stroke_width=1.8 * self.scale,
+                    stroke_cap=ft.StrokeCap.ROUND,
+                ),
+            ),
+        ]
+
+    def _generate_cosmic_dust(self, count: int = 180) -> List[Tuple[float, float, float, float, float, int]]:
+        """Gera partículas estelares discretas (retrocompatibilidade)."""
+        return self._generate_static_starfield(count)
+
+    def _generate_milky_way_stream(self, count: int = 0) -> List[Tuple[float, float, float]]:
+        """Deprecado: eliminado em prol do vácuo límpido sem sobrecarga computacional."""
+        return []
 
     def _generate_nebulae(self) -> List[Tuple[float, float, float, float, str, str]]:
-        """Gera centros nebulares cósmicos com névoa translúcida sutil."""
-        r = self.sphere_radius * 1.35
-        # 4 nós nebulares nos setores cardeais siderais
-        return [
-            # (x, y, z, base_radius, color_dark, color_light)
-            (r * 0.65, -r * 0.45, r * 0.40, 68.0, "#10254010", "#A0C5E818"),   # Nebulosa Ciano-Índigo
-            (-r * 0.55, r * 0.55, -r * 0.45, 58.0, "#36220E10", "#E5D0A018"),  # Nebulosa Âmbar Primordial
-            (r * 0.35, r * 0.65, -r * 0.55, 52.0, "#28123610", "#D5B8E818"),   # Nebulosa Púrpura Sideral
-            (-r * 0.65, -r * 0.35, r * 0.45, 62.0, "#0E283010", "#A0D8D018"),  # Nebulosa Esmeralda Abissal
-        ]
+        """Deprecado: eliminado em prol do vácuo límpido sem círculos/bolotas ou ruído visual."""
+        return []
 
     def set_data(
         self,
@@ -538,118 +559,34 @@ class ArmillaryConstellation3D:
         try:
             self._update_rotation_matrix()
 
-            is_dark = (self.current_theme_mode or "dark").lower() == "dark"
+            # O visor da esfera armilar opera permanentemente no vácuo sideral escuro
+            # Paleta de alta luminosidade astronômica e anéis tênues translúcidos
+            ring_color = self.config.colors.get("constellation_ring", "#C5A059")
+            ring_color_back = f"{ring_color[:7]}20" if ring_color.startswith("#") and len(ring_color) >= 7 else "#C5A05920"
+            ring_color_front = f"{ring_color[:7]}35" if ring_color.startswith("#") and len(ring_color) >= 7 else "#C5A05935"
 
-            # Cores centralizadas provenientes de src/configs/params.json (Zero grená)
-            ring_color = self.config.colors.get("constellation_ring", "#C5A059" if is_dark else "#7A5C00")
-            grid_color = self.config.colors.get("constellation_grid", "#A89260" if is_dark else "#8C733E")
-            grid_tick_color = self.config.colors.get("constellation_grid_tick", "#C5A059" if is_dark else "#7A5C00")
-            work_node_color = self.config.colors.get("constellation_node_work", "#E5C158" if is_dark else "#5C4600")
-            frag_node_color = self.config.colors.get("constellation_node_fragment", "#7E9DB5" if is_dark else "#3D5A73")
-            filament_color = self.config.colors.get("constellation_filament", "#C5A059" if is_dark else "#8C733E")
-            star_dust_color = self.config.colors.get("star_dust", "#E2E1E8" if is_dark else "#86868F")
-            text_color = self.config.colors.get("text", "#E2E1E8" if is_dark else "#1D1D21")
+            grid_color = self.config.colors.get("constellation_grid", "#A89260")
+            grid_color_subtle = f"{grid_color[:7]}18" if grid_color.startswith("#") and len(grid_color) >= 7 else "#A8926018"
+            grid_tick_color = self.config.colors.get("constellation_grid_tick", "#C5A059")
+            grid_tick_subtle = f"{grid_tick_color[:7]}28" if grid_tick_color.startswith("#") and len(grid_tick_color) >= 7 else "#C5A05928"
+
+            work_node_color = self.config.colors.get("constellation_node_work", "#E5C158")
+            frag_node_color = self.config.colors.get("constellation_node_fragment", "#7E9DB5")
+            filament_color = self.config.colors.get("constellation_filament", "#C5A059")
+            text_color = "#E2E1E8"
+            sel_text_color = "#FFE296"
 
             shapes: list[cv.Shape] = []
 
-            # 0. Nebulosas Cósmicas Etéreas de Fundo Profundo
-            if high_detail:
-                for nx, ny, nz, n_radius, n_col_dark, n_col_light in self.nebulae:
-                    nsx, nsy, nsz = self._project_point(nx, ny, nz)
-                    n_depth_scale = 520.0 / max(80.0, nsz + self.camera_distance)
-                    shapes.append(
-                        cv.Circle(
-                            x=nsx,
-                            y=nsy,
-                            radius=n_radius * n_depth_scale * self.scale,
-                            paint=ft.Paint(color=n_col_dark if is_dark else n_col_light),
-                        )
-                    )
+            # 0. Campo Estelar 2D no Infinito (Micro-pontos brancos em 3 lotes Skia nativos — zero projeção 3D)
+            shapes.extend(self._cached_star_shapes)
 
-            # 1. Rio Estelar da Via Láctea (Tapeçaria de Micro-poeira Cósmica via cv.Points)
-            mw_pts = self.milky_way_stream if high_detail else self.milky_way_stream[::3]
-            proj_mw = [self._project_point(x, y, z) for x, y, z in mw_pts]
-            mw_2d_points = [(p[0], p[1]) for p in proj_mw]
-            mw_color = "#A8C8F035" if is_dark else "#50688035"
-            shapes.append(
-                cv.Points(
-                    points=mw_2d_points,
-                    point_mode=cv.PointMode.POINTS,
-                    paint=ft.Paint(
-                        color=mw_color,
-                        stroke_width=1.3 * self.scale,
-                    ),
-                )
-            )
-
-            # 2. Firmamento Estelar Multicromático (Classes Espectrais: Azul, Âmbar, Coral, Prata)
-            dust_points = self.starfield if high_detail else self.starfield[:28]
-            spectral_colors_dark = ["#B5D8FF", "#FFE296", "#FFB8A5", "#F0F2FA"]
-            spectral_colors_light = ["#2A4A6E", "#8A6818", "#7A3E2D", "#585A66"]
-            spec_palette = spectral_colors_dark if is_dark else spectral_colors_light
-
-            for idx, (x, y, z, bright, base_r, mag) in enumerate(dust_points):
-                sx, sy, sz = self._project_point(x, y, z)
-                depth_scale = 520.0 / max(80.0, sz + self.camera_distance)
-                r_proj = max(0.65, base_r * depth_scale)
-                star_color = spec_palette[idx % 4]
-
-                if mag == 1:
-                    # Estrela-Guia Majestosa: Halo difuso + Cruz de difração telescópica óptica
-                    shapes.append(
-                        cv.Circle(
-                            x=sx,
-                            y=sy,
-                            radius=r_proj * 2.8,
-                            paint=ft.Paint(color=f"{star_color}25"),
-                        )
-                    )
-                    shapes.append(
-                        cv.Circle(
-                            x=sx,
-                            y=sy,
-                            radius=r_proj,
-                            paint=ft.Paint(color=star_color),
-                        )
-                    )
-                    if high_detail:
-                        spike_len = (r_proj + 3.2) * self.scale
-                        shapes.append(
-                            cv.Line(
-                                x1=sx - spike_len,
-                                y1=sy,
-                                x2=sx + spike_len,
-                                y2=sy,
-                                paint=ft.Paint(color=f"{star_color}80", stroke_width=0.8 * self.scale),
-                            )
-                        )
-                        shapes.append(
-                            cv.Line(
-                                x1=sx,
-                                y1=sy - spike_len,
-                                x2=sx,
-                                y2=sy + spike_len,
-                                paint=ft.Paint(color=f"{star_color}80", stroke_width=0.8 * self.scale),
-                            )
-                        )
-                else:
-                    dust_alpha = int(max(0.20, min(0.90, bright)) * 255)
-                    alpha_hex = f"{dust_alpha:02X}"
-                    shapes.append(
-                        cv.Circle(
-                            x=sx,
-                            y=sy,
-                            radius=r_proj,
-                            paint=ft.Paint(color=f"{star_color[:7]}{alpha_hex}"),
-                        )
-                    )
-
-            # 2. Grade Cartográfica Celeste Posterior (Z < 0)
+            # 1. Grade Cartográfica Celeste Posterior (Z < 0)
             if self.show_celestial_grid:
-                self._render_celestial_grid(shapes, grid_color, draw_front=False, high_detail=high_detail)
+                self._render_celestial_grid(shapes, grid_color_subtle, draw_front=False, high_detail=high_detail)
 
-            # 3. Anéis da Esfera Armilar — Metade Posterior (Z < 0)
-            self._render_armillary_rings(shapes, ring_color, ring_color, draw_front=False, high_detail=high_detail)
+            # 2. Anéis da Esfera Armilar — Metade Posterior (Z < 0)
+            self._render_armillary_rings(shapes, ring_color_back, ring_color_front, draw_front=False, high_detail=high_detail)
 
             # Filtragem por camada celeste / constelação
             if self.filter_mode.startswith("cluster_"):
@@ -792,7 +729,7 @@ class ArmillaryConstellation3D:
                                 y=sy,
                                 radius=core_r,
                                 data="node_core",
-                                paint=ft.Paint(color=ring_color if is_selected else node_color),
+                                paint=ft.Paint(color=sel_text_color if is_selected else node_color),
                             )
                         )
                         # Rótulo de texto: Cormorant Garamond com peso W_700/W_800 para nobreza e fidelidade ao app
@@ -810,7 +747,7 @@ class ArmillaryConstellation3D:
                                         size=max(14.0, 17.5 * depth_scale * self.scale),
                                         font_family=self.font_family,
                                         weight=ft.FontWeight.W_800 if is_selected else ft.FontWeight.W_700,
-                                        color=ring_color if is_selected else text_color,
+                                        color=sel_text_color if is_selected else text_color,
                                     ),
                                 )
                             )
@@ -840,7 +777,7 @@ class ArmillaryConstellation3D:
                                     x=sx,
                                     y=sy,
                                     radius=core_r * 2.2,
-                                    paint=ft.Paint(color=f"{ring_color}45"),
+                                    paint=ft.Paint(color=f"{frag_node_color}45"),
                                 )
                             )
                         shapes.append(
@@ -849,17 +786,17 @@ class ArmillaryConstellation3D:
                                 y=sy,
                                 radius=core_r,
                                 data="node_core",
-                                paint=ft.Paint(color=ring_color if is_selected else node_color),
+                                paint=ft.Paint(color=sel_text_color if is_selected else node_color),
                             )
                         )
 
             # 7. Grade Cartográfica Celeste Anterior (Z >= 0)
             if self.show_celestial_grid:
-                self._render_celestial_grid(shapes, grid_color, draw_front=True, high_detail=high_detail)
-                self._render_astrolabe_ticks(shapes, grid_tick_color, high_detail=high_detail)
+                self._render_celestial_grid(shapes, grid_color_subtle, draw_front=True, high_detail=high_detail)
+                self._render_astrolabe_ticks(shapes, grid_tick_subtle, high_detail=high_detail)
 
             # 8. Anéis da Esfera Armilar — Metade Anterior (Z >= 0)
-            self._render_armillary_rings(shapes, ring_color, ring_color, draw_front=True, high_detail=high_detail)
+            self._render_armillary_rings(shapes, ring_color_back, ring_color_front, draw_front=True, high_detail=high_detail)
 
             self.canvas.shapes = shapes
             try:
