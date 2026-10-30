@@ -19,6 +19,29 @@ def compute_text_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode('utf-8')).hexdigest()
 
 
+def compute_work_signature(resource: BibliographicResource) -> str:
+    """Gera a assinatura de texto canônica da obra e de seus fragmentos para hashing."""
+    sw = resource.specific_work
+    title = (getattr(sw, 'title', '') or '').strip() if sw else ''
+    subtitle = (getattr(sw, 'subtitle', '') or '').strip() if sw else ''
+    desc = (resource.effective_description or '').strip()
+    parts = [p for p in (title, subtitle, desc) if p]
+    text = " ".join(parts)
+    frag_texts = sorted((f.excerpt or '').strip() for f in (resource.fragments or []))
+    frag_part = "||".join(frag_texts)
+    return f"{text}||{frag_part}"
+
+
+def is_magazine_resource(resource: BibliographicResource) -> bool:
+    """Identifica se o recurso bibliográfico é especificamente uma Revista (Magazine)."""
+    if getattr(resource, 'magazine', None) is not None:
+        return True
+    sw = resource.specific_work
+    if sw is not None:
+        return getattr(sw, '__tablename__', '') == 'magazines' or sw.__class__.__name__ == 'Magazine'
+    return False
+
+
 class KnowledgeRepository:
     """Gerencia operações de persistência e consulta para a camada de conhecimento e grafos."""
 
@@ -93,17 +116,19 @@ class KnowledgeRepository:
         return unvectorized
 
     def get_unvectorized_works(self) -> list[BibliographicResource]:
-        """Retorna obras que ainda não possuem embedding ou foram alteradas."""
+        """Retorna obras elegíveis (não-revistas) que ainda não possuem embedding ou foram alteradas."""
         resources = list(self.session.scalars(select(BibliographicResource)).all())
         unvectorized: list[BibliographicResource] = []
         for resource in resources:
             sw = resource.specific_work
             if sw is None:
                 continue
-            text = f"{getattr(sw, 'title', '') or ''} {getattr(sw, 'subtitle', '') or ''} {getattr(sw, 'abstract', '') or ''}".strip()
-            if not text:
+            if is_magazine_resource(resource):
                 continue
-            current_hash = compute_text_hash(text)
+            composite_signature = compute_work_signature(resource)
+            if not composite_signature.strip('|'):
+                continue
+            current_hash = compute_text_hash(composite_signature)
             embedding = self.get_embedding('work', resource.id)
             if embedding is None or embedding.text_hash != current_hash:
                 unvectorized.append(resource)

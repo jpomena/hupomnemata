@@ -15,7 +15,7 @@ class KnowledgeControllerMixin:
             "clusters": len(clusters),
         }
 
-    def get_knowledge_graph(self, min_similarity: float = 0.40) -> Dict[str, Any]:
+    def get_knowledge_graph(self, min_similarity: float = 0.15) -> Dict[str, Any]:
         """Retorna os dados estruturados do grafo (nós, arestas e clusters)."""
         return self.knowledge_service.get_graph_data(min_similarity=min_similarity)
 
@@ -23,7 +23,7 @@ class KnowledgeControllerMixin:
         self,
         source_type: str,
         source_id: int,
-        min_similarity: float = 0.30,
+        min_similarity: float = 0.10,
         top_k: int = 8,
     ) -> List[Dict[str, Any]]:
         """Retorna os nós mais semanticamente ressonantes com o nó consultado."""
@@ -68,3 +68,7 @@ class KnowledgeControllerMixin:
                 included=True,
             )
         return False
+
+    def get_knowledge_work_fragments(self, work_id: int) -> List[Dict[str, Any]]:
+        """Retorna todos os fragmentos pertencentes a uma obra específica para inspeção."""
+        return self.knowledge_service.get_work_fragments(work_id=work_id)

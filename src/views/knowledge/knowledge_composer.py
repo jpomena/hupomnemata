@@ -30,8 +30,8 @@ def compute_graph_layout(
     num_clusters = len(clusters)
     cluster_centers: Dict[int, tuple[float, float]] = {}
     cx, cy = width / 2.0, height / 2.0
-    r_x = width * 0.30
-    r_y = height * 0.30
+    r_x = width * 0.36
+    r_y = height * 0.36
 
     for idx, c_id in enumerate(clusters.keys()):
         angle = 2.0 * math.pi * idx / max(1, num_clusters)
@@ -45,14 +45,20 @@ def compute_graph_layout(
         m = len(c_nodes)
         for i, n in enumerate(c_nodes):
             sub_angle = 2.0 * math.pi * i / max(1, m)
-            dist = 45.0 + (i % 3) * 40.0
+            dist = 40.0 + (i % 3) * 35.0
             n["x"] = cc_x + dist * math.cos(sub_angle)
             n["y"] = cc_y + dist * math.sin(sub_angle)
 
-    # Relaxação rápida tipo mola (25 passos)
     node_map = {n["id"]: n for n in nodes}
     for _ in range(25):
-        # Repulsão entre nós próximos
+        # 1. Âncora de coesão da constelação
+        for n in nodes:
+            c_id = n.get("cluster_id") or 0
+            cc_x, cc_y = cluster_centers[c_id]
+            n["x"] += (cc_x - n["x"]) * 0.12
+            n["y"] += (cc_y - n["y"]) * 0.12
+
+        # 2. Repulsão anti-colisão entre nós
         for i in range(len(nodes)):
             n1 = nodes[i]
             for j in range(i + 1, len(nodes)):
@@ -60,33 +66,33 @@ def compute_graph_layout(
                 dx = n1["x"] - n2["x"]
                 dy = n1["y"] - n2["y"]
                 dist = math.hypot(dx, dy)
-                if 0 < dist < 140.0:
-                    force = (140.0 - dist) / dist * 0.45
+                if 0 < dist < 90.0:
+                    force = (90.0 - dist) / dist * 0.40
                     n1["x"] += dx * force
                     n1["y"] += dy * force
                     n2["x"] -= dx * force
                     n2["y"] -= dy * force
 
-        # Atração pelas arestas de ressonância
+        # 3. Atração por afinidade interna na constelação
         for l in links:
             s_id = l.get("source")
             t_id = l.get("target")
             s = node_map.get(s_id)
             t = node_map.get(t_id)
-            if s and t:
+            if s and t and s.get("cluster_id") == t.get("cluster_id"):
                 dx = t["x"] - s["x"]
                 dy = t["y"] - s["y"]
                 dist = math.hypot(dx, dy)
-                if dist > 80.0:
+                if dist > 60.0:
                     w = float(l.get("weight") or 0.5)
-                    fx = dx * 0.04 * w
-                    fy = dy * 0.04 * w
+                    fx = dx * 0.05 * w
+                    fy = dy * 0.05 * w
                     s["x"] += fx
                     s["y"] += fy
                     t["x"] -= fx
                     t["y"] -= fy
 
-        # Manter dentro dos limites da área de desenho
+        # 4. Limites do canvas
         for n in nodes:
             n["x"] = max(80.0, min(width - 80.0, n["x"]))
             n["y"] = max(80.0, min(height - 80.0, n["y"]))
@@ -109,6 +115,7 @@ class KnowledgeComposer:
         get_graph_data: Callable[[float], Dict[str, Any]],
         sync_mesh: Callable[[], Dict[str, Any]],
         get_resonances: Callable[[str, int, float, int], List[Dict[str, Any]]],
+        get_work_fragments: Optional[Callable[[int], List[Dict[str, Any]]]] = None,
         on_add_to_compilation: Optional[Callable[[int, int], bool]] = None,
         list_compilations: Optional[Callable[[], List[Any]]] = None,
         on_create_link: Optional[Callable[..., bool]] = None,
@@ -121,16 +128,17 @@ class KnowledgeComposer:
         self.get_graph_data = get_graph_data
         self.sync_mesh = sync_mesh
         self.get_resonances = get_resonances
+        self.get_work_fragments = get_work_fragments or (lambda _: [])
         self.on_add_to_compilation = on_add_to_compilation
         self.list_compilations = list_compilations
         self.on_create_link = on_create_link
         self.current_theme_mode = current_theme_mode
 
-        self.min_similarity = 0.40
+        self.min_similarity = 0.15
         self.graph_data: Dict[str, Any] = {"nodes": [], "links": [], "clusters": []}
         self.selected_node_id: Optional[str] = None
         self.node_containers: Dict[str, ft.Container] = {}
-        self.filter_mode = "all"  # 'all', 'works', 'fragments'
+        self.filter_mode = "all"
 
         # Dimensões dinâmicas calculadas com base no viewport disponível
         init_w, init_h = self._compute_viewport_dimensions()
@@ -150,107 +158,125 @@ class KnowledgeComposer:
 
         # Controles da barra de ferramentas
         self.search_field = ft.TextField(
-            hint_text="Buscar nós, conceitos, trechos ou autores...",
+            hint_text="Buscar obras ou autores...",
             prefix_icon=ft.Icons.SEARCH,
             on_change=self._handle_search_change,
-            border_radius=8,
-            height=38 * self.scale,
-            text_size=12 * self.scale,
+            border_radius=self.config.ui.get("card_radius", 6),
+            height=40 * self.scale,
+            text_size=13 * self.scale,
             border_color=self.config.colors["border"],
-            bgcolor=self.config.colors["surface"],
-            expand=True,
+            bgcolor=self.config.colors["bg"],
             content_padding=ft.Padding(10, 0, 10, 0),
+            width=220 * self.scale,
         )
 
         self.stats_text = ft.Text(
-            "0 Estrelas • 0 Ressonâncias • 0 Clusters",
-            size=self.config.font_sizes["montserrat_tiny"] * self.scale,
+            "0 Obras • 0 Afinidades • 0 Constelações",
+            size=13 * self.scale,
             font_family=self.config.font_families["montserrat"],
-            weight=self.config.font_weights["montserrat_semibold"],
+            weight=ft.FontWeight.W_600,
+            color=self.config.colors["text"],
+        )
+
+        self.subtitle_prefix = ft.Text(
+            "Constelação de afinidades conceituais do Acervo",
+            font_family=self.config.font_families["montserrat"],
+            weight=ft.FontWeight.W_600,
+            size=13 * self.scale,
             color=self.config.colors["muted"],
+        )
+        self.subtitle_dot = ft.Text(
+            "•",
+            font_family=self.config.font_families["montserrat"],
+            weight=ft.FontWeight.W_700,
+            size=13 * self.scale,
+            color=self.config.colors["border"],
         )
 
         self.filter_mode_dropdown = ft.Dropdown(
-            label="Camada Celeste",
+            label="Constelação",
             value="all",
             options=[
-                ft.dropdown.Option("all", "Todas as Estrelas"),
-                ft.dropdown.Option("works", "Apenas Obras (Macro)"),
-                ft.dropdown.Option("fragments", "Apenas Fragmentos (Micro)"),
+                ft.dropdown.Option("all", "Todas as Obras"),
             ],
             on_select=self._handle_filter_mode_change,
-            width=145 * self.scale,
-            height=38 * self.scale,
-            text_size=11 * self.scale,
+            width=175 * self.scale,
+            height=40 * self.scale,
+            text_size=13 * self.scale,
             border_color=self.config.colors["border"],
-            bgcolor=self.config.colors["surface"],
+            bgcolor=self.config.colors["bg"],
             content_padding=ft.Padding(8, 0, 8, 0),
         )
 
-        self.sensitivity_dropdown = ft.Dropdown(
-            label="Sensibilidade",
-            value="0.40",
-            options=[
-                ft.dropdown.Option("0.30", "Alta (30%)"),
-                ft.dropdown.Option("0.40", "Equilibrada (40%)"),
-                ft.dropdown.Option("0.55", "Rigorosa (55%)"),
-                ft.dropdown.Option("0.70", "Intensa (70%)"),
-            ],
-            on_select=self._handle_sensitivity_change,
-            width=125 * self.scale,
-            height=38 * self.scale,
-            text_size=11 * self.scale,
-            border_color=self.config.colors["border"],
-            bgcolor=self.config.colors["surface"],
-            content_padding=ft.Padding(8, 0, 8, 0),
+        # Controle de sensibilidade de ressonância com Slider contínuo
+        self.sensitivity_slider_label = ft.Text(
+            f"Sensibilidade: {int(self.min_similarity * 100)}%",
+            size=12 * self.scale,
+            font_family=self.config.font_families["montserrat"],
+            weight=ft.FontWeight.W_600,
+            color=self.config.colors["text"],
+        )
+        self.sensitivity_slider = ft.Slider(
+            min=0.05,
+            max=0.50,
+            divisions=45,
+            value=self.min_similarity,
+            label="{value:.0%}",
+            active_color=self.config.colors["gold"],
+            inactive_color=self.config.colors["border"],
+            on_change=self._handle_sensitivity_slider_live,
+            on_change_end=self._handle_sensitivity_slider_change,
+            width=150 * self.scale,
+        )
+        self.sensitivity_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.sensitivity_slider_label,
+                    self.sensitivity_slider,
+                ],
+                spacing=0,
+                tight=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding(4, 0, 4, 0),
         )
 
         self.sync_button = ft.FilledButton(
-            content="Sincronizar",
+            content=ft.Text(
+                "Sincronizar",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=13 * self.scale,
+                color=self.config.colors["bg"],
+            ),
             icon=ft.Icons.SYNC,
             on_click=self._handle_sync_mesh,
             style=ft.ButtonStyle(
                 bgcolor=self.config.colors["gold"],
-                color="#FFFFFF",
-                padding=ft.Padding(10, 0, 10, 0),
+                padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
             ),
+            height=40 * self.scale,
         )
 
         self.d3_button = ft.OutlinedButton(
-            content="D3.js",
+            content=ft.Text(
+                "D3.js",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=13 * self.scale,
+                color=self.config.colors["text"],
+            ),
             icon=ft.Icons.OPEN_IN_BROWSER,
             on_click=self._handle_open_browser_graph,
             style=ft.ButtonStyle(
-                color=self.config.colors["text"],
                 side=ft.BorderSide(1, self.config.colors["border"]),
-                padding=ft.Padding(10, 0, 10, 0),
+                padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
             ),
+            height=40 * self.scale,
         )
 
-        # Camadas da malha interativa 2D
-        self.canvas = cv.Canvas(
-            width=self.canvas_width,
-            height=self.canvas_height,
-            shapes=[],
-        )
-
-        self.graph_stack = ft.Stack(
-            controls=[self.canvas],
-            width=self.canvas_width,
-            height=self.canvas_height,
-        )
-
-        self.interactive_viewer = ft.InteractiveViewer(
-            content=self.graph_stack,
-            pan_enabled=True,
-            scale_enabled=True,
-            min_scale=0.3,
-            max_scale=3.0,
-            boundary_margin=400,
-            expand=True,
-        )
-
-        self.view_mode = "3d"  # Padrão: Constelação 3D Esfera Armilar
+        # Motor Tridimensional da Constelação Celeste Esfera Armilar
         self.armillary_3d = ArmillaryConstellation3D(
             config=self.config,
             scale=self.scale,
@@ -260,42 +286,95 @@ class KnowledgeComposer:
             canvas_height=init_h,
         )
 
+        # HUD flutuante com zoom telescópico, restauração de visão e grade
+        # Posicionado com coordenadas explícitas no Stack para jamais ocluir os gestos 3D da esfera
+        self.floating_hud = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.ZOOM_IN,
+                        tooltip="Aproximar Constelação (Zoom +)",
+                        icon_size=20 * self.scale,
+                        icon_color=self.config.colors["text"],
+                        on_click=lambda _: self.armillary_3d.zoom_in(),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ZOOM_OUT,
+                        tooltip="Afastar Constelação (Zoom -)",
+                        icon_size=20 * self.scale,
+                        icon_color=self.config.colors["text"],
+                        on_click=lambda _: self.armillary_3d.zoom_out(),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.RESTART_ALT,
+                        tooltip="Restaurar Visão Padrão",
+                        icon_size=19 * self.scale,
+                        icon_color=self.config.colors["text"],
+                        on_click=lambda _: self.armillary_3d.reset_view(),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.GRID_4X4,
+                        tooltip="Exibir/Ocultar Grade Celeste",
+                        icon_size=19 * self.scale,
+                        icon_color=self.config.colors["text"],
+                        on_click=self._handle_toggle_celestial_grid,
+                    ),
+                ],
+                spacing=2,
+                tight=True,
+            ),
+            bgcolor=self.config.colors["surface"],
+            border=ft.Border.all(1, self.config.colors["border"]),
+            border_radius=8,
+            padding=2,
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=10,
+                color="#00000025",
+            ),
+            right=24 * self.scale,
+            bottom=24 * self.scale,
+        )
+
+        is_dark = (self.current_theme_mode or "dark").lower() == "dark"
+        space_gradient = ft.RadialGradient(
+            center=ft.Alignment(0, 0),
+            radius=1.25,
+            colors=["#090D1C", "#050711", "#020306"] if is_dark else ["#FAF8F2", "#EFECE1", "#E2DDCF"],
+        )
+
         self.viewport_container = ft.Container(
-            content=self.armillary_3d.compose(),
+            content=ft.Stack(
+                controls=[
+                    self.armillary_3d.compose(),
+                    self.floating_hud,
+                ],
+                expand=True,
+            ),
+            gradient=space_gradient,
             alignment=ft.Alignment(0, 0),
             expand=True,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
-        self.grid_toggle_btn = ft.IconButton(
-            icon=ft.Icons.GRID_4X4,
-            tooltip="Exibir/Ocultar Grade Celeste",
-            icon_color=self.config.colors["gold"],
-            icon_size=18 * self.scale,
-            on_click=self._handle_toggle_celestial_grid,
-        )
-
-        self.mode_toggle_btn = ft.OutlinedButton(
-            content="Mapa 2D",
-            icon=ft.Icons.GRID_VIEW,
-            on_click=self._handle_toggle_view_mode,
-            style=ft.ButtonStyle(
-                color=self.config.colors["text"],
-                side=ft.BorderSide(1, self.config.colors["border"]),
-                padding=ft.Padding(10, 0, 10, 0),
-            ),
-        )
-
         self.root_container = ft.Container(
             expand=True,
-            bgcolor=self.config.colors["bg"],
+            padding=ft.Padding(
+                top=self.config.ui["content_top_padding"],
+                right=0,
+                bottom=0,
+                left=0,
+            ),
+            bgcolor=self.config.colors["surface"],
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             content=self._build_layout(),
         )
 
-    def _compute_viewport_dimensions(self, panel_open: bool = False) -> Tuple[float, float]:
+    def _compute_viewport_dimensions(
+        self, panel_open: bool = False, is_maximized: Optional[bool] = None
+    ) -> Tuple[float, float]:
         """Calcula precisamente a área visível do canvas 3D no dashboard."""
-        pw, ph = Responsive.get_page_dimensions(self.page)
+        pw, ph = Responsive.get_page_dimensions(self.page, is_maximized=is_maximized)
         sidebar_w = float(self.config.ui.get("sidebar_width", 350))
         panel_w = (380.0 * self.scale) if panel_open else 0.0
 
@@ -304,67 +383,144 @@ class KnowledgeComposer:
         avail_h = max(300.0, ph - 116.0)
         return avail_w, avail_h
 
-    def on_window_resized(self) -> None:
+    def _update_toolbar_responsive(self, avail_w: float) -> None:
+        """Adapta fluidamente os controles da toolbar aos limites da tela tanto no Maximizar quanto no Desmaximizar."""
+        if avail_w >= 1220:
+            # Modo Amplo (Widescreen / Maximizado)
+            self.subtitle_prefix.visible = True
+            self.subtitle_dot.visible = True
+            self.search_field.width = 200 * self.scale
+            self.filter_mode_dropdown.width = 160 * self.scale
+            self.sensitivity_slider.width = 130 * self.scale
+            self.sync_button.content = ft.Text(
+                "Sincronizar",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=13 * self.scale,
+                color=self.config.colors["bg"],
+            )
+            self.d3_button.content = ft.Text(
+                "D3.js",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=13 * self.scale,
+                color=self.config.colors["text"],
+            )
+            self.controls_row.spacing = 10 * self.scale
+        elif avail_w >= 920:
+            # Modo Médio (Janela Normal Desmaximizada ~1400px - 350px sidebar = 1050px)
+            self.subtitle_prefix.visible = False
+            self.subtitle_dot.visible = False
+            self.search_field.width = 150 * self.scale
+            self.filter_mode_dropdown.width = 135 * self.scale
+            self.sensitivity_slider.width = 100 * self.scale
+            self.sync_button.content = ft.Text(
+                "Sincronizar",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=12 * self.scale,
+                color=self.config.colors["bg"],
+            )
+            self.d3_button.content = ft.Text(
+                "D3.js",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=12 * self.scale,
+                color=self.config.colors["text"],
+            )
+            self.controls_row.spacing = 6 * self.scale
+        else:
+            # Modo Compacto (Janela Estreita ou Painel Lateral Aberto)
+            self.subtitle_prefix.visible = False
+            self.subtitle_dot.visible = False
+            self.search_field.width = 115 * self.scale
+            self.filter_mode_dropdown.width = 110 * self.scale
+            self.sensitivity_slider.width = 75 * self.scale
+            self.sync_button.content = ft.Text(
+                "Sync",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=11 * self.scale,
+                color=self.config.colors["bg"],
+            )
+            self.d3_button.content = ft.Text(
+                "D3",
+                font_family=self.config.font_families["montserrat"],
+                weight=ft.FontWeight.W_700,
+                size=11 * self.scale,
+                color=self.config.colors["text"],
+            )
+            self.controls_row.spacing = 4 * self.scale
+
+    def on_window_resized(self, is_maximized: Optional[bool] = None) -> None:
         """Notificado pelo WindowControllerMixin quando a janela muda de tamanho."""
         panel_open = bool(self.panel and self.panel.panel_container and self.panel.panel_container.visible)
-        vw, vh = self._compute_viewport_dimensions(panel_open=panel_open)
+        vw, vh = self._compute_viewport_dimensions(panel_open=panel_open, is_maximized=is_maximized)
         self.armillary_3d.update_dimensions(vw, vh)
+        self._update_toolbar_responsive(vw)
         try:
+            self.toolbar.update()
             self.viewport_container.update()
             self.root_container.update()
         except Exception:
             pass
 
     def _build_layout(self) -> ft.Control:
+        self.controls_row = ft.Row(
+            controls=[
+                self.search_field,
+                self.filter_mode_dropdown,
+                self.sensitivity_container,
+                self.sync_button,
+                self.d3_button,
+            ],
+            spacing=self.config.ui.get("control_gap", 12),
+            alignment=ft.MainAxisAlignment.END,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            tight=True,
+        )
+
+        self.toolbar_row = ft.Row(
+            controls=[
+                ft.Column(
+                    controls=[
+                        ft.Text(
+                            "Estruturas de Saber",
+                            size=self.config.font_sizes["cormorant_big"] * self.scale,
+                            font_family=self.config.font_families["cormorant"],
+                            weight=ft.FontWeight.W_700,
+                            color=self.config.colors["text"],
+                        ),
+                        ft.Row(
+                            controls=[
+                                self.subtitle_prefix,
+                                self.subtitle_dot,
+                                self.stats_text,
+                            ],
+                            spacing=6,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            tight=True,
+                        ),
+                    ],
+                    spacing=2,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                self.controls_row,
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
         self.toolbar = ft.Container(
-            bgcolor=self.config.colors["surface"],
-            border=ft.Border(bottom=ft.BorderSide(1, self.config.colors["border"])),
             padding=ft.Padding.only(
-                left=self.config.ui["header_horizontal_padding"] * self.scale,
-                right=self.config.ui["header_horizontal_padding"] * self.scale,
-                top=self.config.ui["header_top_padding"] * self.scale,
-                bottom=self.config.ui["header_bottom_padding"] * self.scale,
+                left=self.config.ui["header_horizontal_padding"],
+                right=self.config.ui["header_horizontal_padding"],
+                top=self.config.ui["header_top_padding"],
+                bottom=self.config.ui["header_bottom_padding"],
             ),
+            content=self.toolbar_row,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
-            content=ft.Row(
-                controls=[
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                "Estruturas de Saber",
-                                size=self.config.font_sizes["cormorant_big"] * self.scale,
-                                font_family=self.config.font_families["cormorant"],
-                                weight=self.config.font_weights["cormorant_semibold"],
-                                color=self.config.colors["text"],
-                            ),
-                            self.stats_text,
-                        ],
-                        spacing=2,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        tight=True,
-                    ),
-                    ft.Container(
-                        content=self.search_field,
-                        width=240 * self.scale,
-                        padding=ft.Padding(10 * self.scale, 0, 10 * self.scale, 0),
-                    ),
-                    ft.Row(
-                        controls=[
-                            self.filter_mode_dropdown,
-                            self.sensitivity_dropdown,
-                            self.grid_toggle_btn,
-                            self.mode_toggle_btn,
-                            self.sync_button,
-                            self.d3_button,
-                        ],
-                        spacing=6 * self.scale,
-                        alignment=ft.MainAxisAlignment.END,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
         )
 
         # Empty state placeholder overlay
@@ -375,52 +531,67 @@ class KnowledgeComposer:
                 controls=[
                     ft.Icon(
                         ft.Icons.AUTO_AWESOME_OUTLINED,
-                        size=48 * self.scale,
+                        size=48,
                         color=self.config.colors["muted"],
                     ),
                     ft.Text(
-                        "Nenhuma citação ou obra vetorizada ainda.",
-                        size=self.config.font_sizes["cormorant_medium"] * self.scale,
+                        "Nenhuma obra vetorizada ainda.",
+                        size=22 * self.scale,
                         font_family=self.config.font_families["cormorant"],
-                        color=self.config.colors["muted"],
+                        weight=ft.FontWeight.W_700,
+                        color=self.config.colors["text"],
                     ),
                     ft.Text(
                         "Cadastre obras e citações no Acervo para construir a malha semântica,\nou clique em 'Sincronizar' para processar o acervo existente.",
-                        size=12 * self.scale,
+                        size=13 * self.scale,
+                        font_family=self.config.font_families["montserrat"],
+                        weight=ft.FontWeight.W_500,
                         color=self.config.colors["muted"],
                         text_align=ft.TextAlign.CENTER,
                     ),
-                    ft.Container(height=8 * self.scale),
+                    ft.Container(height=8),
                     ft.FilledButton(
-                        content="Sincronizar Agora",
+                        content=ft.Text(
+                            "Sincronizar Agora",
+                            font_family=self.config.font_families["montserrat"],
+                            weight=ft.FontWeight.W_700,
+                            size=13 * self.scale,
+                            color=self.config.colors["bg"],
+                        ),
                         icon=ft.Icons.BOLT,
                         on_click=self._handle_sync_mesh,
                         style=ft.ButtonStyle(
                             bgcolor=self.config.colors["gold"],
-                            color="#FFFFFF",
+                            padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
                         ),
+                        height=40 * self.scale,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=8 * self.scale,
+                spacing=8,
                 tight=True,
             ),
             expand=True,
         )
 
-        main_body = ft.Row(
-            controls=[
-                ft.Stack(
-                    controls=[
-                        self.viewport_container,
-                        self.empty_state_text,
-                    ],
-                    expand=True,
-                ),
-                self.panel.compose(),
-            ],
+        main_body = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Stack(
+                        controls=[
+                            self.viewport_container,
+                            self.empty_state_text,
+                        ],
+                        expand=True,
+                    ),
+                    self.panel.compose(),
+                ],
+                expand=True,
+                spacing=0,
+            ),
+            border=ft.Border(top=ft.BorderSide(1, self.config.colors["border"])),
             expand=True,
-            spacing=0,
+            bgcolor=self.config.colors["bg"],
         )
 
         return ft.Column(
@@ -429,7 +600,7 @@ class KnowledgeComposer:
                 main_body,
             ],
             expand=True,
-            spacing=0,
+            spacing=self.config.ui["modal_gap"],
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
@@ -438,15 +609,18 @@ class KnowledgeComposer:
         panel_open = bool(self.panel and self.panel.panel_container and self.panel.panel_container.visible)
         vw, vh = self._compute_viewport_dimensions(panel_open=panel_open)
         self.armillary_3d.update_dimensions(vw, vh)
+        self._update_toolbar_responsive(vw)
         self._refresh_graph()
         return self.root_container
 
     def _get_filtered_nodes(self) -> List[Dict[str, Any]]:
         all_nodes = self.graph_data.get("nodes") or []
-        if self.filter_mode == "works":
-            return [n for n in all_nodes if n.get("type") == "work"]
-        elif self.filter_mode == "fragments":
-            return [n for n in all_nodes if n.get("type") != "work"]
+        if self.filter_mode.startswith("cluster_"):
+            try:
+                target_c_id = int(self.filter_mode.split("_")[1])
+                return [n for n in all_nodes if n.get("cluster_id") == target_c_id]
+            except Exception:
+                return all_nodes
         return all_nodes
 
     def _get_filtered_links(self, visible_nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -458,14 +632,7 @@ class KnowledgeComposer:
         nodes = self._get_filtered_nodes()
         links = self._get_filtered_links(nodes)
         clusters = self.graph_data.get("clusters") or []
-        if self.filter_mode == "works":
-            self.stats_text.value = f"{len(nodes)} Obras • {len(links)} Ressonâncias • {len(clusters)} Clusters"
-        elif self.filter_mode == "fragments":
-            self.stats_text.value = f"{len(nodes)} Fragmentos • {len(links)} Ressonâncias • {len(clusters)} Clusters"
-        else:
-            works_cnt = sum(1 for n in nodes if n.get("type") == "work")
-            frags_cnt = len(nodes) - works_cnt
-            self.stats_text.value = f"{len(nodes)} Estrelas ({works_cnt} Obras, {frags_cnt} Fragmentos) • {len(links)} Ressonâncias • {len(clusters)} Clusters"
+        self.stats_text.value = f"{len(nodes)} Obras • {len(links)} Afinidades • {len(clusters)} Constelações"
 
     def _refresh_graph(self) -> None:
         """Recarrega os dados do grafo, executa o layout e renderiza nós e arestas."""
@@ -478,12 +645,28 @@ class KnowledgeComposer:
         links = self.graph_data.get("links") or []
         clusters = self.graph_data.get("clusters") or []
 
+        # Popula o seletor de Constelações com as constelações existentes
+        cluster_options = [ft.dropdown.Option("all", "Todas as Obras")]
+        for c in clusters:
+            c_name = c.get("name") or f"Constelação {c.get('id')}"
+            if len(c_name) > 22:
+                c_name = c_name[:20] + "…"
+            cluster_options.append(ft.dropdown.Option(f"cluster_{c.get('id')}", c_name))
+        self.filter_mode_dropdown.options = cluster_options
+        if self.filter_mode not in [o.key for o in cluster_options]:
+            self.filter_mode = "all"
+            self.filter_mode_dropdown.value = "all"
+
+        self._update_stats_display()
+
+        self.node_containers.clear()
+        for n in nodes:
+            self.node_containers[n["id"]] = ft.Container(data=n)
+
         self._update_stats_display()
 
         if not nodes:
             self.empty_state_text.visible = True
-            self.canvas.shapes.clear()
-            self.graph_stack.controls = [self.canvas]
             try:
                 self.root_container.update()
             except Exception:
@@ -494,185 +677,27 @@ class KnowledgeComposer:
         # Atualiza a Constelação 3D Esfera Armilar
         self.armillary_3d.set_data(nodes, links, clusters)
 
-        # Calcula coordenadas orgânicas
-        compute_graph_layout(nodes, links, width=self.canvas_width, height=self.canvas_height)
-
-        # Monta arestas no Canvas 2D
-        filtered_nodes = self._get_filtered_nodes()
-        filtered_links = self._get_filtered_links(filtered_nodes)
-        self._render_links(filtered_nodes, filtered_links)
-
-        # Monta nós no Stack 2D
-        self._render_nodes(filtered_nodes)
-
         try:
             self.root_container.update()
         except Exception:
             pass
 
     def _render_links(self, nodes: List[Dict[str, Any]], links: List[Dict[str, Any]]) -> None:
-        node_map = {n["id"]: n for n in nodes}
-        shapes: list[cv.Shape] = []
-
-        is_dark = (self.current_theme_mode or "dark").lower() == "dark"
-        base_color = "#D4AF37" if is_dark else "#896200"
-
-        for l in links:
-            s_id = l.get("source")
-            t_id = l.get("target")
-            s = node_map.get(s_id)
-            t = node_map.get(t_id)
-            if not s or not t:
-                continue
-
-            weight = float(l.get("weight") or 0.5)
-            is_highlighted = self.selected_node_id and (
-                s_id == self.selected_node_id or t_id == self.selected_node_id
-            )
-
-            if is_highlighted:
-                stroke_color = base_color
-                stroke_width = 3.0 * self.scale
-            else:
-                stroke_color = f"{base_color}4D"
-                stroke_width = max(1.0, weight * 2.5) * self.scale
-
-            shapes.append(
-                cv.Line(
-                    x1=s["x"],
-                    y1=s["y"],
-                    x2=t["x"],
-                    y2=t["y"],
-                    paint=ft.Paint(
-                        color=stroke_color,
-                        stroke_width=stroke_width,
-                    ),
-                )
-            )
-
-        self.canvas.shapes = shapes
+        pass
 
     def _render_nodes(self, nodes: List[Dict[str, Any]]) -> None:
-        self.node_containers.clear()
-        node_controls: list[ft.Control] = [self.canvas]
-
-        for n in nodes:
-            n_id = n["id"]
-            node_type = n.get("type") or "fragment"
-            is_selected = (n_id == self.selected_node_id)
-            node_color = n.get("color") or self.config.colors["gold"]
-
-            # Icon por tipo
-            if node_type == "fragment":
-                icon = ft.Icons.FORMAT_QUOTE
-            elif node_type == "work":
-                icon = ft.Icons.MENU_BOOK
-            else:
-                icon = ft.Icons.HUB
-
-            node_size = 40.0 * self.scale
-            circle = ft.Container(
-                content=ft.Icon(
-                    icon,
-                    size=18 * self.scale,
-                    color="#FFFFFF",
-                ),
-                width=node_size,
-                height=node_size,
-                border_radius=node_size / 2,
-                bgcolor=node_color,
-                border=ft.Border.all(
-                    2 * self.scale,
-                    self.config.colors["gold"] if is_selected else self.config.colors["surface"],
-                ),
-                shadow=ft.BoxShadow(
-                    spread_radius=2,
-                    blur_radius=10,
-                    color=f"{self.config.colors['gold']}88",
-                ) if is_selected else None,
-                alignment=ft.Alignment(0, 0),
-            )
-
-            label_text = n.get("label") or ""
-            if len(label_text) > 22:
-                label_text = label_text[:20] + "..."
-
-            label_ctrl = ft.Text(
-                label_text,
-                size=10 * self.scale,
-                font_family=self.config.font_families["montserrat"],
-                weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.W_400,
-                color=self.config.colors["gold"] if is_selected else self.config.colors["text"],
-                text_align=ft.TextAlign.CENTER,
-                max_lines=1,
-                overflow=ft.TextOverflow.ELLIPSIS,
-            )
-
-            card_width = 130.0 * self.scale
-            node_ctrl = ft.Container(
-                left=n["x"] - (card_width / 2.0),
-                top=n["y"] - (node_size / 2.0),
-                width=card_width,
-                content=ft.Column(
-                    controls=[circle, label_ctrl],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=3 * self.scale,
-                    tight=True,
-                ),
-                tooltip=f"{n.get('label')}\n{n.get('work_title', '')}",
-                on_click=lambda _, target_node=n: self._handle_node_clicked(target_node),
-            )
-
-            self.node_containers[n_id] = node_ctrl
-            node_controls.append(node_ctrl)
-
-        self.graph_stack.controls = node_controls
+        pass
 
     def _handle_toggle_celestial_grid(self, _e: ft.ControlEvent) -> None:
         """Alterna a exibição da grade cartográfica de coordenadas celestes."""
-        is_shown = self.armillary_3d.toggle_celestial_grid()
-        self.grid_toggle_btn.icon_color = (
-            self.config.colors["gold"] if is_shown else self.config.colors["muted"]
-        )
-        try:
-            self.grid_toggle_btn.update()
-        except Exception:
-            pass
-
-    def _handle_toggle_view_mode(self, _e: ft.ControlEvent) -> None:
-        """Alterna entre a Constelação 3D Esfera Armilar e a Malha 2D Plana."""
-        if self.view_mode == "3d":
-            self.view_mode = "2d"
-            self.viewport_container.content = self.interactive_viewer
-            self.mode_toggle_btn.content = "Ver Constelação 3D"
-            self.mode_toggle_btn.icon = ft.Icons.AUTO_AWESOME
-            self.grid_toggle_btn.visible = False
-        else:
-            self.view_mode = "3d"
-            self.viewport_container.content = self.armillary_3d.compose()
-            self.mode_toggle_btn.content = "Ver Mapa 2D"
-            self.mode_toggle_btn.icon = ft.Icons.GRID_VIEW
-            self.grid_toggle_btn.visible = True
-        try:
-            self.viewport_container.update()
-            self.mode_toggle_btn.update()
-            self.grid_toggle_btn.update()
-        except Exception:
-            pass
+        self.armillary_3d.toggle_celestial_grid()
 
     def _handle_filter_mode_change(self, e: ft.ControlEvent) -> None:
-        """Alterna a camada celeste entre todas as estrelas, apenas obras ou apenas fragmentos."""
+        """Alterna o filtro por constelação na esfera armilar 3D."""
         mode = self.filter_mode_dropdown.value or "all"
         self.filter_mode = mode
         self.armillary_3d.set_filter_mode(mode)
         self._update_stats_display()
-
-        if self.view_mode == "2d":
-            nodes = self._get_filtered_nodes()
-            links = self._get_filtered_links(nodes)
-            self._render_links(nodes, links)
-            self._render_nodes(nodes)
-
         try:
             self.root_container.update()
         except Exception:
@@ -686,20 +711,16 @@ class KnowledgeComposer:
         # Ajusta centralização da esfera considerando o painel lateral aberto
         vw, vh = self._compute_viewport_dimensions(panel_open=True)
         self.armillary_3d.update_dimensions(vw, vh)
+        self._update_toolbar_responsive(vw)
 
-        # Busca ressonâncias semânticas do nó
-        node_type = node.get("type") or "fragment"
+        # Busca ressonâncias semânticas da obra e fragmentos associados
+        node_type = node.get("type") or "work"
         entity_id = int(node.get("entity_id") or 0)
         resonances = self.get_resonances(node_type, entity_id, self.min_similarity, 8)
+        work_fragments = self.get_work_fragments(entity_id) if node_type == "work" else []
 
         # Atualiza o painel retrátil
-        self.panel.set_node(node, resonances)
-
-        # Re-renderiza conexões destacadas
-        nodes = self._get_filtered_nodes()
-        links = self._get_filtered_links(nodes)
-        self._render_links(nodes, links)
-        self._render_nodes(nodes)
+        self.panel.set_node(node, resonances, work_fragments=work_fragments)
         try:
             self.root_container.update()
         except Exception:
@@ -723,43 +744,51 @@ class KnowledgeComposer:
         # Restaura centralização da esfera considerando o painel lateral fechado
         vw, vh = self._compute_viewport_dimensions(panel_open=False)
         self.armillary_3d.update_dimensions(vw, vh)
-
-        nodes = self._get_filtered_nodes()
-        links = self._get_filtered_links(nodes)
-        self._render_links(nodes, links)
-        self._render_nodes(nodes)
+        self._update_toolbar_responsive(vw)
         try:
             self.root_container.update()
         except Exception:
             pass
 
     def _handle_search_change(self, e: ft.ControlEvent) -> None:
-        """Filtra nós por termo em tempo real."""
+        """Filtra nós por termo de busca e destaca na constelação."""
         query = (self.search_field.value or "").strip().lower()
         nodes = self.graph_data.get("nodes") or []
-
         for n in nodes:
             n_id = n["id"]
             ctrl = self.node_containers.get(n_id)
-            if not ctrl:
-                continue
-            if not query:
-                ctrl.opacity = 1.0
-            else:
+            if ctrl:
                 full = f"{n.get('label', '')} {n.get('full_text', '')} {n.get('work_title', '')}".lower()
-                ctrl.opacity = 1.0 if query in full else 0.2
+                ctrl.opacity = 1.0 if (not query or query in full) else 0.2
 
+        if query:
+            matched = next(
+                (
+                    n for n in nodes
+                    if query in str(n.get("label", "")).lower()
+                    or query in str(n.get("author", "")).lower()
+                    or query in str(n.get("title", "")).lower()
+                ),
+                None,
+            )
+            if matched:
+                self.selected_node_id = matched["id"]
+                self.armillary_3d.select_node_id(matched["id"])
+
+    def _handle_sensitivity_slider_live(self, e: ft.ControlEvent) -> None:
+        """Atualiza dinamicamente o rótulo de sensibilidade durante o arrasto do slider."""
+        val = float(e.control.value)
+        self.sensitivity_slider_label.value = f"Sensibilidade: {int(val * 100)}%"
         try:
-            self.graph_stack.update()
+            self.sensitivity_slider_label.update()
         except Exception:
             pass
 
-    def _handle_sensitivity_change(self, e: ft.ControlEvent) -> None:
-        """Altera o limiar de similaridade para reconstrução das arestas."""
-        try:
-            self.min_similarity = float(self.sensitivity_dropdown.value or "0.40")
-        except ValueError:
-            self.min_similarity = 0.40
+    def _handle_sensitivity_slider_change(self, e: ft.ControlEvent) -> None:
+        """Dispara recálculo da malha de afinidades ao soltar o slider de sensibilidade."""
+        val = float(e.control.value)
+        self.min_similarity = round(val, 2)
+        self.sensitivity_slider_label.value = f"Sensibilidade: {int(val * 100)}%"
         self._refresh_graph()
 
     def _handle_sync_mesh(self, _e: ft.ControlEvent) -> None:
@@ -770,9 +799,12 @@ class KnowledgeComposer:
             if self.page:
                 vec_count = result.get("vectorized", 0)
                 clust_count = result.get("clusters", 0)
-                snack = ft.SnackBar(
-                    ft.Text(f"Malha sincronizada: {vec_count} itens vetorizados, {clust_count} clusters."),
-                )
+                total_nodes = len(self.graph_data.get("nodes") or [])
+                if vec_count > 0:
+                    msg = f"Malha sincronizada: {vec_count} novos itens vetorizados ({total_nodes} obras ativas, {clust_count} constelações)."
+                else:
+                    msg = f"Malha atualizada: todas as {total_nodes} obras estão vetorizadas em {clust_count} constelações."
+                snack = ft.SnackBar(ft.Text(msg))
                 self.page.overlay.append(snack)
                 snack.open = True
                 self.page.update()

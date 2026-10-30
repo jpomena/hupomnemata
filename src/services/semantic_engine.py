@@ -28,7 +28,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
     sim = float(np.dot(a, b) / (norm_a * norm_b))
-    return max(0.0, min(1.0, (sim + 1.0) / 2.0 if sim < 0 else sim))
+    return float(max(0.0, min(1.0, sim)))
 
 
 class BaseSemanticEngine(ABC):

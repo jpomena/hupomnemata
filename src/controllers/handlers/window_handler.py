@@ -83,7 +83,7 @@ class WindowControllerMixin:
                 if getattr(self, "current_destination", "") == "Estruturas de Saber":
                     knowledge_comp = getattr(self.application, "knowledge_composer", None)
                     if knowledge_comp is not None:
-                        knowledge_comp.on_window_resized()
+                        knowledge_comp.on_window_resized(is_maximized=target_max)
 
             new_scale = resolve_effective_scale(
                 self.settings, self.page, is_maximized=target_max
@@ -110,7 +110,7 @@ class WindowControllerMixin:
                 if getattr(self, "current_destination", "") == "Estruturas de Saber":
                     knowledge_comp = getattr(self.application, "knowledge_composer", None)
                     if knowledge_comp is not None:
-                        knowledge_comp.on_window_resized()
+                        knowledge_comp.on_window_resized(is_maximized=target_max)
 
             new_scale = resolve_effective_scale(
                 self.settings, self.page, is_maximized=is_max
@@ -150,7 +150,7 @@ class WindowControllerMixin:
             if hasattr(self, "application") and self.application is not None:
                 knowledge_comp = getattr(self.application, "knowledge_composer", None)
                 if knowledge_comp is not None:
-                    knowledge_comp.on_window_resized()
+                    knowledge_comp.on_window_resized(is_maximized=current_maximized)
             return
 
         new_scale = resolve_effective_scale(
