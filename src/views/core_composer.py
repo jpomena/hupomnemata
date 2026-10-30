@@ -93,6 +93,7 @@ class CoreComposer:
         get_knowledge_graph: Callable[..., dict] | None = None,
         sync_knowledge_mesh: Callable[[], dict] | None = None,
         get_knowledge_resonances: Callable[..., list] | None = None,
+        get_knowledge_work_fragments: Callable[..., list] | None = None,
         on_create_knowledge_link: Callable[..., bool] | None = None,
         on_add_knowledge_to_compilation: Callable[[int, int], bool] | None = None,
         current_theme_mode: str = "light",
@@ -150,6 +151,7 @@ class CoreComposer:
         self.get_knowledge_graph = get_knowledge_graph
         self.sync_knowledge_mesh = sync_knowledge_mesh
         self.get_knowledge_resonances = get_knowledge_resonances
+        self.get_knowledge_work_fragments = get_knowledge_work_fragments
         self.on_create_knowledge_link = on_create_knowledge_link
         self.on_add_knowledge_to_compilation = on_add_knowledge_to_compilation
         self.knowledge_composer: KnowledgeComposer | None = None
@@ -396,6 +398,7 @@ class CoreComposer:
             get_graph_data=getattr(self, "get_knowledge_graph", None) or (lambda _: {"nodes": [], "links": [], "clusters": []}),
             sync_mesh=getattr(self, "sync_knowledge_mesh", None) or (lambda: {"vectorized": 0, "clusters": 0}),
             get_resonances=getattr(self, "get_knowledge_resonances", None) or (lambda *_: []),
+            get_work_fragments=getattr(self, "get_knowledge_work_fragments", None) or (lambda _: []),
             on_add_to_compilation=getattr(self, "on_add_knowledge_to_compilation", None),
             list_compilations=getattr(self, "refresh_compilations", None),
             on_create_link=getattr(self, "on_create_knowledge_link", None),

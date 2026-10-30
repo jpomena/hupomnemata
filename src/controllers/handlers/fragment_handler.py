@@ -18,6 +18,13 @@ class FragmentControllerMixin:
             else:
                 self.fragment_service.update(fragment_id, data)
                 message = 'Fragmento atualizado.'
+
+            bib_res_id = data.get('bib_res_id')
+            if bib_res_id and hasattr(self, 'knowledge_service'):
+                try:
+                    self.knowledge_service.revectorize_work(int(bib_res_id))
+                except Exception:
+                    pass
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
             return False
@@ -57,6 +64,12 @@ class FragmentControllerMixin:
                     )
                 self.fragment_service.update(fragment_id, payload)
                 message = 'Fragmento atualizado.'
+
+            if hasattr(self, 'knowledge_service'):
+                try:
+                    self.knowledge_service.revectorize_work(int(payload['bib_res_id']))
+                except Exception:
+                    pass
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
             return False
@@ -77,7 +90,12 @@ class FragmentControllerMixin:
 
     def delete_fragment(self, fragment_id: int) -> None:
         try:
-            self.fragment_service.delete(fragment_id)
+            bib_res_id = self.fragment_service.delete(fragment_id)
+            if bib_res_id and hasattr(self, 'knowledge_service'):
+                try:
+                    self.knowledge_service.revectorize_work(int(bib_res_id))
+                except Exception:
+                    pass
         except Exception as error:
             log_exception('Falha ao excluir fragmento', error)
             self.show_message(

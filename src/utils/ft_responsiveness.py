@@ -47,6 +47,20 @@ class Responsive:
             except Exception:
                 pass
 
+            # Detecção de resolução de tela para Linux / X11 / Wayland
+            try:
+                import tkinter
+                tk_root = tkinter.Tk()
+                sw = float(tk_root.winfo_screenwidth())
+                sh = float(tk_root.winfo_screenheight())
+                tk_root.destroy()
+                if sw > 200 and sh > 200:
+                    return sw, sh
+            except Exception:
+                pass
+
+            return 1920.0, 1080.0
+
         window = getattr(page, "window", None)
         if window is not None:
             ww = getattr(window, "width", None)

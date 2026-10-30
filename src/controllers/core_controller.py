@@ -224,6 +224,7 @@ class CoreController(
             get_knowledge_graph=self.get_knowledge_graph,
             sync_knowledge_mesh=self.sync_knowledge_mesh,
             get_knowledge_resonances=self.get_knowledge_resonances,
+            get_knowledge_work_fragments=self.get_knowledge_work_fragments,
             on_create_knowledge_link=self.create_knowledge_link,
             on_add_knowledge_to_compilation=(
                 self.add_knowledge_fragment_to_compilation

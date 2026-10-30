@@ -209,7 +209,7 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
       font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: 18px;
       font-weight: 700;
-      color: {gold_accent};
+      color: {text_color};
       line-height: 1.3;
     }}
     .node-excerpt {{
@@ -219,7 +219,7 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
       font-style: italic;
       background: {bg_color}80;
       padding: 12px;
-      border-left: 3px solid {gold_accent};
+      border-left: 3px solid {border_color};
       border-radius: 4px;
       max-height: 180px;
       overflow-y: auto;
@@ -227,7 +227,7 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
     .resonance-title {{
       font-size: 12px;
       font-weight: 600;
-      color: {gold_accent};
+      color: {text_color};
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }}
@@ -242,7 +242,7 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
       transition: border-color 0.2s;
     }}
     .resonance-item:hover {{
-      border-color: {gold_accent};
+      border-color: {text_color};
     }}
     /* SVG Elements */
     .link {{
@@ -310,22 +310,22 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
   <div class="hud-footer">
     <div class="legend-item">
       <div class="legend-dot" style="background: {gold_accent};"></div>
-      <span id="stat-nodes">0 Nós</span>
+      <span id="stat-nodes">0 Obras</span>
     </div>
     <div class="legend-item">
       <div class="legend-dot" style="background: rgba(212, 175, 55, 0.6);"></div>
-      <span id="stat-links">0 Ressonâncias</span>
+      <span id="stat-links">0 Afinidades</span>
     </div>
     <div class="legend-item">
       <div class="legend-dot" style="background: #2E7D32;"></div>
-      <span id="stat-clusters">0 Clusters</span>
+      <span id="stat-clusters">0 Constelações</span>
     </div>
   </div>
 
   <!-- Detail Card -->
   <div id="detail-card" class="detail-panel">
     <div class="panel-header">
-      <span id="card-type-badge" class="badge" style="background: {gold_accent}33; color: {gold_accent};">CITAÇÃO</span>
+      <span id="card-type-badge" class="badge" style="background: {border_color}; color: {text_muted};">CITAÇÃO</span>
       <button class="close-btn" onclick="closeCard()">&times;</button>
     </div>
     <div id="card-title" class="node-title">Título do Nó</div>
@@ -342,9 +342,9 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
   <script>
     const graphData = {data_json};
 
-    document.getElementById("stat-nodes").innerText = (graphData.nodes || []).length + " Nós";
-    document.getElementById("stat-links").innerText = (graphData.links || []).length + " Ressonâncias";
-    document.getElementById("stat-clusters").innerText = (graphData.clusters || []).length + " Clusters";
+    document.getElementById("stat-nodes").innerText = (graphData.nodes || []).length + " Obras";
+    document.getElementById("stat-links").innerText = (graphData.links || []).length + " Afinidades";
+    document.getElementById("stat-clusters").innerText = (graphData.clusters || []).length + " Constelações";
 
     const svg = d3.select("#network-svg");
     const container = d3.select("#graph-container");
@@ -371,15 +371,27 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
       );
     }}
 
-    // D3 Force Simulation
+    // D3 Force Simulation com ancoragem por constelações
     const nodes = (graphData.nodes || []).map(d => Object.assign({{}}, d));
     const links = (graphData.links || []).map(d => Object.assign({{}}, d));
 
+    const clusterMap = {{}};
+    const uniqueClusters = Array.from(new Set(nodes.map(d => d.cluster_id || 0)));
+    const clusterRadius = Math.min(width, height) * 0.36;
+    uniqueClusters.forEach((cId, idx) => {{
+      const angle = (idx / Math.max(1, uniqueClusters.length)) * 2 * Math.PI;
+      clusterMap[cId] = {{
+        x: width / 2 + clusterRadius * Math.cos(angle),
+        y: height / 2 + clusterRadius * Math.sin(angle)
+      }};
+    }});
+
     const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id(d => d.id).distance(d => 110 - (d.weight || 0.5) * 40))
-      .force("charge", d3.forceManyBody().strength(-240))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collide", d3.forceCollide().radius(d => (d.size || 14) + 12));
+      .force("link", d3.forceLink(links).id(d => d.id).distance(d => 85 - (d.weight || 0.5) * 30).strength(d => d.source.cluster_id === d.target.cluster_id ? 0.6 : 0.08))
+      .force("charge", d3.forceManyBody().strength(-200))
+      .force("x", d3.forceX(d => clusterMap[d.cluster_id || 0] ? clusterMap[d.cluster_id || 0].x : width / 2).strength(0.16))
+      .force("y", d3.forceY(d => clusterMap[d.cluster_id || 0] ? clusterMap[d.cluster_id || 0].y : height / 2).strength(0.16))
+      .force("collide", d3.forceCollide().radius(d => (d.size || 14) + 14));
 
     // Render Links
     const link = g.append("g")

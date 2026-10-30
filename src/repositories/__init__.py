@@ -6,7 +6,11 @@ from .work_repository import (
 )
 from .fragment_repository import FragmentRepository
 from .compilation_repository import CompilationRepository
-from .knowledge_repository import KnowledgeRepository, compute_text_hash
+from .knowledge_repository import (
+    KnowledgeRepository,
+    compute_text_hash,
+    compute_work_signature,
+)
 
 __all__ = [
     'AuthorReference',
@@ -17,4 +21,5 @@ __all__ = [
     'CompilationRepository',
     'KnowledgeRepository',
     'compute_text_hash',
+    'compute_work_signature',
 ]

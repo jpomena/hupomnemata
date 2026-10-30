@@ -107,6 +107,10 @@ class FragmentService:
         with SessionLocal() as session:
             FragmentRepository(session).update(fragment_id, payload)
 
-    def delete(self, fragment_id: int) -> None:
+    def delete(self, fragment_id: int) -> int | None:
         with SessionLocal() as session:
+            from src.domains.core_domain import Fragment
+            frag = session.get(Fragment, fragment_id)
+            bib_res_id = frag.bib_res_id if frag else None
             FragmentRepository(session).delete(fragment_id)
+            return bib_res_id
