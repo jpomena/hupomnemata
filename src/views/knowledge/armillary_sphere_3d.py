@@ -4,6 +4,7 @@ Projeção perspectiva de alta performance com aceleração matemática, grade c
 
 from collections.abc import Callable
 import math
+import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
 import flet as ft
@@ -76,10 +77,12 @@ class ArmillaryConstellation3D:
         self.font_family = self.config.font_families.get("cormorant", "Cormorant Garamond")
         self.font_family_ui = self.config.font_families.get("montserrat", "Montserrat")
 
-        # Tapeçaria Cósmica Estelar: firmamento tridimensional com Via Láctea, estrelas espectrais e nebulosas
-        self.starfield = self._generate_cosmic_dust(72)
-        self.milky_way_stream = self._generate_milky_way_stream(160)
-        self.nebulae = self._generate_nebulae()
+        # Campo Estelar 2D no Infinito: 180 micro-pontos brancos discretos em 3 lotes Skia (custo zero por frame)
+        self.starfield = self._generate_static_starfield(180)
+        self.milky_way_stream: List[Any] = []
+        self.nebulae: List[Any] = []
+        self._cached_star_shapes: list[cv.Shape] = []
+        self._rebuild_starfield_shapes()
 
         # Camada de desenho Canvas
         self.canvas = cv.Canvas(
@@ -128,9 +131,7 @@ class ArmillaryConstellation3D:
         self._precomputed_rings = self._build_armillary_rings_geometry(steps=96)
         self._precomputed_grid = self._build_celestial_grid_geometry(steps=72)
         self._precomputed_ticks = self._build_astrolabe_ticks_geometry()
-        self.starfield = self._generate_cosmic_dust(72)
-        self.milky_way_stream = self._generate_milky_way_stream(160)
-        self.nebulae = self._generate_nebulae()
+        self._rebuild_starfield_shapes()
         self._compute_3d_coordinates()
         self.render()
 
