@@ -295,52 +295,51 @@ class KnowledgeComposer:
                         icon=ft.Icons.ZOOM_IN,
                         tooltip="Aproximar Constelação (Zoom +)",
                         icon_size=20 * self.scale,
-                        icon_color=self.config.colors["text"],
+                        icon_color="#E2E8F0",
                         on_click=lambda _: self.armillary_3d.zoom_in(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.ZOOM_OUT,
                         tooltip="Afastar Constelação (Zoom -)",
                         icon_size=20 * self.scale,
-                        icon_color=self.config.colors["text"],
+                        icon_color="#E2E8F0",
                         on_click=lambda _: self.armillary_3d.zoom_out(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.RESTART_ALT,
                         tooltip="Restaurar Visão Padrão",
                         icon_size=19 * self.scale,
-                        icon_color=self.config.colors["text"],
+                        icon_color="#E2E8F0",
                         on_click=lambda _: self.armillary_3d.reset_view(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.GRID_4X4,
                         tooltip="Exibir/Ocultar Grade Celeste",
                         icon_size=19 * self.scale,
-                        icon_color=self.config.colors["text"],
+                        icon_color="#E2E8F0",
                         on_click=self._handle_toggle_celestial_grid,
                     ),
                 ],
                 spacing=2,
                 tight=True,
             ),
-            bgcolor=self.config.colors["surface"],
-            border=ft.Border.all(1, self.config.colors["border"]),
+            bgcolor="#0E1322C0",
+            border=ft.Border.all(1, "#38BDF830"),
             border_radius=8,
             padding=2,
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=10,
-                color="#00000025",
+                color="#00000050",
             ),
             right=24 * self.scale,
             bottom=24 * self.scale,
         )
 
-        is_dark = (self.current_theme_mode or "dark").lower() == "dark"
         space_gradient = ft.RadialGradient(
             center=ft.Alignment(0, 0),
             radius=1.25,
-            colors=["#090D1C", "#050711", "#020306"] if is_dark else ["#FAF8F2", "#EFECE1", "#E2DDCF"],
+            colors=["#090D1C", "#050711", "#020306"],
         )
 
         self.viewport_container = ft.Container(
