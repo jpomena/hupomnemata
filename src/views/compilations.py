@@ -1,3 +1,11 @@
+"""Compilações: a lista de projetos (destino ``Compilações``) e a porta para a
+página de cada um (destino ``compilacao:<id>``).
+
+A lista é uma tabela em card: Projeto, Obras, Fragmentos, Ideias, Criada e
+Atualizada. Clicar numa linha navega para a página da compilação, composta por
+``CompilationHubComposer``.
+"""
+
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
@@ -8,11 +16,24 @@ from src.contracts import (
     CompilationRecord,
     FragmentRecord,
 )
-from src.utils.types import ViewConfig
-from src.utils.view_styles import button_text_style, text_field_style
+from src.utils.types import ViewConfig, ViewReference
+from src.views import ui_kit as ui
 from src.views.compilation_hub import CompilationHubComposer
+from src.views.compilation_hub.common import dialog, fmt_date, form_field, text_input
+from src.views.ui_kit import s
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
+
+COLUMN_WIDTHS = {'works': 72, 'fragments': 96, 'ideas': 72, 'created': 112, 'updated': 112}
+
+
+def member_count(compilation: CompilationRecord) -> int:
+    return sum(
+        1
+        for work in compilation['works']
+        for fragment in work['fragments']
+        if fragment['is_member']
+    )
 
 
 class CompilationsComposer:
@@ -31,21 +52,21 @@ class CompilationsComposer:
         on_reorder_works: Callable[[int, list[int]], bool],
         on_fragment_membership: Callable[[int, int, bool], bool],
         on_fragment_note: Callable[[int, int, str | None], bool],
-        on_create_section: Callable[
-            [int, str, str | None], int | None
-        ],
+        on_create_section: Callable[[int, str, str | None], int | None],
         on_update_section: Callable[[int, int, str, str | None], bool],
         on_delete_section: Callable[[int, int], bool],
         on_reorder_sections: Callable[[int, list[int]], bool],
-        on_assign_fragment_to_section: Callable[
-            [int, int, int | None], bool
-        ],
+        on_assign_fragment_to_section: Callable[[int, int, int | None], bool],
         on_reorder_section_fragments: Callable[[int, int, list[int]], bool],
         on_copy_caderno: Callable[[str], Awaitable[None]],
         on_create_work: Callable[[int], None],
         on_edit_work: Callable[[int, int], None],
         on_create_fragment: Callable[[int, int], None],
         on_edit_fragment: Callable[[int, FragmentRecord], None],
+        on_navigate: Callable[[str], None] | None = None,
+        on_open_work: Callable[[int], None] | None = None,
+        on_chrome_changed: Callable[[], None] | None = None,
+        work_references: Callable[[list[int]], dict[int, ViewReference]] | None = None,
     ) -> None:
         self.page = page
         self.config = config
@@ -71,146 +92,38 @@ class CompilationsComposer:
         self.on_edit_work = on_edit_work
         self.on_create_fragment = on_create_fragment
         self.on_edit_fragment = on_edit_fragment
-        self.creating = False
-        self.selected_compilation_id: int | None = None
+        self.on_navigate = on_navigate
+        self.on_open_work = on_open_work
+        self.on_chrome_changed = on_chrome_changed
+        self.work_references = work_references
         self.active_hub: CompilationHubComposer | None = None
         self.root: ft.Container | None = None
-        self.card_list: ft.Column | None = None
-        self.compilation_search = ft.TextField(
-            label='Buscar compilação',
-            hint_text='Digite nome ou descrição',
+        self.table_host: ft.Container | None = None
+        self.count_text: ft.Text | None = None
+        self.rows: list[ft.Container] = []
+        self.compilation_search = ui.search_field(
+            config,
+            'Buscar por nome ou descrição',
             on_change=self._search_compilations,
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            **text_field_style(config),
         )
-        self.compilation_matches = ft.Column(
-            spacing=2,
-            tight=True,
-            visible=False,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-        self.new_name = ft.TextField(
-            label='Nome da compilação *',
-            hint_text='Ex.: Tese',
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            **text_field_style(config),
-        )
-        self.new_description = ft.TextField(
-            label='Descrição (opcional)',
-            hint_text='Qual é o tema ou objetivo deste projeto?',
+        self.new_name = text_input(config, hint='Ex.: Tese', max_length=150, autofocus=True, on_submit=lambda _e: self._create())
+        self.new_description = text_input(
+            config,
+            hint='Qual é o tema ou o objetivo deste projeto?',
             multiline=True,
             min_lines=2,
             max_lines=4,
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            **text_field_style(config),
         )
+        self.create_dialog: ft.AlertDialog | None = None
 
-    def _search_compilations(
-        self,
-        event: ft.Event[ft.TextField],
-    ) -> None:
-        query = (event.control.value or '').strip().casefold()
-        self.selected_compilation_id = None
-        if len(query) < 2:
-            self.compilation_matches.controls = []
-            self.compilation_matches.visible = False
-        else:
-            matches = [
-                compilation
-                for compilation in self.compilations
-                if query in compilation['name'].casefold()
-                or query in (compilation['description'] or '').casefold()
-            ]
-            self.compilation_matches.controls = [
-                ft.TextButton(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text(
-                                value=compilation['name'],
-                                color=self.config.colors['text'],
-                                font_family=self.config.font_families[
-                                    'montserrat'
-                                ],
-                                size=self.config.font_sizes[
-                                    'montserrat_medium'
-                                ],
-                                weight=self.config.font_weights[
-                                    'montserrat_normal'
-                                ],
-                            ),
-                            ft.Text(
-                                value=compilation['description'] or '',
-                                color=self.config.colors['muted'],
-                                font_family=self.config.font_families[
-                                    'montserrat'
-                                ],
-                                size=self.config.font_sizes[
-                                    'montserrat_small'
-                                ],
-                                weight=self.config.font_weights[
-                                    'montserrat_normal'
-                                ],
-                                visible=bool(compilation['description']),
-                            ),
-                        ],
-                        spacing=0,
-                        horizontal_alignment=ft.CrossAxisAlignment.START,
-                    ),
-                    style=ft.ButtonStyle(
-                        text_style=button_text_style(self.config),
-                    ),
-                    on_click=lambda event, current=compilation: (
-                        self._run_click_action(
-                            event,
-                            lambda: self._select_compilation(current),
-                        )
-                    ),
-                )
-                for compilation in matches[:8]
-            ]
-            if not matches:
-                self.compilation_matches.controls = [
-                    ft.Text(
-                        value='Nenhuma compilação encontrada.',
-                        color=self.config.colors['muted'],
-                    )
-                ]
-            self.compilation_matches.visible = True
-        self._render_cards()
-        self.page.update()
+    # ── busca ──────────────────────────────────────────────
 
-    @staticmethod
-    def _run_click_action(
-        event: ft.Event[EventControl],
-        action: Callable[[], object],
-    ) -> None:
-        del event
-        action()
-
-    def _select_compilation(
-        self,
-        compilation: CompilationRecord,
-    ) -> None:
-        self.selected_compilation_id = compilation['id']
-        self.compilation_search.value = compilation['name']
-        self.compilation_matches.controls = []
-        self.compilation_matches.visible = False
-        self._render_cards()
+    def _search_compilations(self, event) -> None:
+        self.compilation_search.value = event.control.value or ''
+        self._render_table()
         self.page.update()
 
     def _filtered_compilations(self) -> list[CompilationRecord]:
-        if self.selected_compilation_id is not None:
-            return [
-                compilation
-                for compilation in self.compilations
-                if compilation['id'] == self.selected_compilation_id
-            ]
         query = (self.compilation_search.value or '').strip().casefold()
         if not query:
             return self.compilations
@@ -221,62 +134,63 @@ class CompilationsComposer:
             or query in (compilation['description'] or '').casefold()
         ]
 
-    def _toggle_create(self) -> None:
-        self.creating = not self.creating
-        self._render_cards()
-        self.page.update()
+    # ── criar ──────────────────────────────────────────────
+
+    def open_create_dialog(self) -> ft.AlertDialog:
+        c = self.config
+        self.new_name.value = ''
+        self.new_name.error_text = None
+        self.new_description.value = ''
+        self.create_dialog = dialog(
+            c,
+            'Nova compilação',
+            [
+                form_field(c, 'Nome', self.new_name),
+                form_field(c, 'Descrição (opcional)', self.new_description),
+            ],
+            [
+                ui.button(c, 'Cancelar', on_click=lambda _e: self._cancel_create(), variant='ghost'),
+                ui.button(c, 'Criar compilação', on_click=lambda _e: self._create(), variant='primary'),
+            ],
+            subtitle='Um projeto de escrita reúne obras, fragmentos e o roteiro de ideias.',
+        )
+        self.page.show_dialog(self.create_dialog)
+        return self.create_dialog
 
     def _create(self) -> None:
+        name = (self.new_name.value or '').strip()
+        if not name:
+            self.new_name.error_text = 'Dê um nome à compilação.'
+            try:
+                self.new_name.update()
+            except Exception:
+                pass
+            return
         compilation_id = self.on_create({
-            'name': self.new_name.value or '',
+            'name': name,
             'description': self.new_description.value,
         })
         if compilation_id is None:
             return
-        self.creating = False
+        self.page.pop_dialog()
         self.new_name.value = ''
         self.new_description.value = ''
         self.compilations = self.refresh_compilations()
-        self._render_cards()
+        if self.on_navigate is not None:
+            self.on_navigate(f'compilacao:{compilation_id}')
+            return
+        self._render_table()
         self.page.update()
-        self._open_hub(compilation_id)
 
     def _cancel_create(self) -> None:
-        self.creating = False
+        self.page.pop_dialog()
         self.new_name.value = ''
         self.new_description.value = ''
-        self._render_cards()
-        self.page.update()
 
-    def _delete_compilation(self, compilation_id: int) -> None:
-        if not self.on_delete(compilation_id):
-            return
-        self.compilations = self.refresh_compilations()
-        if self.selected_compilation_id == compilation_id:
-            self.selected_compilation_id = None
-            self.compilation_search.value = ''
-        self._render_cards()
-        self.page.update()
+    # ── página da compilação ───────────────────────────────
 
-    def _open_hub(self, compilation_id: int) -> None:
-        compilation = next(
-            (
-                item
-                for item in self.compilations
-                if item['id'] == compilation_id
-            ),
-            None,
-        )
-        if compilation is None:
-            return
-
-        hub: CompilationHubComposer
-
-        def close_hub() -> None:
-            if self.active_hub is hub:
-                self.active_hub = None
-
-        hub = CompilationHubComposer(
+    def _make_hub(self, compilation: CompilationRecord) -> CompilationHubComposer:
+        return CompilationHubComposer(
             page=self.page,
             config=self.config,
             compilation=compilation,
@@ -299,380 +213,159 @@ class CompilationsComposer:
             on_edit_work=self.on_edit_work,
             on_create_fragment=self.on_create_fragment,
             on_edit_fragment=self.on_edit_fragment,
-            on_close=close_hub,
             on_data_changed=self._update_compilation,
+            on_delete=self.on_delete,
+            on_navigate=self.on_navigate,
+            on_open_work=self.on_open_work,
+            on_chrome_changed=self.on_chrome_changed,
+            work_references=self.work_references,
         )
-        self.active_hub = hub
-        hub.open()
+
+    def open_compilation_page(self, compilation_id: int) -> ft.Control | None:
+        """Monta a página da compilação. ``None`` se ela não existe mais."""
+        compilation = next((item for item in self.compilations if item['id'] == compilation_id), None)
+        if compilation is None:
+            self.active_hub = None
+            return None
+        self.active_hub = self._make_hub(compilation)
+        return self.active_hub.compose()
+
+    def _open(self, compilation_id: int) -> None:
+        if self.on_navigate is not None:
+            self.on_navigate(f'compilacao:{compilation_id}')
 
     def _update_compilation(self, compilation: CompilationRecord) -> None:
         self.compilations = [
             compilation if current['id'] == compilation['id'] else current
             for current in self.compilations
         ]
-        self._render_cards()
 
     def refresh_compilation_hub(self, compilation_id: int) -> None:
+        """Ponto de entrada do controlador depois de mudanças vindas de fora
+        (obra ou fragmento criados e editados a partir da página)."""
         self.compilations = self.refresh_compilations()
-        if (
-            self.active_hub is not None
-            and self.active_hub.compilation['id'] == compilation_id
-        ):
-            self.active_hub.refresh()
-        else:
-            self._render_cards()
+        hub = self.active_hub
+        if hub is not None and hub.compilation['id'] == compilation_id and not hub.deleted:
+            hub.refresh()
+            return
+        self._render_table()
         self.page.update()
 
-    def _compose_create_card(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        value='Nova compilação',
-                        size=self.config.font_sizes['cormorant_medium'],
-                        font_family=self.config.font_families['cormorant'],
-                        weight=self.config.font_weights['cormorant_semibold'],
-                        color=self.config.colors['text'],
-                    ),
-                    self.new_name,
-                    self.new_description,
-                    ft.Row(
-                        controls=[
-                            ft.TextButton(
-                                content=ft.Text(
-                                    'Cancelar',
-                                    color=self.config.colors['text'],
-                                    font_family=(
-                                        self.config.font_families[
-                                            'montserrat'
-                                        ]
-                                    ),
-                                    size=self.config.font_sizes[
-                                        'montserrat_medium'
-                                    ],
-                                    weight=self.config.font_weights[
-                                        'montserrat_normal'
-                                    ],
-                                ),
-                                style=ft.ButtonStyle(
-                                    text_style=button_text_style(self.config),
-                                ),
-                                on_click=self._cancel_create,
-                            ),
-                            ft.FilledButton(
-                                content=ft.Text(
-                                    'Criar compilação',
-                                    color=self.config.colors['bg'],
-                                    font_family=(
-                                        self.config.font_families[
-                                            'montserrat'
-                                        ]
-                                    ),
-                                    size=self.config.font_sizes[
-                                        'montserrat_medium'
-                                    ],
-                                    weight=self.config.font_weights[
-                                        'montserrat_normal'
-                                    ],
-                                ),
-                                bgcolor=self.config.colors['gold'],
-                                style=ft.ButtonStyle(
-                                    text_style=button_text_style(self.config),
-                                ),
-                                on_click=self._create,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.END,
-                    ),
-                ],
-                spacing=self.config.ui['modal_gap'],
-                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-            ),
-            padding=self.config.ui['card_padding'],
-            bgcolor=self.config.colors['surface'],
-            border=ft.Border.all(1, self.config.colors['border']),
-            border_radius=self.config.ui['card_radius'],
-        )
+    # ── lista ──────────────────────────────────────────────
 
-    def _compose_compilation_card(
-        self,
-        compilation: CompilationRecord,
-    ) -> ft.Container:
-        fragments = [
-            fragment
-            for work in compilation['works']
-            for fragment in work['fragments']
-        ]
-        member_count = sum(fragment['is_member'] for fragment in fragments)
-        work_count = len(compilation['works'])
-        work_label = 'obra' if work_count == 1 else 'obras'
-        title = ft.Text(
-            value=compilation['name'],
-            size=self.config.font_sizes['cormorant_medium'],
-            font_family=self.config.font_families['cormorant'],
-            weight=self.config.font_weights['cormorant_semibold'],
-            color=self.config.colors['gold'],
-        )
-        card = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Column(
-                        controls=[
-                            title,
-                            ft.Text(
-                                value=(
-                                    compilation['description']
-                                    or 'Sem descrição'
-                                ),
-                                size=self.config.font_sizes[
-                                    'montserrat_small'
-                                ],
-                                font_family=self.config.font_families[
-                                    'montserrat'
-                                ],
-                                color=self.config.colors['muted'],
-                            ),
-                            ft.Text(
-                                value=(
-                                    f'{work_count} {work_label} '
-                                    f'· {member_count} fragmentos'
-                                ),
-                                size=self.config.font_sizes[
-                                    'montserrat_small'
-                                ],
-                                font_family=self.config.font_families[
-                                    'montserrat'
-                                ],
-                                color=self.config.colors['muted'],
-                            ),
-                        ],
-                        spacing=4,
-                        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-                        expand=True,
-                    ),
-                    ft.Icon(
-                        ft.Icons.ARROW_FORWARD,
-                        color=self.config.colors['gold'],
-                    ),
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=self.config.ui['card_padding'],
-            bgcolor=self.config.colors['surface'],
-            border=ft.Border.all(1, self.config.colors['border']),
-            border_radius=self.config.ui['card_radius'],
-            expand=True,
-            on_click=lambda event, current_id=compilation['id']: (
-                self._run_click_action(
-                    event,
-                    lambda: self._open_hub(current_id),
-                )
-            ),
-            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
-        )
+    def _cell(self, control: ft.Control, key: str) -> ft.Container:
+        return ft.Container(control, width=s(COLUMN_WIDTHS[key]), alignment=ft.Alignment.CENTER_RIGHT)
 
-        def handle_hover(event: ft.Event[ft.Container]) -> None:
-            card.bgcolor = (
-                self.config.colors['card_hover']
-                if event.data
-                else self.config.colors['surface']
-            )
-            card.border = (
-                ft.Border(
-                    left=ft.BorderSide(8, self.config.colors['text']),
-                    top=ft.BorderSide(1, self.config.colors['text']),
-                    right=ft.BorderSide(1, self.config.colors['text']),
-                    bottom=ft.BorderSide(1, self.config.colors['text']),
-                )
-                if event.data
-                else ft.Border.all(1, self.config.colors['border'])
-            )
-            title.color = (
-                self.config.colors['text']
-                if event.data
-                else self.config.colors['gold']
-            )
-            card.update()
+    def _compose_table_header(self) -> ft.Container:
+        c = self.config
 
-        card.on_hover = handle_hover
+        def label(value: str) -> ft.Text:
+            return ui.ui_text(c, value, size=12, color=c.colors['faint'])
+
         return ft.Container(
             content=ft.Row(
-                controls=[
-                    card,
-                    ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
-                        tooltip='Excluir compilação',
-                        icon_color=ft.Colors.RED_400,
-                        on_click=lambda event, current_id=compilation['id']: (
-                            self._run_click_action(
-                                event,
-                                lambda: self._delete_compilation(current_id),
-                            )
-                        ),
-                    ),
+                [
+                    ft.Container(label('Projeto'), expand=True),
+                    self._cell(label('Obras'), 'works'),
+                    self._cell(label('Fragmentos'), 'fragments'),
+                    self._cell(label('Ideias'), 'ideas'),
+                    self._cell(label('Criada'), 'created'),
+                    self._cell(label('Atualizada'), 'updated'),
                 ],
+                spacing=s(12),
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=self.config.ui['modal_gap'],
             ),
+            height=s(34),
+            padding=ft.Padding.symmetric(horizontal=s(16)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, c.colors['border'])),
         )
 
-    def _render_cards(self) -> None:
-        if self.root is None:
+    def _compose_row(self, compilation: CompilationRecord, last: bool) -> ft.Container:
+        c = self.config
+        name_column: list[ft.Control] = [ui.ui_text(c, compilation['name'], size=13, weight=ui.W600)]
+        if compilation['description']:
+            name_column.append(ui.ui_text(c, compilation['description'], size=12, color=c.colors['faint']))
+        number = lambda value: ui.ui_text(c, str(value), size=13, tabular=True)  # noqa: E731
+        date = lambda value: ui.ui_text(c, fmt_date(value), size=13, color=c.colors['faint'], tabular=True)  # noqa: E731
+        row = ui.hover_surface(
+            c,
+            ft.Row(
+                [
+                    ft.Column(name_column, spacing=s(1), expand=True, tight=True),
+                    self._cell(number(len(compilation['works'])), 'works'),
+                    self._cell(number(member_count(compilation)), 'fragments'),
+                    self._cell(number(len(compilation['sections'])), 'ideas'),
+                    self._cell(date(compilation.get('created_at')), 'created'),
+                    self._cell(date(compilation.get('updated_at') or compilation.get('created_at')), 'updated'),
+                ],
+                spacing=s(12),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            on_click=lambda _e, cid=compilation['id']: self._open(cid),
+            padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(10)),
+            radius=0,
+        )
+        row.data = compilation['id']
+        return ft.Container(row, border=None if last else ft.Border.only(bottom=ft.BorderSide(1, self.config.colors['border'])), data=compilation['id'])
+
+    def _render_table(self) -> None:
+        if self.table_host is None:
             return
-        cards: list[ft.Control] = []
-        if self.creating:
-            cards.append(self._compose_create_card())
-        visible_compilations = self._filtered_compilations()
-        cards.extend(
-            self._compose_compilation_card(compilation)
-            for compilation in visible_compilations
-        )
-        if not cards:
-            message = (
-                'Nenhuma compilação corresponde à busca.'
-                if self.compilations
-                else (
-                    'Ainda não há compilações. Crie uma para começar '
-                    'a organizar suas obras e fragmentos.'
-                )
+        c = self.config
+        visible = self._filtered_compilations()
+        self.rows = [self._compose_row(item, index == len(visible) - 1) for index, item in enumerate(visible)]
+        if self.count_text is not None:
+            self.count_text.value = (
+                f'{len(visible)} de {len(self.compilations)}'
+                if len(visible) != len(self.compilations)
+                else str(len(self.compilations))
             )
-            cards.append(
-                ft.Text(
-                    value=message,
-                    color=self.config.colors['muted'],
-                    size=self.config.font_sizes[
-                        'montserrat_small'
-                    ],
-                    font_family=self.config.font_families['montserrat'],
-                )
+        if not self.compilations:
+            self.table_host.content = ui.empty_state(
+                c,
+                'folder-open',
+                'Nenhuma compilação ainda',
+                'Crie uma compilação para reunir as obras e os fragmentos de um projeto de escrita.',
+                action=ui.button(c, 'Nova compilação', on_click=lambda _e: self.open_create_dialog(), icon_name='plus', small=True),
             )
-        if self.card_list is not None:
-            self.card_list.controls = cards
+        elif not visible:
+            self.table_host.content = ui.empty_state(c, 'magnifying-glass', 'Nada encontrado', 'Nenhuma compilação corresponde à busca.')
+        else:
+            self.table_host.content = ui.card(c, [self._compose_table_header(), *self.rows])
 
     def _compose_header(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                value='Compilações',
-                                weight=self.config.font_weights[
-                                    'cormorant_semibold'
-                                ],
-                                color=self.config.colors['text'],
-                                font_family=self.config.font_families[
-                                    'cormorant'
-                                ],
-                                size=self.config.font_sizes['cormorant_big'],
-                            ),
-                            ft.Text(
-                                value=(
-                                    'Compilações são seus projetos de escrita,'
-                                    ' com obras e fragmentos relacionados'
-                                ),
-                                weight=self.config.font_weights[
-                                    'montserrat_normal'
-                                ],
-                                color=self.config.colors['muted'],
-                                font_family=self.config.font_families[
-                                    'montserrat'
-                                ],
-                                size=self.config.font_sizes[
-                                    'montserrat_small'
-                                ],
-                            ),
-                        ],
-                        spacing=2,
-                    ),
-                    ft.FilledButton(
-                        content=ft.Text(
-                            '+ Nova compilação',
-                            font_family=self.config.font_families[
-                                'montserrat'
-                            ],
-                            weight=self.config.font_weights[
-                                'montserrat_normal'
-                            ],
-                            size=self.config.font_sizes['montserrat_medium'],
-                            color=self.config.colors['bg'],
-                        ),
-                        on_click=self._toggle_create,
-                        bgcolor=self.config.colors['gold'],
-                        style=ft.ButtonStyle(
-                            text_style=button_text_style(
-                                self.config,
-                                size='montserrat_medium',
-                                weight='montserrat_normal',
-                            ),
-                        ),
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.only(
-                left=self.config.ui['header_horizontal_padding'],
-                right=self.config.ui['header_horizontal_padding'],
-                top=self.config.ui['header_top_padding'],
-                bottom=self.config.ui['header_bottom_padding'],
-            ),
+        c = self.config
+        self.new_button = ui.button(c, 'Nova compilação', on_click=lambda _e: self.open_create_dialog(), icon_name='plus', variant='primary')
+        return ui.page_header(
+            c,
+            'Compilações',
+            'Projetos de escrita, com as obras e os fragmentos de cada um.',
+            actions=[self.new_button],
         )
 
-    def compose(self) -> ft.Container:
-        self.card_list = ft.Column(
-            spacing=self.config.ui['grid_gap'],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
+    def compose(self, open_create: bool = False) -> ft.Container:
+        c = self.config
+        self.count_text = ui.ui_text(c, '', size=12, color=c.colors['faint'], tabular=True)
+        self.table_host = ft.Container()
         self.root = ft.Container(
             content=ft.Column(
-                controls=[
+                [
                     self._compose_header(),
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Column(
-                                    controls=[
-                                        self.compilation_search,
-                                        self.compilation_matches,
-                                    ],
-                                    spacing=2,
-                                    tight=True,
-                                    horizontal_alignment=(
-                                        ft.CrossAxisAlignment.STRETCH
-                                    ),
-                                ),
-                                self.card_list,
-                            ],
-                            spacing=self.config.ui['modal_gap'],
-                            expand=True,
-                            horizontal_alignment=(
-                                ft.CrossAxisAlignment.STRETCH
-                            ),
-                        ),
-                        border=ft.Border.only(
-                            top=ft.BorderSide(
-                                1,
-                                self.config.colors['border'],
-                            )
-                        ),
-                        padding=self.config.ui['content_padding'],
+                    ui.toolbar(c, [self.compilation_search], trailing=[self.count_text]),
+                    ft.Column(
+                        [ft.Container(self.table_host, padding=ft.Padding.only(left=s(32), right=s(32), bottom=s(48)))],
+                        scroll=ft.ScrollMode.AUTO,
                         expand=True,
-                        alignment=ft.Alignment.TOP_LEFT,
-                        bgcolor=self.config.colors['bg'],
                     ),
                 ],
-                spacing=self.config.ui['modal_gap'],
+                spacing=0,
                 expand=True,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
             expand=True,
-            padding=ft.Padding.only(
-                top=self.config.ui['content_top_padding'],
-            ),
-            bgcolor=self.config.colors['surface'],
+            bgcolor=c.colors['bg'],
         )
-        self._render_cards()
+        self._render_table()
+        if open_create:
+            self.open_create_dialog()
         return self.root

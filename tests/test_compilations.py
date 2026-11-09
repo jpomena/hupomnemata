@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 import flet as ft
@@ -617,7 +618,7 @@ def test_creating_compilation_fragment_links_it_to_project(
         })
 
 
-def test_compilation_search_and_hub_composition():
+def _view_config(colors=None):
     from src.configs.settings import (
         COLORS_LIGHT,
         FONT_FAMILIES,
@@ -630,10 +631,9 @@ def test_compilation_search_and_hub_composition():
         UI,
     )
     from src.utils.types import ViewConfig
-    from src.views.compilations import CompilationsComposer
 
-    config = ViewConfig(
-        colors=COLORS_LIGHT,
+    return ViewConfig(
+        colors=colors or COLORS_LIGHT,
         page_fonts=PAGE_FONTS,
         font_families=FONT_FAMILIES,
         font_sizes=FONT_SIZES,
@@ -644,10 +644,54 @@ def test_compilation_search_and_hub_composition():
         core_menus={},
         main_view_cards=MAIN_VIEW_CARDS,
     )
-    compilation: CompilationRecord = {
+
+
+def _children(control):
+    for attr in ('content', 'controls', 'actions', 'title', 'items'):
+        value = getattr(control, attr, None)
+        if isinstance(value, list):
+            yield from (child for child in value if isinstance(child, ft.Control))
+        elif isinstance(value, ft.Control):
+            yield value
+
+
+def _find_all(control, predicate):
+    found = []
+    stack = [control]
+    while stack:
+        current = stack.pop()
+        if predicate(current):
+            found.append(current)
+        stack.extend(reversed(list(_children(current))))
+    return found
+
+
+def _texts(control) -> list[str]:
+    return [
+        text.value
+        for text in _find_all(control, lambda item: isinstance(item, ft.Text))
+        if isinstance(text.value, str) and text.value
+    ]
+
+
+def _button(control, label):
+    """Botão do kit (Container com ``data['label']``) pelo rótulo."""
+    return next(
+        item
+        for item in _find_all(control, lambda c: isinstance(getattr(c, 'data', None), dict) and 'label' in c.data)
+        if item.data['label'].value == label
+    )
+
+
+def _menus(control):
+    return _find_all(control, lambda item: isinstance(item, ft.PopupMenuButton))
+
+
+def _sample_compilation() -> CompilationRecord:
+    return {
         'id': 1,
         'name': 'Tese',
-        'description': None,
+        'description': 'Pesquisa principal',
         'sections': [{
             'id': 30,
             'title': 'Argumento',
@@ -659,6 +703,7 @@ def test_compilation_search_and_hub_composition():
                 'id': 10,
                 'title': 'Obra existente',
                 'position': 0,
+                'authors': 'Ana Autora',
                 'fragments': [{
                     'id': 20,
                     'fragment_type': 'quote',
@@ -711,302 +756,440 @@ def test_compilation_search_and_hub_composition():
             },
         ],
     }
-    dialogs = []
-    page = SimpleNamespace(
-        update=lambda: None,
-        show_dialog=dialogs.append,
-        pop_dialog=lambda: None,
-    )
-    membership_changes = []
-    copied_cadernos = []
-    note_changes = []
-    assigned_sections = []
-    created_sections = []
 
-    def assign_section(
-        _compilation_id: int,
-        fragment_id: int,
-        section_id: int | None,
-    ) -> bool:
-        assigned_sections.append((fragment_id, section_id))
-        return True
 
-    def create_section(
-        compilation_id: int,
-        title: str,
-        central_idea: str | None,
-    ) -> int:
-        created_sections.append((compilation_id, title, central_idea))
-        return 40
+class _Recorder:
+    """Callbacks falsos que registram cada chamada."""
 
-    def set_fragment_membership(
-        compilation_id: int,
-        fragment_id: int,
-        selected: bool,
-    ) -> bool:
-        membership_changes.append((compilation_id, fragment_id, selected))
-        return True
+    def __init__(self, compilation: CompilationRecord) -> None:
+        self.compilation = compilation
+        self.calls: list[tuple] = []
+        self.copied: list[str] = []
+        self.navigated: list[str] = []
+        self.dialogs: list = []
+        self.next_section_id = 40
+        self.page = SimpleNamespace(
+            update=lambda: None,
+            show_dialog=self.dialogs.append,
+            pop_dialog=lambda: None,
+        )
 
-    async def copy_caderno(text: str) -> None:
-        copied_cadernos.append(text)
+    def record(self, name, result=True):
+        def callback(*args):
+            self.calls.append((name, *args))
+            return result
+        return callback
 
-    def save_fragment_note(
-        _compilation_id: int,
-        fragment_id: int,
-        note: str | None,
-    ) -> bool:
-        note_changes.append((fragment_id, note))
-        return True
+    def create_section(self, compilation_id, title, idea):
+        self.calls.append(('create_section', compilation_id, title, idea))
+        section_id = self.next_section_id
+        self.next_section_id += 1
+        return section_id
 
-    composer = CompilationsComposer(
-        page=page,
-        config=config,
-        compilations=[compilation],
-        search_works=lambda _query: [
-            (10, 'Obra existente'),
-            (11, 'Obra nova'),
-        ],
-        refresh_compilations=lambda: [compilation],
-        on_create=lambda _payload: None,
-        on_update=lambda _id, _payload: True,
-        on_delete=lambda _id: True,
-        on_add_work=lambda _compilation_id, _work_id: True,
-        on_remove_work=lambda _compilation_id, _work_id: True,
-        on_reorder_works=lambda _compilation_id, _ids: True,
-        on_fragment_membership=set_fragment_membership,
-        on_fragment_note=save_fragment_note,
-        on_create_section=create_section,
-        on_update_section=lambda _id, _section, _title, _idea: True,
-        on_delete_section=lambda _id, _section: True,
-        on_reorder_sections=lambda _id, _sections: True,
-        on_assign_fragment_to_section=assign_section,
-        on_reorder_section_fragments=lambda _id, _section, _fragments: True,
-        on_copy_caderno=copy_caderno,
-        on_create_work=lambda _compilation_id: None,
-        on_edit_work=lambda _compilation_id, _work_id: None,
-        on_create_fragment=lambda _compilation_id, _work_id: None,
-        on_edit_fragment=lambda _compilation_id, _fragment: None,
-    )
+    async def copy(self, text):
+        self.copied.append(text)
 
-    for field in (
-        composer.compilation_search,
-        composer.new_name,
-        composer.new_description,
-    ):
-        assert field.color == COLORS_LIGHT['text']
-        assert field.text_style.color == COLORS_LIGHT['text']
-        assert field.hint_style.color == COLORS_LIGHT['muted']
-        assert field.label_style.color == COLORS_LIGHT['muted']
-        assert field.bgcolor == COLORS_LIGHT['surface']
-        assert field.border_color == COLORS_LIGHT['border']
-        assert field.focused_border_color == COLORS_LIGHT['gold']
+    def named(self, name):
+        return [call[1:] for call in self.calls if call[0] == name]
 
-    composer.compose()
-    composer._search_compilations(SimpleNamespace(
-        control=SimpleNamespace(value='tese')
-    ))
+    def composer(self, config=None, compilations=None):
+        from src.utils.types import ReferencePart, TextStyle, ViewReference
+        from src.views.compilations import CompilationsComposer
+
+        def references(ids):
+            return {
+                work_id: ViewReference(parts=[
+                    ReferencePart('AUTORA, Ana. '),
+                    ReferencePart('Obra existente', TextStyle.BOLD),
+                    ReferencePart('. São Paulo: Editora, 2024.'),
+                ])
+                for work_id in ids
+                if work_id == 10
+            }
+
+        return CompilationsComposer(
+            page=self.page,
+            config=config or _view_config(),
+            compilations=compilations if compilations is not None else [self.compilation],
+            search_works=lambda _query: [(10, 'Obra existente'), (11, 'Obra nova')],
+            refresh_compilations=lambda: [self.compilation],
+            on_create=self.record('create', 7),
+            on_update=self.record('update'),
+            on_delete=self.record('delete'),
+            on_add_work=self.record('add_work'),
+            on_remove_work=self.record('remove_work'),
+            on_reorder_works=self.record('reorder_works'),
+            on_fragment_membership=self.record('membership'),
+            on_fragment_note=self.record('note'),
+            on_create_section=self.create_section,
+            on_update_section=self.record('update_section'),
+            on_delete_section=self.record('delete_section'),
+            on_reorder_sections=self.record('reorder_sections'),
+            on_assign_fragment_to_section=self.record('assign'),
+            on_reorder_section_fragments=self.record('reorder_fragments'),
+            on_copy_caderno=self.copy,
+            on_create_work=self.record('create_work', None),
+            on_edit_work=self.record('edit_work', None),
+            on_create_fragment=self.record('create_fragment', None),
+            on_edit_fragment=self.record('edit_fragment', None),
+            on_navigate=self.navigated.append,
+            on_open_work=self.record('open_work', None),
+            work_references=references,
+        )
+
+
+def test_compilations_list_page_search_create_and_navigation():
+    from src.configs.settings import COLORS_LIGHT
+
+    compilation = _sample_compilation()
+    compilation['created_at'] = datetime(2026, 11, 2, 15, 0)
+    other = {**_sample_compilation(), 'id': 2, 'name': 'Artigo', 'description': None, 'sections': [], 'works': []}
+    recorder = _Recorder(compilation)
+    composer = recorder.composer(compilations=[compilation, other])
+
+    root = composer.compose()
+    texts = _texts(root)
+    assert 'Compilações' in texts
+    for column in ('Projeto', 'Obras', 'Fragmentos', 'Ideias', 'Criada', 'Atualizada'):
+        assert column in texts
+    assert len(composer.rows) == 2
+    first_row = _texts(composer.rows[0])
+    assert first_row[:2] == ['Tese', 'Pesquisa principal']
+    assert first_row[2:5] == ['2', '2', '1']
+    assert first_row[5].endswith('nov 2026')
+    assert composer.compilation_search.border_color == COLORS_LIGHT['border_strong']
+    assert composer.compilation_search.focused_border_color == COLORS_LIGHT['gold']
+
+    composer._search_compilations(SimpleNamespace(control=SimpleNamespace(value='tes')))
     assert composer._filtered_compilations() == [compilation]
-    assert composer.compilation_matches.visible
-    match_card = composer.compilation_matches.controls[0]
-    assert match_card.content.controls[0].value == (
-        'Tese'
-    )
+    assert len(composer.rows) == 1
+    assert composer.count_text.value == '1 de 2'
+    composer._search_compilations(SimpleNamespace(control=SimpleNamespace(value='nada disso')))
+    assert composer.rows == []
+    assert 'Nada encontrado' in _texts(composer.table_host)
 
-    composer._open_hub(compilation['id'])
-    assert composer.active_hub is not None
-    assert composer.active_hub.dialog.modal is True
+    composer._search_compilations(SimpleNamespace(control=SimpleNamespace(value='')))
+    composer.rows[0].content.on_click(None)
+    assert recorder.navigated == ['compilacao:1']
+
+    composer.new_button.on_click(None)
+    create_dialog = recorder.dialogs[-1]
+    assert create_dialog.modal is True
+    assert _texts(create_dialog.title)[0] == 'Nova compilação'
+    composer._create()
+    assert recorder.named('create') == []
+    assert composer.new_name.error_text
+    composer.new_name.value = '  Livro  '
+    composer.new_description.value = 'Sobre o livro'
+    _button(create_dialog, 'Criar compilação').on_click(None)
+    assert recorder.named('create') == [({'name': 'Livro', 'description': 'Sobre o livro'},)]
+    assert recorder.navigated[-1] == 'compilacao:7'
+
+    dialogs_before = len(recorder.dialogs)
+    recorder.composer().compose(open_create=True)
+    assert len(recorder.dialogs) == dialogs_before + 1
+
+    empty = recorder.composer(compilations=[])
+    assert 'Nenhuma compilação ainda' in _texts(empty.compose())
+
+
+def test_compilation_page_header_tabs_and_caderno():
+    compilation = _sample_compilation()
     compilation['sections'].append({
         'id': 31,
         'title': 'Conclusão',
         'central_idea': None,
         'position': 1,
     })
-    hub_content = composer.active_hub._compose_content()
-    tabs = hub_content.content.controls[2]
-    assert [tab.label for tab in tabs.content.controls[0].tabs] == [
-        'Visão geral',
-        'Obras e fragmentos',
-        'Caderno de trabalho',
-    ]
-    tab_bar = tabs.content.controls[0]
-    for style in (
-        tab_bar.label_text_style,
-        tab_bar.unselected_label_text_style,
-    ):
-        assert style.font_family == FONT_FAMILIES['cormorant']
-        assert style.size == FONT_SIZES['cormorant_small']
-        assert style.weight == FONT_WEIGHTS['cormorant_semibold']
-    hub_heading = hub_content.content.controls[0].controls[0].controls
-    assert hub_heading[0].size == FONT_SIZES['cormorant_large']
-    assert hub_heading[1].size == FONT_SIZES['montserrat_large']
-    assert (
-        tab_bar.label_text_style.size
-        <= min(hub_heading[0].size, hub_heading[1].size)
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+
+    page_control = composer.open_compilation_page(compilation['id'])
+    hub = composer.active_hub
+    assert composer.open_compilation_page(999) is None
+    composer.active_hub = hub
+    assert isinstance(page_control, ft.Container)
+    assert not _find_all(page_control, lambda item: isinstance(item, ft.AlertDialog))
+    assert hub.selected_tab == 'caderno'
+
+    header_texts = _texts(hub._compose_header())
+    assert header_texts[:2] == ['Tese', 'Pesquisa principal']
+    for badge in ('2 obras', '2 fragmentos', '2 ideias'):
+        assert badge in header_texts
+    assert hub.copy_button.data['label'].value == 'Copiar esqueleto'
+    assert hub.copy_button.on_click is not None
+    from src.views.compilation_hub.common import menu_labels
+    assert menu_labels(hub.header_menu) == ['Editar detalhes', 'Excluir compilação']
+
+    tab_texts = _texts(hub.tab_bar)
+    assert tab_texts == ['Visão geral', 'Obras e fragmentos', '2', 'Caderno de trabalho', '2']
+
+    assert [item.data for item in hub.outline_items] == ['Argumento', 'Conclusão']
+    assert hub.active_section_id == 30
+    assert hub.outline_items[0].bgcolor == hub.config.colors['selected']
+    assert _texts(hub.queue_item)[-2:] == ['A organizar', '1']
+
+    first_idea, second_idea, queue = hub.writing_blocks
+    first_texts = _texts(first_idea)
+    assert first_texts[:2] == ['1', 'Argumento']
+    assert 'Ideia central' in first_texts and 'Tese a sustentar.' in first_texts
+    assert '“Trecho destacado.”' in first_texts
+    assert '(Autor, 2024, p. 12)' in first_texts
+    assert 'Preparar argumento.' in first_texts
+    assert 'Editar nota' in first_texts
+    second_texts = _texts(second_idea)
+    assert 'Nenhum fragmento nesta ideia' in second_texts
+    _button(second_idea, 'Escolher fragmentos').on_click(None)
+    assert hub.selected_tab == 'obras'
+    hub._select_tab('caderno')
+    assert 'Sem nota de articulação' in _texts(queue)
+    assert 'Adicionar nota' in _texts(queue)
+
+    hub._focus_idea(31)
+    assert hub.active_section_id == 31
+    hub._focus_idea('queue')
+    assert hub.active_section_id == 'queue'
+
+    rail_texts = _texts(hub._compose_rail())
+    assert 'Copiar esqueleto com referências' in rail_texts
+    assert 'Referências' in rail_texts and '1.' in rail_texts
+    assert 'Obras do projeto' in rail_texts
+    assert 'Outra obra' in rail_texts and '0 fragmentos' in rail_texts
+    reference = next(
+        text for text in _find_all(hub._compose_rail(), lambda item: isinstance(item, ft.Text) and item.spans)
+    )
+    assert ''.join(span.text for span in reference.spans).startswith('AUTORA, Ana. Obra existente')
+
+    asyncio.run(hub.copy_button.on_click(SimpleNamespace()))
+    skeleton = recorder.copied[-1]
+    assert skeleton.startswith('Tese\n\n## Argumento')
+    assert 'Tese a sustentar.' in skeleton
+    assert '## Conclusão' in skeleton
+    assert 'Citação: Trecho destacado.' in skeleton
+    assert 'Outro trecho selecionado.' in skeleton
+    assert '(Autor, 2024, p. 12)' in skeleton
+    assert 'Nota de articulação: Preparar argumento.' in skeleton
+    assert '## A organizar' in skeleton
+    assert '## Referências' not in skeleton
+    asyncio.run(hub.rail_copy_button.on_click(SimpleNamespace()))
+    with_references = recorder.copied[-1]
+    assert with_references.startswith(skeleton)
+    assert with_references.endswith(
+        '## Referências\n\n1. AUTORA, Ana. Obra existente. São Paulo: Editora, 2024.'
     )
 
+
+def test_compilation_page_section_and_fragment_actions():
+    from src.views.compilation_hub.common import menu_labels, run_menu_item
+
+    compilation = _sample_compilation()
+    compilation['sections'].append({
+        'id': 31,
+        'title': 'Conclusão',
+        'central_idea': None,
+        'position': 1,
+    })
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
     hub = composer.active_hub
-    assert hub.dialog.bgcolor == COLORS_LIGHT['surface']
-    assert hub_content.bgcolor == COLORS_LIGHT['surface']
-    button_size = FONT_SIZES['montserrat_medium']
-    button_weight = FONT_WEIGHTS['montserrat_normal']
-    modal_close_text = hub.dialog.actions[0].content
-    assert modal_close_text.font_family == FONT_FAMILIES['montserrat']
-    assert modal_close_text.size == button_size
-    assert modal_close_text.weight == button_weight
-    assert hub.dialog.actions[0].style.text_style.font_family == (
-        FONT_FAMILIES['montserrat']
+
+    first_idea = hub.writing_blocks[0]
+    section_menu, fragment_menu = _menus(first_idea)
+    assert menu_labels(section_menu) == ['Mover para baixo', 'Renomear ou editar', 'Remover ideia']
+    run_menu_item(section_menu, 'Mover para baixo')
+    assert recorder.named('reorder_sections') == [(1, [31, 30])]
+
+    edit_dialog = hub._prompt_edit_section(compilation['sections'][0])
+    assert edit_dialog.data['title'].value == 'Argumento'
+    edit_dialog.data['title'].value = 'Argumento revisto'
+    edit_dialog.data['idea'].value = '  '
+    edit_dialog.data['confirm']()
+    assert recorder.named('update_section') == [(1, 30, 'Argumento revisto', None)]
+
+    new_dialog = hub._prompt_new_section()
+    new_dialog.data['confirm']()
+    assert recorder.named('create_section') == []
+    new_dialog.data['title'].value = 'Nova ideia'
+    new_dialog.data['idea'].value = 'Papel da ideia'
+    new_dialog.data['confirm']()
+    assert recorder.named('create_section') == [(1, 'Nova ideia', 'Papel da ideia')]
+
+    labels = menu_labels(fragment_menu)
+    assert 'Mover para “Conclusão”' in labels
+    assert 'Devolver para A organizar' in labels
+    assert labels[-1] == 'Retirar do caderno'
+    run_menu_item(fragment_menu, 'Mover para “Conclusão”')
+    assert recorder.named('assign')[-1] == (1, 20, 31)
+    run_menu_item(fragment_menu, 'Devolver para A organizar')
+    assert recorder.named('assign')[-1] == (1, 20, None)
+    run_menu_item(fragment_menu, 'Editar fragmento')
+    assert recorder.named('edit_fragment')[-1][0] == 1
+    run_menu_item(fragment_menu, 'Retirar do caderno')
+    assert recorder.named('membership')[-1] == (1, 20, False)
+    undo_toast = recorder.dialogs[-1]
+    assert isinstance(undo_toast, ft.SnackBar)
+    compilation['works'][0]['fragments'][0]['is_member'] = False
+    undo_toast.action.on_click(None)
+    compilation['works'][0]['fragments'][0]['is_member'] = True
+    assert recorder.named('membership')[-1] == (1, 20, True)
+    assert recorder.named('assign')[-1] == (1, 20, 30)
+
+    hub._move_section_fragment(30, 0, 1)
+    assert recorder.named('reorder_fragments') == []
+    compilation['works'][0]['fragments'][1]['section_id'] = 30
+    hub._move_section_fragment(30, 0, 1)
+    assert recorder.named('reorder_fragments') == [(1, 30, [22, 20])]
+    compilation['works'][0]['fragments'][1]['section_id'] = None
+
+    hub._delete_section(30)
+    assert recorder.named('delete_section') == [(1, 30)]
+    delete_toast = recorder.dialogs[-1]
+    assert 'Argumento' in _texts(delete_toast.content)[1]
+    sections_before = list(recorder.named('create_section'))
+    delete_toast.action.on_click(None)
+    restored = recorder.named('create_section')[len(sections_before):]
+    assert restored == [(1, 'Argumento', 'Tese a sustentar.')]
+    restored_id = recorder.next_section_id - 1
+    assert recorder.named('assign')[-1] == (1, 20, restored_id)
+
+
+def test_compilation_page_works_tab_membership_and_destination():
+    from src.views.compilation_hub.common import menu_labels, run_menu_item
+
+    compilation = _sample_compilation()
+    compilation['sections'].append({
+        'id': 31,
+        'title': 'Conclusão',
+        'central_idea': None,
+        'position': 1,
+    })
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    hub._select_tab('obras')
+
+    assert hub.create_work_button.data['label'].value == 'Criar obra'
+    hub.create_work_button.on_click(None)
+    assert recorder.named('create_work') == [(1,)]
+
+    work_card = hub._compose_work(0)
+    work_texts = _texts(work_card)
+    assert work_texts[:2] == ['Obra existente', 'Ana Autora · 3 fragmentos']
+    assert 'Sem autoria · 0 fragmentos' in _texts(hub._compose_work(1))
+    _button(work_card, 'Fragmento').on_click(None)
+    assert recorder.named('create_fragment') == [(1, 10)]
+    work_menu = _menus(work_card)[0]
+    assert menu_labels(work_menu) == ['Mover para baixo', 'Editar obra', 'Abrir no Acervo', 'Retirar do projeto']
+    run_menu_item(work_menu, 'Mover para baixo')
+    assert recorder.named('reorder_works') == [(1, [12, 10])]
+    run_menu_item(work_menu, 'Editar obra')
+    assert recorder.named('edit_work') == [(1, 10)]
+    run_menu_item(work_menu, 'Retirar do projeto')
+    assert recorder.named('remove_work') == []
+    recorder.dialogs[-1].data['confirm']()
+    assert recorder.named('remove_work') == [(1, 10)]
+
+    checkboxes = _find_all(work_card, lambda item: isinstance(item, ft.Checkbox))
+    selectors = _find_all(work_card, lambda item: isinstance(item, ft.Dropdown))
+    assert [box.value for box in checkboxes] == [True, True, False]
+    assert [selector.value for selector in selectors] == ['30', 'unassigned', 'unassigned']
+    assert [selector.disabled for selector in selectors] == [False, False, True]
+    assert [option.key for option in selectors[0].options] == ['unassigned', '30', '31', 'create_section']
+    assert all(
+        option.content.color == hub.config.colors['text']
+        for option in selectors[0].options
     )
-    assert hub.dialog.actions[0].style.text_style.size == button_size
-    assert hub.dialog.actions[0].style.text_style.weight == button_weight
+    selectors[0].on_select(SimpleNamespace(control=SimpleNamespace(value='31')))
+    assert recorder.named('assign') == [(1, 20, 31)]
+
+    checkboxes[2].on_change(SimpleNamespace(control=SimpleNamespace(value=True)))
+    assert recorder.named('membership') == [(1, 21, True)]
+    checkboxes[1].on_change(SimpleNamespace(control=SimpleNamespace(value=False)))
+    assert recorder.named('membership')[-1] == (1, 22, False)
+
+    hub._set_fragment_destination(21, 'create_section')
+    section_dialog = recorder.dialogs[-1]
+    section_dialog.data['title'].value = 'Nova ideia'
+    section_dialog.data['idea'].value = 'Argumento novo'
+    section_dialog.data['confirm']()
+    assert recorder.named('create_section') == [(1, 'Nova ideia', 'Argumento novo')]
+    assert recorder.named('membership')[-1] == (1, 21, True)
+    assert recorder.named('assign')[-1] == (1, 21, 40)
+
+    hub._search_work_matches(SimpleNamespace(control=SimpleNamespace(value='o')))
+    assert hub.work_matches.visible is False
+    hub._search_work_matches(SimpleNamespace(control=SimpleNamespace(value='obra')))
+    assert hub.work_matches.visible is True
+    assert hub.work_matches_box.visible is True
+    assert [row.data for row in hub.work_matches.controls] == ['Obra nova']
+    hub.work_matches.controls[0].on_click(None)
+    assert recorder.named('add_work') == [(1, 11)]
+    assert hub.work_matches.visible is False
+
+
+def test_compilation_page_overview_details_and_delete():
+    from src.views.compilation_hub.common import run_menu_item
+
+    compilation = _sample_compilation()
+    compilation['created_at'] = datetime(2026, 3, 4, 15, 0)
+    compilation['updated_at'] = datetime(2026, 11, 5, 15, 0)
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    hub._select_tab('visao')
 
     overview = hub._compose_overview()
-    save_button = overview.controls[-1].controls[0]
-    save_text = save_button.content
-    assert save_text.font_family == FONT_FAMILIES['montserrat']
-    assert save_text.size == button_size
-    assert save_text.weight == button_weight
-    assert save_button.style.text_style.font_family == (
-        FONT_FAMILIES['montserrat']
-    )
-    assert save_button.style.text_style.size == button_size
-    assert save_button.style.text_style.weight == button_weight
-    summary_labels = [
-        card.content.controls[1]
-        for card in overview.controls[3].controls
-    ]
-    assert all(label.size >= button_size for label in summary_labels)
+    texts = _texts(overview)
+    for label in ('Roteiro', '#', 'Ideia', 'Ideia central', 'Fragmentos', 'Detalhes', 'Nome', 'Descrição', 'Criada', 'Atualizada', 'Excluir compilação'):
+        assert label in texts
+    assert '4 mar 2026' in texts and '5 nov 2026' in texts
+    assert 'Atualizada em 5 nov 2026' in _texts(hub._compose_header())
+    assert len(hub.outline_rows) == 1
+    assert _texts(hub.outline_rows[0])[:4] == ['1', 'Argumento', 'Tese a sustentar.', '1']
+    hub.outline_rows[0].content.on_click(None)
+    assert hub.selected_tab == 'caderno'
 
-    works_view = hub._compose_works_and_fragments()
-    create_work_button = works_view.controls[0].controls[1]
-    assert len(works_view.controls[0].controls) == 2
-    caderno_view = hub._compose_caderno()
-    ideas_view = caderno_view.content
-    copy_caderno_button = ideas_view.controls[0].controls[1]
-    assert copy_caderno_button.content.value == 'Copiar esqueleto'
-    assert not copy_caderno_button.disabled
-    assert ideas_view.controls[0].controls[2].content.value == (
-        'Editar caderno'
-    )
-    unassigned_group = ideas_view.controls[1]
-    assert unassigned_group.controls[0].value == 'A organizar (1)'
-    first_idea_card = ideas_view.controls[2]
-    first_idea_controls = first_idea_card.content.controls
-    assert first_idea_controls[0].controls[0].value == 'Argumento'
-    assert first_idea_controls[1].value == 'Tese a sustentar.'
-    assert isinstance(first_idea_controls[1], ft.Text)
-    assert isinstance(
-        first_idea_controls[2].content.controls[0].controls[0],
-        ft.Text,
-    )
-    asyncio.run(copy_caderno_button.on_click(SimpleNamespace()))
-    assert copied_cadernos[0].startswith('Tese\n\n## Argumento')
-    assert 'Tese a sustentar.' in copied_cadernos[0]
-    assert '## Conclusão' in copied_cadernos[0]
-    assert 'Citação: Trecho destacado.' in copied_cadernos[0]
-    assert 'Outro trecho selecionado.' in copied_cadernos[0]
-    assert '(Autor, 2024, p. 12)' in copied_cadernos[0]
-    assert 'Nota de articulação: Preparar argumento.' in copied_cadernos[0]
-    create_work_text = create_work_button.content
-    assert create_work_text.font_family == FONT_FAMILIES['montserrat']
-    assert create_work_text.size == button_size
-    assert create_work_text.weight == button_weight
-    assert create_work_button.style.text_style.font_family == (
-        FONT_FAMILIES['montserrat']
-    )
-    assert create_work_button.style.text_style.size == button_size
-    assert create_work_button.style.text_style.weight == button_weight
-    work_layout = hub._compose_work(0).content
-    fragments_layout = work_layout.controls[1]
-    included_group, available_group = fragments_layout.controls
-    assert included_group.controls[0].value == (
-        'Selecionados para o caderno (2)'
-    )
-    assert available_group.controls[0].value == (
-        'Materiais disponíveis (1)'
-    )
-    fragment_card = included_group.controls[1]
-    fragment_texts = (
-        fragment_card.content.controls[0].controls[0].controls
-    )
-    assert all(text.size >= button_size for text in fragment_texts[:3])
-    assignment_control = fragment_card.content.controls[1].content
-    assert assignment_control.text_style.color == COLORS_LIGHT['text']
-    assert assignment_control.text_style.size >= FONT_SIZES[
-        'montserrat_medium'
-    ]
-    assert assignment_control.bgcolor == COLORS_LIGHT['surface']
-    assert all(
-        option.content.color == COLORS_LIGHT['text']
-        and option.content.size >= FONT_SIZES['montserrat_medium']
-        for option in assignment_control.options
-    )
-    assert assignment_control.value == '30'
-    assignment_control.on_select(SimpleNamespace(
-        control=SimpleNamespace(value='31')
-    ))
-    assert assigned_sections == [(20, 31)]
-    available_card = available_group.controls[1]
-    available_destination = available_card.content.controls[1].content
-    assert available_destination.value == 'not_selected'
-    assert any(
-        option.key == 'create_section'
-        and option.content.color == COLORS_LIGHT['text']
-        for option in available_destination.options
-    )
-    available_destination.on_select(SimpleNamespace(
-        control=SimpleNamespace(value='create_section')
-    ))
-    assert len(dialogs) == 2
-    section_dialog = dialogs[-1]
-    section_dialog.content.controls[0].value = 'Nova ideia'
-    section_dialog.content.controls[1].value = 'Argumento novo'
-    section_dialog.actions[1].on_click(SimpleNamespace())
-    assert membership_changes == [
-        (compilation['id'], 21, True),
-    ]
-    assert created_sections == [
-        (compilation['id'], 'Nova ideia', 'Argumento novo')
-    ]
-    assert assigned_sections == [(20, 31), (21, 40)]
-    assert hub._fragment_count_label() == (
-        '2 de 3 fragmentos selecionados para o caderno'
-    )
-    hub._toggle_outline_edit(SimpleNamespace())
-    assert hub.editing_outline is True
-    edit_view = hub._compose_caderno().content
-    assert edit_view.controls[0].controls[2].content.value == (
-        'Concluir edição'
-    )
-    assert isinstance(
-        edit_view.controls[3].content.controls[0].controls[0],
-        ft.TextField,
-    )
-    assert isinstance(
-        edit_view.controls[3].content.controls[1],
-        ft.TextField,
-    )
-    hub._toggle_outline_edit(SimpleNamespace())
-    assert hub.editing_outline is False
+    details = hub._open_details_dialog()
+    hub.name_field.value = ' '
+    details.data['save']()
+    assert recorder.named('update') == []
+    hub.name_field.value = '  Tese revista '
+    hub.description_field.value = ''
+    details.data['save']()
+    assert recorder.named('update') == [(1, {'name': 'Tese revista', 'description': None})]
 
-    composer._search_compilations(SimpleNamespace(
-        control=SimpleNamespace(value='tese')
-    ))
-    match_controls = (
-        composer.compilation_matches.controls[0].content.controls
-    )
-    assert match_controls[0].font_family == FONT_FAMILIES['montserrat']
-    assert match_controls[0].size == button_size
-    assert match_controls[0].weight == button_weight
-    match_button = composer.compilation_matches.controls[0]
-    assert match_button.style.text_style.font_family == (
-        FONT_FAMILIES['montserrat']
-    )
-    assert match_button.style.text_style.size == button_size
-    assert match_button.style.text_style.weight == button_weight
-    header_button_text = composer._compose_header().content.controls[1].content
-    assert header_button_text.font_family == FONT_FAMILIES['montserrat']
-    assert header_button_text.size == button_size
-    assert header_button_text.weight == button_weight
+    run_menu_item(hub.header_menu, 'Excluir compilação')
+    assert recorder.named('delete') == []
+    recorder.dialogs[-1].data['confirm']()
+    assert recorder.named('delete') == [(1,)]
+    assert recorder.navigated[-1] == 'Compilações'
+    assert hub.deleted is True
+
+    composer.refresh_compilation_hub(1)
+    assert composer.rows
+
+
+def test_refresh_compilation_hub_redraws_the_open_page():
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    page_control = composer.open_compilation_page(1)
+    hub = composer.active_hub
+    previous_body = page_control.content
+    compilation['name'] = 'Tese renomeada'
+    composer.refresh_compilation_hub(1)
+    assert page_control.content is not previous_body
+    assert _texts(page_control)[0] == 'Tese renomeada'
+    assert composer.compilations[0]['name'] == 'Tese renomeada'
+    assert hub is composer.active_hub
 
 
 def test_fragment_note_preserves_on_removing_from_caderno(
@@ -1135,166 +1318,46 @@ def test_fragment_note_cleared_deletes_orphan_record(
     assert fragment['work_note'] is None
 
 
-def test_compilation_hub_fragment_note_modal_and_collapsible_card():
-    from src.configs.settings import (
-        COLORS_LIGHT,
-        FONT_FAMILIES,
-        FONT_SIZES,
-        FONT_WEIGHTS,
-        ICON_SIZES,
-        MAIN_VIEW_CARDS,
-        PAGE_FONTS,
-        TEXTS,
-        UI,
+def test_compilation_page_fragment_note_footer_and_dialog():
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    frag_with_note = compilation['works'][0]['fragments'][0]
+    frag_without_note = compilation['works'][0]['fragments'][1]
+
+    # 1. Sem nota: texto neutro e botão de adicionar
+    footer = hub._compose_fragment_note(frag_without_note)
+    assert _texts(footer)[0] == 'Sem nota de articulação'
+    add_button = _button(footer, 'Adicionar nota')
+    assert add_button.tooltip == (
+        'Nota de articulação: o texto que liga este fragmento à ideia'
     )
-    from src.utils.types import ViewConfig
-    from src.views.compilation_hub import CompilationHubComposer
+    add_button.on_click(None)
+    add_dialog = recorder.dialogs[-1]
+    assert _texts(add_dialog.title)[0] == 'Nota de articulação'
+    assert len(add_dialog.actions) == 2  # Cancelar, Salvar
+    assert add_dialog.data['delete'] is None
+    add_dialog.data['note'].value = '  Ligar ao argumento.  '
+    add_dialog.data['save']()
+    assert recorder.named('note')[-1] == (1, 22, 'Ligar ao argumento.')
 
-    config = ViewConfig(
-        colors=COLORS_LIGHT,
-        page_fonts=PAGE_FONTS,
-        font_families=FONT_FAMILIES,
-        font_sizes=FONT_SIZES,
-        icon_sizes=ICON_SIZES,
-        font_weights=FONT_WEIGHTS,
-        ui=UI,
-        texts=TEXTS,
-        core_menus={},
-        main_view_cards=MAIN_VIEW_CARDS,
-    )
-    compilation: CompilationRecord = {
-        'id': 1,
-        'name': 'Projeto UI',
-        'description': None,
-        'sections': [],
-        'works': [{
-            'id': 10,
-            'title': 'Obra de Teste',
-            'position': 0,
-            'fragments': [
-                {
-                    'id': 101,
-                    'fragment_type': 'quote',
-                    'excerpt': 'Citação sem nota.',
-                    'bib_res_id': 10,
-                    'work_title': 'Obra de Teste',
-                    'citation_author': 'Autor',
-                    'display_year': '2024',
-                    'location_type': 'Página',
-                    'location_value': '15',
-                    'is_member': True,
-                    'project_position': 0,
-                    'work_note': None,
-                    'section_id': None,
-                },
-                {
-                    'id': 102,
-                    'fragment_type': 'comment',
-                    'excerpt': 'Comentário com nota.',
-                    'bib_res_id': 10,
-                    'work_title': 'Obra de Teste',
-                    'citation_author': 'Autor',
-                    'display_year': '2024',
-                    'location_type': None,
-                    'location_value': None,
-                    'is_member': True,
-                    'project_position': 1,
-                    'work_note': 'Nota de articulação existente.',
-                    'section_id': None,
-                },
-            ],
-        }],
-    }
-    dialogs = []
-    page = SimpleNamespace(
-        update=lambda: None,
-        show_dialog=dialogs.append,
-        pop_dialog=lambda: None,
-    )
-    saved_notes = []
+    # 2. Com nota: o texto aparece no rodapé, com “Editar nota”
+    footer = hub._compose_fragment_note(frag_with_note)
+    assert _texts(footer)[0] == 'Preparar argumento.'
+    _button(footer, 'Editar nota').on_click(None)
+    modal = recorder.dialogs[-1]
+    assert len(modal.actions) == 3  # Excluir, Cancelar, Salvar
+    assert modal.data['note'].value == 'Preparar argumento.'
+    assert 'Obra existente' in _texts(modal.title)[1]
 
-    def mock_on_fragment_note(
-        cid: int,
-        fid: int,
-        note: str | None,
-    ) -> bool:
-        saved_notes.append((cid, fid, note))
-        return True
-
-    hub = CompilationHubComposer(
-        page=page,
-        config=config,
-        compilation=compilation,
-        refresh_compilations=lambda: [compilation],
-        search_works=lambda query: [],
-        on_update=lambda cid, payload: True,
-        on_add_work=lambda cid, wid: True,
-        on_remove_work=lambda cid, wid: True,
-        on_reorder_works=lambda cid, wids: True,
-        on_fragment_membership=lambda cid, fid, is_m: True,
-        on_fragment_note=mock_on_fragment_note,
-        on_create_section=lambda cid, title, idea: 1,
-        on_update_section=lambda cid, sid, title, idea: True,
-        on_delete_section=lambda cid, sid: True,
-        on_reorder_sections=lambda cid, sids: True,
-        on_assign_fragment_to_section=lambda cid, fid, sid: True,
-        on_reorder_section_fragments=lambda cid, sid, fids: True,
-        on_copy_caderno=lambda text: None,
-        on_create_work=lambda cid: None,
-        on_edit_work=lambda cid, wid: None,
-        on_create_fragment=lambda cid, wid: None,
-        on_edit_fragment=lambda cid, frag: None,
-        on_close=lambda: None,
-        on_data_changed=lambda comp: None,
-    )
-
-    frag_without_note = compilation['works'][0]['fragments'][0]
-    frag_with_note = compilation['works'][0]['fragments'][1]
-
-    # 1. Sem nota: botão de adicionar
-    control_without_note = hub._compose_fragment_note(frag_without_note)
-    assert isinstance(control_without_note, ft.Row)
-    button = control_without_note.controls[0]
-    assert isinstance(button, ft.TextButton)
-    assert button.tooltip == (
-        'Adicionar nota de articulação para esta compilação'
-    )
-
-    # 2. Com nota: card colapsável recolhido por padrão
-    control_with_note = hub._compose_fragment_note(frag_with_note)
-    assert isinstance(control_with_note, ft.Container)
-    card_column = control_with_note.content
-    assert len(card_column.controls) == 1  # apenas o header recolhido
-
-    # 3. Expandir a nota
-    hub._toggle_fragment_note_expansion(102)
-    assert 102 in hub.expanded_note_fragment_ids
-    control_expanded = hub._compose_fragment_note(frag_with_note)
-    assert len(control_expanded.content.controls) == 2
-    assert control_expanded.content.controls[1].content.value == (
-        'Nota de articulação existente.'
-    )
-
-    # 4. Recolher a nota
-    hub._toggle_fragment_note_expansion(102)
-    assert 102 not in hub.expanded_note_fragment_ids
-
-    # 5. Modal de nota para fragmento com nota
-    hub._prompt_fragment_note(frag_with_note)
-    assert len(dialogs) == 1
-    modal = dialogs[-1]
-    assert modal.title.value == 'Nota de articulação'
-    modal_actions = modal.actions
-    assert len(modal_actions) == 3  # Excluir, Cancelar, Salvar
-    delete_button = modal_actions[0]
-    save_button = modal_actions[2]
-
-    # Testar ação de exclusão
-    delete_button.on_click(SimpleNamespace())
-    assert saved_notes[-1] == (1, 102, None)
-
-    # Testar ação de salvar
-    note_textfield = modal.content.controls[2]
-    note_textfield.value = 'Nova nota salva'
-    save_button.on_click(SimpleNamespace())
-    assert saved_notes[-1] == (1, 102, 'Nova nota salva')
+    _button(modal, 'Excluir nota').on_click(None)
+    assert recorder.named('note')[-1] == (1, 20, None)
+    modal.data['note'].value = 'Nova nota salva'
+    _button(modal, 'Salvar nota').on_click(None)
+    assert recorder.named('note')[-1] == (1, 20, 'Nova nota salva')
+    modal.data['note'].value = '   '
+    modal.data['save']()
+    assert recorder.named('note')[-1] == (1, 20, None)

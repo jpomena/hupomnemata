@@ -72,6 +72,7 @@ class FragmentRepository:
                 'display_year': work.display_year if work is not None else '',
                 'location_type': fragment.location_type,
                 'location_value': fragment.location_value,
+                'created_at': fragment.created_at,
             })
         return records
 

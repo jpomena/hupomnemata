@@ -6,8 +6,23 @@ import flet as ft
 
 from src.contracts import AuthorReference, AuthorSearchResult
 from src.utils.types import ViewConfig
+from src.views import ui_kit as ui
 from src.views.work_insert_modal_fields import DropdownStyle, TextFieldStyle
-from src.views.work_insert_specs import PARENT_WORK_TYPES, WorkTypeSpec
+from src.views.work_insert_specs import (
+    MAGAZINE_PARENT_TYPES,
+    PARENT_WORK_TYPES,
+    WorkTypeSpec,
+)
+
+
+def _safe_update(control: ft.Control | None) -> None:
+    """Atualiza o controle se ele já estiver na página."""
+    if control is None:
+        return
+    try:
+        control.update()
+    except (RuntimeError, AssertionError, AttributeError):
+        pass
 
 
 class AuthorSearchMixin:
@@ -42,49 +57,102 @@ class AuthorSearchMixin:
         """Hook de estilo compartilhado com o modal completo."""
         raise NotImplementedError
 
+    def _value_changed(self, key: str) -> None:
+        """Hook: limpa o erro do campo e atualiza a prévia."""
+        raise NotImplementedError
+
+    # ── autores ────────────────────────────────────────────
+
     def _authors_control(self) -> ft.Control:
         if self.author_control is not None:
             return self.author_control
 
-        search = ft.TextField(
-            hint_text="Buscar autor",
-            prefix_icon=ft.Icons.SEARCH,
+        c = self.config
+        search = ui.input_field(
+            c,
             value=self.author_search,
+            hint="Nome e sobrenome",
+            prefix_icon="magnifying-glass",
             on_change=self._search_author_names,
-            expand=True,
-            **self._text_field_style(),
+            on_submit=self._add_author_from_search,
         )
         self.author_search_field = search
-        self.author_results = ft.Row(wrap=True, spacing=4)
-        self.author_pills = ft.Row(wrap=True, spacing=4)
+        self.author_results = ft.Row(wrap=True, spacing=ui.s(6), run_spacing=ui.s(6))
+        self.author_pills = ft.Row(wrap=True, spacing=ui.s(6), run_spacing=ui.s(6))
         search_row = ft.Row(
             controls=[
                 search,
-                ft.IconButton(
-                    icon=ft.Icons.ADD,
-                    tooltip="Adicionar novo autor",
+                ui.icon_button(
+                    c,
+                    "user-plus",
                     on_click=self._add_author_from_search,
+                    tooltip="Cadastrar novo autor com o nome digitado",
+                    boxed=True,
+                    size=34,
                 ),
             ],
-            spacing=self.config.ui["control_gap"],
-            expand=True,
+            spacing=ui.s(8),
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
         self.author_control = ft.Column(
-            controls=[
-                ft.Container(
-                    content=search_row,
-                    border_radius=self.config.ui["card_radius"],
-                    padding=4,
-                    expand=True,
-                ),
-                self.author_results,
-                self.author_pills,
-            ],
-            spacing=4,
-            expand=True,
+            controls=[search_row, self.author_results, self.author_pills],
+            spacing=ui.s(8),
+            tight=True,
         )
         self._refresh_author_search(refresh=False)
         return self.author_control
+
+    def _author_suggestion(self, result: AuthorSearchResult) -> ft.Control:
+        return ui.button(
+            self.config,
+            result["name"],
+            on_click=lambda e, result=result: self._select_author(result),
+            icon_name="plus",
+            small=True,
+            tooltip="Adicionar autor já cadastrado",
+        )
+
+    def _author_pill(self, reference: AuthorReference) -> ft.Control:
+        c = self.config
+        label = reference["name"]
+        if reference.get("corporation"):
+            label = (
+                f'{label} ({reference["acronym"]})'
+                if reference.get("acronym")
+                else label
+            )
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ui.fa_icon(
+                        "building-columns"
+                        if reference.get("corporation")
+                        else "user",
+                        size=ui.s(11),
+                        color=c.colors.get("faint", c.colors["muted"]),
+                        style="regular",
+                    ),
+                    ui.ui_text(c, label, size=13),
+                    ui.icon_button(
+                        c,
+                        "xmark",
+                        on_click=lambda e, reference=reference: (
+                            self._remove_author(reference)
+                        ),
+                        tooltip="Remover autor",
+                        size=22,
+                    ),
+                ],
+                spacing=ui.s(6),
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=ui.s(30),
+            padding=ft.Padding.only(left=ui.s(10), right=ui.s(4)),
+            bgcolor=c.colors.get("selected", c.colors["card_hover"]),
+            border=ft.Border.all(1, c.colors.get("border_strong", c.colors["border"])),
+            border_radius=ft.BorderRadius.all(ui.s(6)),
+        )
 
     def _search_author_names(self, event) -> None:
         self.author_search = event.control.value or ""
@@ -99,10 +167,7 @@ class AuthorSearchMixin:
             else []
         )
         self.author_results.controls = [
-            ft.TextButton(
-                content=result["name"],
-                on_click=lambda e, result=result: self._select_author(result),
-            )
+            self._author_suggestion(result)
             for result in results
             if not any(
                 reference["id"] == result["id"]
@@ -111,17 +176,12 @@ class AuthorSearchMixin:
         ]
         self.author_results.visible = bool(self.author_results.controls)
         self.author_pills.controls = [
-            ft.Chip(
-                label=ft.Text(reference["name"]),
-                on_delete=lambda e, reference=reference: (
-                    self._remove_author(reference)
-                ),
-            )
+            self._author_pill(reference)
             for reference in self.author_references
         ]
         self.author_pills.visible = bool(self.author_pills.controls)
         if refresh:
-            self.author_control.update()
+            _safe_update(self.author_control)
 
     def _select_author(
         self, result: AuthorSearchResult | AuthorReference | str
@@ -154,6 +214,7 @@ class AuthorSearchMixin:
         if self.author_search_field is not None:
             self.author_search_field.value = ""
         self._refresh_author_search()
+        self._value_changed("authors")
 
     def _add_author_from_search(self, event) -> None:
         name = self.author_search.strip()
@@ -165,27 +226,30 @@ class AuthorSearchMixin:
         name: str,
         jurisdiction_callback: Callable[[AuthorReference], None] | None = None,
     ) -> None:
-        acronym = ft.TextField(
-            label="Acrônimo ou sigla (opcional)",
-            visible=False,
-            **self._text_field_style(),
+        c = self.config
+        acronym = ui.input_field(c, hint="Ex.: IBGE", expand=False)
+        acronym_field = ui.form_field(
+            c, "Sigla (opcional)", acronym, expand=False
         )
+        acronym_field.visible = False
 
         selected_jurisdiction_id: int | None = None
         selected_jurisdiction_name = ""
 
-        jurisdiction = ft.TextField(
-            label="Jurisdicção",
-            hint_text="Buscar instituição / órgão responsável",
-            visible=False,
-            **self._text_field_style(),
+        jurisdiction = ui.input_field(
+            c,
+            hint="Buscar instituição ou órgão responsável",
+            prefix_icon="magnifying-glass",
         )
         jurisdiction_row = ft.Row(
             controls=[
                 jurisdiction,
-                ft.IconButton(
-                    icon=ft.Icons.ADD,
-                    tooltip="Adicionar nova jurisdição",
+                ui.icon_button(
+                    c,
+                    "plus",
+                    tooltip="Cadastrar nova jurisdição",
+                    boxed=True,
+                    size=34,
                     on_click=lambda event: (
                         self._show_new_author_dialog(
                             jurisdiction.value.strip(),
@@ -196,11 +260,18 @@ class AuthorSearchMixin:
                     ),
                 ),
             ],
-            spacing=self.config.ui["control_gap"],
-            visible=False,
-            expand=True,
+            spacing=ui.s(8),
         )
-        jurisdiction_results = ft.Column(spacing=2, visible=False)
+        jurisdiction_field = ui.form_field(
+            c,
+            "Jurisdição",
+            jurisdiction_row,
+            help_text="Ex.: Brasil, para órgãos federais.",
+            error_target=jurisdiction,
+            expand=False,
+        )
+        jurisdiction_field.visible = False
+        jurisdiction_results = ft.Column(spacing=ui.s(2), visible=False)
 
         def _bind_jurisdiction(reference: AuthorReference) -> None:
             nonlocal selected_jurisdiction_id, selected_jurisdiction_name
@@ -220,8 +291,9 @@ class AuthorSearchMixin:
                 else []
             )
             jurisdiction_results.controls = [
-                ft.TextButton(
-                    content=result["name"],
+                ui.hover_surface(
+                    c,
+                    ui.ui_text(c, result["name"], size=13),
                     on_click=lambda e, result=result: (
                         _bind_jurisdiction({
                             "name": result["name"],
@@ -232,6 +304,7 @@ class AuthorSearchMixin:
                             "jurisdiction_name": None,
                         })
                     ),
+                    padding=ft.Padding.symmetric(horizontal=ui.s(8), vertical=ui.s(6)),
                 )
                 for result in results
             ]
@@ -240,57 +313,20 @@ class AuthorSearchMixin:
 
         def change_type(event) -> None:
             is_corporation = author_type.value == "corporation"
-            acronym.visible = is_corporation
-            jurisdiction.visible = is_corporation
-            jurisdiction_row.visible = is_corporation
+            acronym_field.visible = is_corporation
+            jurisdiction_field.visible = is_corporation
             if not is_corporation:
                 jurisdiction_results.visible = False
-            acronym.update()
-            jurisdiction.update()
-            jurisdiction_row.update()
+            acronym_field.update()
+            jurisdiction_field.update()
             jurisdiction_results.update()
 
-        author_type = ft.Dropdown(
-            label="Tipo de autor",
+        author_type = ui.dropdown_field(
+            c,
+            (("person", "Pessoa"), ("corporation", "Instituição")),
             value="person",
-            options=[
-                ft.dropdown.Option(
-                    key="person",
-                    text="Pessoa Física",
-                    content=ft.Text(
-                        value="Pessoa",
-                        color=self.config.colors["text"],
-                        font_family=self.config.font_families["montserrat"],
-                        size=self.config.font_sizes["montserrat_tiny"],
-                    ),
-                ),
-                ft.dropdown.Option(
-                    key="corporation",
-                    text="Pessoa Jurídica",
-                    content=ft.Text(
-                        value="Instituição",
-                        color=self.config.colors["text"],
-                        font_family=self.config.font_families["montserrat"],
-                        size=self.config.font_sizes["montserrat_tiny"],
-                    ),
-                ),
-            ],
             on_select=change_type,
         )
-        dropdown_style = self._dropdown_style("dark")
-        author_type.border_color = dropdown_style.get("border_color")
-        author_type.focused_border_color = dropdown_style.get(
-            "focused_border_color"
-        )
-        author_type.color = dropdown_style.get("color")
-        author_type.label_style = dropdown_style.get("label_style")
-        author_type.border_radius = dropdown_style.get("border_radius")
-        author_type.content_padding = dropdown_style.get("content_padding")
-        author_type.bgcolor = dropdown_style.get("bgcolor")
-        border_width = dropdown_style.get("border_width")
-        if border_width is not None:
-            author_type.border_width = border_width
-        author_type.text_style = dropdown_style.get("text_style")
 
         jurisdiction.on_change = lambda e: refresh_jurisdiction_results()
 
@@ -324,44 +360,52 @@ class AuthorSearchMixin:
 
         dialog = ft.AlertDialog()
         dialog.modal = True
-        dialog.bgcolor = self.config.colors["surface"]
+        dialog.bgcolor = c.colors["surface"]
+        dialog.shape = ft.RoundedRectangleBorder(radius=ui.s(10))
+        dialog.title_padding = ft.Padding.only(
+            left=ui.s(24), right=ui.s(24), top=ui.s(20), bottom=ui.s(4)
+        )
+        dialog.content_padding = ft.Padding.only(
+            left=ui.s(24), right=ui.s(24), top=ui.s(12), bottom=ui.s(8)
+        )
+        dialog.actions_padding = ft.Padding.only(
+            left=ui.s(24), right=ui.s(16), top=ui.s(8), bottom=ui.s(16)
+        )
         dialog.content = ft.Container(
             content=ft.Column(
                 controls=[
-                    author_type,
-                    acronym,
-                    jurisdiction_row,
+                    ui.ui_text(
+                        c,
+                        f"Como “{name}” deve entrar na referência?",
+                        size=13,
+                        color=c.colors["muted"],
+                        max_lines=3,
+                    ),
+                    ui.form_field(c, "Tipo de autor", author_type, expand=False),
+                    acronym_field,
+                    jurisdiction_field,
                     jurisdiction_results,
                 ],
                 tight=True,
-                width=360,
-                height=200,
+                spacing=ui.s(16),
+                width=ui.s(400),
             ),
-            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            animate_size=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
         )
-        dialog.title = ft.Text(
-            "Classificar autor",
-            color=self.config.colors["text"],
-            font_family=self.config.font_families["cormorant"],
-            weight=self.config.font_weights["cormorant_bold"],
-        )
+        dialog.title = ui.ui_text(c, "Classificar autor", size=15, weight=ui.W600)
         dialog.actions = [
-            ft.TextButton(
-                content=ft.Text(
-                    "Cancelar",
-                    color=self.config.colors["text"],
-                    font_family=self.config.font_families["montserrat"],
-                ),
+            ui.button(
+                c,
+                "Cancelar",
                 on_click=lambda event: self._close_author_dialog(dialog),
+                variant="ghost",
             ),
-            ft.ElevatedButton(
-                content=ft.Text(
-                    "Adicionar",
-                    color=self.config.colors["bg"],
-                    font_family=self.config.font_families["montserrat"],
-                ),
+            ui.button(
+                c,
+                "Adicionar",
                 on_click=confirm,
-                bgcolor=self.config.colors["gold"],
+                icon_name="check",
+                variant="primary",
             ),
         ]
         self.page.show_dialog(dialog)
@@ -370,33 +414,77 @@ class AuthorSearchMixin:
         dialog.open = False
         self.page.update()
 
+    def _remove_author(self, reference: AuthorReference) -> None:
+        self.author_references.remove(reference)
+        self._refresh_author_search()
+        self._value_changed("authors")
+
+    # ── obra-pai ───────────────────────────────────────────
+
+    def _parent_is_magazine(self) -> bool:
+        return self.selected.key in MAGAZINE_PARENT_TYPES
+
     def _parent_work_control(self) -> ft.Control:
-        search = ft.TextField(
-            hint_text=(
+        c = self.config
+        magazine = self._parent_is_magazine()
+        search = ui.input_field(
+            c,
+            value=self.parent_work_search,
+            hint=(
                 "Buscar revista pelo nome"
-                if self.selected.key
-                in {'journal_article', 'periodical_collection'}
+                if magazine
                 else "Buscar obra-pai pelo título"
             ),
-            prefix_icon=ft.Icons.SEARCH,
-            value=self.parent_work_search,
+            prefix_icon="magnifying-glass",
             on_change=self._search_parent_works,
-            expand=True,
-            **self._text_field_style(),
         )
         self.parent_work_field = search
-        self.parent_work_results = ft.Column(spacing=2)
+        self.parent_work_results = ft.Column(spacing=ui.s(2), tight=True)
         self._refresh_parent_work_search(refresh=False)
         return ft.Column(
-            controls=[search, self.parent_work_results],
-            spacing=4,
-            expand=True,
+            controls=[
+                ft.Row(
+                    controls=[
+                        search,
+                        ui.icon_button(
+                            c,
+                            "plus",
+                            on_click=self._create_parent_work,
+                            tooltip="Nova revista" if magazine else "Nova obra-pai",
+                            boxed=True,
+                            size=34,
+                        ),
+                    ],
+                    spacing=ui.s(8),
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                self.parent_work_results,
+            ],
+            spacing=ui.s(4),
+            tight=True,
         )
 
     def _search_parent_works(self, event) -> None:
         self.parent_work_search = event.control.value or ""
         self.parent_work_id = None
         self._refresh_parent_work_search()
+
+    def _parent_result_row(self, work_id: int, title: str) -> ft.Control:
+        c = self.config
+        return ui.hover_surface(
+            c,
+            ft.Row(
+                [
+                    ui.fa_icon("link", size=ui.s(11), color=c.colors.get("faint", c.colors["muted"])),
+                    ui.ui_text(c, title, size=13, expand=True),
+                ],
+                spacing=ui.s(8),
+            ),
+            on_click=lambda e, work_id=work_id, title=title: (
+                self._select_parent_work(work_id, title)
+            ),
+            padding=ft.Padding.symmetric(horizontal=ui.s(8), vertical=ui.s(6)),
+        )
 
     def _refresh_parent_work_search(self, refresh: bool = True) -> None:
         if self.parent_work_results is None:
@@ -409,21 +497,17 @@ class AuthorSearchMixin:
             if (
                 self.parent_work_search.strip()
                 and self.search_works is not None
+                and self.parent_work_id is None
             )
             else []
         )
         self.parent_work_results.controls = [
-            ft.TextButton(
-                content=title,
-                on_click=lambda e, work_id=work_id, title=title: (
-                    self._select_parent_work(work_id, title)
-                ),
-            )
+            self._parent_result_row(work_id, title)
             for work_id, title in results
         ]
         self.parent_work_results.visible = bool(results)
         if refresh:
-            self.parent_work_results.update()
+            _safe_update(self.parent_work_results)
 
     def _select_parent_work(self, work_id: int, title: str) -> None:
         self.parent_work_id = work_id
@@ -433,10 +517,9 @@ class AuthorSearchMixin:
         if self.parent_work_results is not None:
             self.parent_work_results.controls = []
             self.parent_work_results.visible = False
-        if self.parent_work_field is not None:
-            self.parent_work_field.update()
-        if self.parent_work_results is not None:
-            self.parent_work_results.update()
+        _safe_update(self.parent_work_field)
+        _safe_update(self.parent_work_results)
+        self._value_changed("__parent__")
 
     def _create_parent_work(self, event) -> None:
         """Abre o cadastro de uma obra-pai e a seleciona ao salvá-la."""
@@ -445,10 +528,6 @@ class AuthorSearchMixin:
                 self._select_parent_work,
                 PARENT_WORK_TYPES.get(self.selected.key),
             )
-
-    def _remove_author(self, reference: AuthorReference) -> None:
-        self.author_references.remove(reference)
-        self._refresh_author_search()
 
 
 __all__ = ["AuthorSearchMixin"]

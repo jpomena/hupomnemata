@@ -101,11 +101,16 @@ class CompilationRepository:
                     'title': work.title,
                     'position': item.position,
                     'fragments': work_fragments,
+                    'authors': self._authors_line(
+                        item.bibliographic_resource
+                    ),
                 })
             records.append({
                 'id': compilation.id,
                 'name': compilation.name,
                 'description': compilation.description,
+                'created_at': compilation.created_at,
+                'updated_at': compilation.updated_at,
                 'works': works,
                 'sections': [
                     {
@@ -118,6 +123,18 @@ class CompilationRepository:
                 ],
             })
         return records
+
+    @staticmethod
+    def _authors_line(resource: BibliographicResource) -> str:
+        names = []
+        for author in getattr(resource, 'authors', None) or []:
+            if author.corporation:
+                names.append(author.given_names)
+            else:
+                names.append(
+                    ' '.join(filter(None, (author.given_names, author.last_name)))
+                )
+        return ', '.join(name for name in names if name)
 
     def create(self, payload: CompilationPayload) -> int:
         name, description = self._validated_values(payload)

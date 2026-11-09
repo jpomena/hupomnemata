@@ -1,4 +1,5 @@
-from typing import TypedDict
+from datetime import datetime
+from typing import NotRequired, TypedDict
 
 from src.domains import WorkMixin
 
@@ -51,6 +52,7 @@ class FragmentRecord(TypedDict):
     display_year: str
     location_type: str | None
     location_value: str | None
+    created_at: NotRequired[datetime | None]
 
 
 class CompilationFragmentRecord(FragmentRecord):
@@ -86,6 +88,7 @@ class CompilationWorkRecord(TypedDict):
     title: str
     position: int
     fragments: list[CompilationFragmentRecord]
+    authors: NotRequired[str]
 
 
 class CompilationRecord(TypedDict):
@@ -94,6 +97,8 @@ class CompilationRecord(TypedDict):
     description: str | None
     works: list[CompilationWorkRecord]
     sections: list[CompilationSectionRecord]
+    created_at: NotRequired[datetime | None]
+    updated_at: NotRequired[datetime | None]
 
 
 class CompilationPayload(TypedDict):

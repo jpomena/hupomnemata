@@ -1,13 +1,12 @@
 """Especificações para periódicos (artigos de revista, jornais, coleções, revistas)."""
 
-import flet as ft
 from .base import FieldSpec, PUBLICATION, _spec
 
 JOURNAL_ARTICLE_SPEC = _spec(
     "journal_article",
     "Artigo de revista",
     "Artigo ou comunicação científica",
-    ft.Icons.ARTICLE_OUTLINED,
+    "file-lines",
     FieldSpec(
         key="journal_subtitle",
         label="Subtítulo do periódico",
@@ -37,7 +36,7 @@ NEWSPAPER_ARTICLE_SPEC = _spec(
     "newspaper_article",
     "Artigo de jornal",
     "Reportagem, entrevista ou editorial",
-    ft.Icons.NEWSPAPER_OUTLINED,
+    "newspaper",
     FieldSpec(
         key="journal_title",
         label="Título do jornal",
@@ -63,7 +62,7 @@ PERIODICAL_COLLECTION_SPEC = _spec(
     "periodical_collection",
     "Coleção periódica",
     "Coleção de volumes ou fascículos de uma revista",
-    ft.Icons.MENU_BOOK,
+    "book",
     FieldSpec(
         key="journal_subtitle",
         label="Subtítulo do periódico",
@@ -93,8 +92,8 @@ PERIODICAL_COLLECTION_SPEC = _spec(
 MAGAZINE_SPEC = _spec(
     "magazine",
     "Revista",
-    "Cadastro de uma revista",
-    ft.Icons.MENU_BOOK,
+    "Título de periódico, ao qual se ligam artigos e coleções",
+    "book-open-reader",
     FieldSpec(
         key="title",
         label="Nome da revista",

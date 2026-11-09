@@ -1,340 +1,103 @@
-"""Mixin para notas de articulação no hub de compilações."""
+"""Notas de articulação: o texto que liga um fragmento à ideia do projeto."""
 
-from collections.abc import Callable
 import flet as ft
 
 from src.contracts import CompilationFragmentRecord
-from src.utils.view_styles import button_text_style, text_field_style
-from .common import EventControl
+from src.utils.fragment_reference import fragment_abnt_notation
+from src.views import ui_kit as ui
+from src.views.ui_kit import s
+from .common import dialog, form_field, text_input
 
 
 class CompilationHubNotesMixin:
-    """Responsável pela gestão e apresentação de notas de articulação dos fragmentos."""
+    """Rodapé do bloco de fragmento e diálogo de edição da nota."""
 
-    def _save_fragment_note(
-        self,
-        fragment_id: int,
-        note: str | None,
-    ) -> None:
+    def _save_fragment_note(self, fragment_id: int, note: str | None) -> None:
         if self.on_fragment_note(
             self.compilation['id'],
             fragment_id,
-            note.strip() if isinstance(note, str) else None,
+            note.strip() if isinstance(note, str) and note.strip() else None,
         ):
             self.refresh()
 
-    def _toggle_fragment_note_expansion(
-        self,
-        fragment_id: int,
-    ) -> None:
-        if fragment_id in self.expanded_note_fragment_ids:
-            self.expanded_note_fragment_ids.remove(fragment_id)
-        else:
-            self.expanded_note_fragment_ids.add(fragment_id)
-        self.dialog.content = self._compose_content()
-        self.page.update()
-
-    def _prompt_fragment_note(
-        self,
-        fragment: CompilationFragmentRecord,
-    ) -> None:
-        work_title = ''
-        for work in self.compilation.get('works', []):
-            if any(
-                f['id'] == fragment['id']
-                for f in work.get('fragments', [])
-            ):
-                work_title = work.get('title') or ''
-                break
-
-        fragment_type = (
-            'Citação' if fragment['fragment_type'] == 'quote' else 'Comentário'
-        )
-        location = ', '.join(
-            part
-            for part in (
-                fragment.get('location_type'),
-                fragment.get('location_value'),
-            )
-            if part
-        )
-        subtitle_parts = [fragment_type]
-        if work_title:
-            subtitle_parts.append(work_title)
-        context_subtitle = ' — '.join(subtitle_parts)
-        if location:
-            context_subtitle += f' ({location})'
-
-        note_field = ft.TextField(
-            label='Nota de articulação (opcional)',
-            hint_text='Por que este trecho importa para a ideia ou projeto?',
+    def _prompt_fragment_note(self, fragment: CompilationFragmentRecord) -> ft.AlertDialog:
+        c = self.config
+        work_title = self._work_title_of(fragment)
+        kind = 'Citação' if fragment['fragment_type'] == 'quote' else 'Comentário'
+        subtitle = ' · '.join(part for part in (kind, work_title, fragment_abnt_notation(fragment)) if part)
+        note_field = text_input(
+            c,
             value=fragment.get('work_note') or '',
+            hint='Por que este trecho importa para a ideia ou para o projeto?',
             multiline=True,
             min_lines=3,
             max_lines=8,
             max_length=2000,
-            expand=True,
-            **text_field_style(self.config),
+            autofocus=True,
+        )
+        excerpt = ft.Container(
+            content=ui.serif_text(c, fragment.get('excerpt', ''), size=16, max_lines=5, color=c.colors['muted']),
+            padding=ft.Padding.symmetric(horizontal=s(12), vertical=s(10)),
+            bgcolor=c.colors['bg'],
+            border=ft.Border.all(1, c.colors['border']),
+            border_radius=ft.BorderRadius.all(s(6)),
         )
 
-        def save(event: ft.Event[ft.Button]) -> None:
-            del event
-            val = note_field.value
-            clean_val = (
-                val.strip() if isinstance(val, str) and val.strip() else None
-            )
+        def save(_event=None) -> None:
+            value = note_field.value
+            clean = value.strip() if isinstance(value, str) and value.strip() else None
             self.page.pop_dialog()
-            self._save_fragment_note(fragment['id'], clean_val)
-            if clean_val:
-                self.expanded_note_fragment_ids.add(fragment['id'])
-            else:
-                self.expanded_note_fragment_ids.discard(fragment['id'])
+            self._save_fragment_note(fragment['id'], clean)
 
-        def delete(event: ft.Event[ft.Button]) -> None:
-            del event
+        def delete(_event=None) -> None:
             self.page.pop_dialog()
             self._save_fragment_note(fragment['id'], None)
-            self.expanded_note_fragment_ids.discard(fragment['id'])
 
         actions: list[ft.Control] = []
         if fragment.get('work_note'):
-            actions.append(
-                ft.TextButton(
-                    content=ft.Text(
-                        'Excluir nota',
-                        color=self.config.colors.get('danger', '#E05D52'),
-                        font_family=self.config.font_families['montserrat'],
-                        size=self.config.font_sizes['montserrat_medium'],
-                        weight=self.config.font_weights['montserrat_normal'],
-                    ),
-                    style=ft.ButtonStyle(
-                        text_style=button_text_style(self.config),
-                    ),
-                    on_click=delete,
-                )
-            )
-
+            actions.append(ui.button(c, 'Excluir nota', on_click=delete, variant='danger', icon_name='trash-can', icon_style='regular'))
         actions.extend([
-            ft.TextButton(
-                content=ft.Text(
-                    'Cancelar',
-                    color=self.config.colors['text'],
-                    font_family=self.config.font_families['montserrat'],
-                    size=self.config.font_sizes['montserrat_medium'],
-                    weight=self.config.font_weights['montserrat_normal'],
-                ),
-                style=ft.ButtonStyle(
-                    text_style=button_text_style(self.config),
-                ),
-                on_click=lambda: self.page.pop_dialog(),
-            ),
-            ft.FilledButton(
-                content=ft.Text(
-                    'Salvar nota',
-                    color=self.config.colors['bg'],
-                    font_family=self.config.font_families['montserrat'],
-                    size=self.config.font_sizes['montserrat_medium'],
-                    weight=self.config.font_weights['montserrat_normal'],
-                ),
-                bgcolor=self.config.colors['gold'],
-                style=ft.ButtonStyle(
-                    text_style=button_text_style(self.config),
-                ),
-                on_click=save,
-            ),
+            ui.button(c, 'Cancelar', on_click=lambda _e: self.page.pop_dialog(), variant='ghost'),
+            ui.button(c, 'Salvar nota', on_click=save, variant='primary'),
         ])
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            bgcolor=self.config.colors['surface'],
-            title=ft.Text(
-                value='Nota de articulação',
-                color=self.config.colors['gold'],
-                font_family=self.config.font_families['cormorant'],
-                size=self.config.font_sizes['cormorant_medium'],
-                weight=self.config.font_weights['cormorant_semibold'],
-            ),
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        value=context_subtitle,
-                        color=self.config.colors['muted'],
-                        font_family=self.config.font_families['montserrat'],
-                        size=self.config.font_sizes['montserrat_small'],
-                    ),
-                    ft.Container(
-                        bgcolor=self.config.colors['bg'],
-                        padding=ft.Padding.all(10),
-                        border_radius=self.config.ui['card_radius'],
-                        border=ft.Border.all(
-                            1,
-                            self.config.colors['border'],
-                        ),
-                        content=ft.Text(
-                            value=f'"{fragment.get("excerpt", "")}"',
-                            color=self.config.colors['text'],
-                            font_family=self.config.font_families[
-                                'montserrat'
-                            ],
-                            size=self.config.font_sizes['montserrat_small'],
-                            italic=True,
-                            max_lines=5,
-                            overflow=ft.TextOverflow.ELLIPSIS,
-                        ),
-                    ),
-                    note_field,
-                ],
-                tight=True,
-                width=560,
-                spacing=self.config.ui['control_gap'],
-            ),
-            actions=actions,
-            actions_alignment=ft.MainAxisAlignment.END,
-            shape=ft.RoundedRectangleBorder(
-                radius=self.config.ui['card_radius']
-            ),
-            content_padding=self.config.ui['modal_content_padding'],
+        modal = dialog(
+            c,
+            'Nota de articulação',
+            [excerpt, form_field(c, 'Nota', note_field, hint='A nota vale só nesta compilação. O fragmento continua igual no Acervo.')],
+            actions,
+            width=560,
+            subtitle=subtitle,
         )
-        self.page.show_dialog(dialog)
+        modal.data = {'note': note_field, 'save': save, 'delete': delete if fragment.get('work_note') else None}
+        self.page.show_dialog(modal)
+        return modal
 
-    def _compose_fragment_note(
-        self,
-        fragment: CompilationFragmentRecord,
-    ) -> ft.Control:
+    def _compose_fragment_note(self, fragment: CompilationFragmentRecord) -> ft.Container:
+        """Rodapé do bloco: texto da nota (ou “Sem nota de articulação”) e o botão."""
+        c = self.config
         note = fragment.get('work_note')
-        fragment_id = fragment['id']
-        is_expanded = fragment_id in self.expanded_note_fragment_ids
-
-        if not note:
-            return ft.Row(
-                controls=[
-                    ft.TextButton(
-                        content=ft.Row(
-                            controls=[
-                                ft.Icon(
-                                    ft.Icons.NOTE_ADD_OUTLINED,
-                                    size=16,
-                                    color=self.config.colors['gold'],
-                                ),
-                                ft.Text(
-                                    'Nota de articulação',
-                                    color=self.config.colors['gold'],
-                                    font_family=self.config.font_families[
-                                        'montserrat'
-                                    ],
-                                    size=self.config.font_sizes[
-                                        'montserrat_small'
-                                    ],
-                                    weight=self.config.font_weights[
-                                        'montserrat_semibold'
-                                    ],
-                                ),
-                            ],
-                            spacing=6,
-                            tight=True,
-                        ),
-                        tooltip=(
-                            'Adicionar nota de articulação para '
-                            'esta compilação'
-                        ),
-                        on_click=lambda event, current=fragment: (
-                            self._run_click_action(
-                                event,
-                                lambda: self._prompt_fragment_note(current),
-                            )
-                        ),
-                    )
-                ],
-                tight=True,
-            )
-
-        header_controls: list[ft.Control] = [
-            ft.Row(
-                controls=[
-                    ft.Icon(
-                        ft.Icons.STICKY_NOTE_2_OUTLINED,
-                        size=16,
-                        color=self.config.colors['gold'],
-                    ),
-                    ft.Text(
-                        'Nota de articulação',
-                        color=self.config.colors['gold'],
-                        font_family=self.config.font_families['montserrat'],
-                        size=self.config.font_sizes['montserrat_small'],
-                        weight=self.config.font_weights['montserrat_semibold'],
-                    ),
-                    ft.IconButton(
-                        icon=(
-                            ft.Icons.EXPAND_LESS
-                            if is_expanded
-                            else ft.Icons.EXPAND_MORE
-                        ),
-                        icon_size=18,
-                        icon_color=self.config.colors['muted'],
-                        tooltip=(
-                            'Recolher nota'
-                            if is_expanded
-                            else 'Expandir nota'
-                        ),
-                        on_click=lambda event, fid=fragment_id: (
-                            self._run_click_action(
-                                event,
-                                lambda: self._toggle_fragment_note_expansion(
-                                    fid
-                                ),
-                            )
-                        ),
-                    ),
-                ],
-                spacing=4,
-                tight=True,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            ft.IconButton(
-                icon=ft.Icons.EDIT_OUTLINED,
-                icon_size=16,
-                icon_color=self.config.colors['muted'],
-                tooltip='Editar nota de articulação',
-                on_click=lambda event, current=fragment: (
-                    self._run_click_action(
-                        event,
-                        lambda: self._prompt_fragment_note(current),
-                    )
-                ),
-            ),
-        ]
-
-        card_content: list[ft.Control] = [
-            ft.Row(
-                controls=header_controls,
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            )
-        ]
-
-        if is_expanded:
-            card_content.append(
-                ft.Container(
-                    padding=ft.Padding.only(top=4, left=4, right=4, bottom=4),
-                    content=ft.Text(
-                        value=note,
-                        color=self.config.colors['text'],
-                        font_family=self.config.font_families['montserrat'],
-                        size=self.config.font_sizes['montserrat_medium'],
-                        selectable=True,
-                    ),
-                )
-            )
-
+        text = ui.ui_text(
+            c,
+            note or 'Sem nota de articulação',
+            size=12,
+            color=c.colors['muted'] if note else c.colors['faint'],
+            max_lines=None,
+            expand=True,
+            selectable=bool(note),
+        )
+        action = ui.button(
+            c,
+            'Editar nota' if note else 'Adicionar nota',
+            on_click=lambda _e, current=fragment: self._prompt_fragment_note(current),
+            icon_name='note-sticky',
+            icon_style='regular',
+            variant='ghost',
+            small=True,
+            tooltip='Nota de articulação: o texto que liga este fragmento à ideia',
+        )
         return ft.Container(
-            content=ft.Column(
-                controls=card_content,
-                tight=True,
-                spacing=2,
-            ),
-            bgcolor=self.config.colors['bg'],
-            border=ft.Border.all(1, self.config.colors['border']),
-            border_radius=self.config.ui['card_radius'],
-            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-            margin=ft.Padding.only(top=4, bottom=4),
+            content=ft.Row([text, action], spacing=s(8), vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.Padding.only(left=s(16), right=s(6), top=s(4), bottom=s(4)),
+            border=ft.Border.only(top=ft.BorderSide(1, c.colors['border'])),
+            data='note',
         )

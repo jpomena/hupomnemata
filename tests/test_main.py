@@ -999,16 +999,22 @@ def test_acervo_nesting_uses_parent_id_without_lazy_loading():
         resources = [parent, child]
 
     composer = object.__new__(WorksComposer)
-    composer.config = SimpleNamespace(ui={'grid_gap': 20})
-    composer._resource_card = lambda resource, level=0: ft.Container()
+    composer.works = resources
+    composer.context = SimpleNamespace(fragments_by_work={}, compilations_by_work={})
+    composer.query = ''
+    composer.type_filter = None
+    composer.compilation_filter = None
+    composer.sort_key = 'created'
+    composer.sort_desc = True
 
-    nested = composer._nest_resources(resources)
-    assert len(nested) == 1
-    assert resources[0].id == parent_id
-    assert resources[1].id == child_id
+    rows = composer.visible_rows()
+    assert [(resource.id, level) for resource, level in rows] == [
+        (parent_id, 0), (child_id, 1)
+    ]
 
 
-def test_acervo_search_shows_matches_and_filters_in_real_time():
+def test_acervo_search_filter_sort_and_keyboard():
+    from datetime import datetime
     from types import SimpleNamespace
     from src.configs.settings import (
         COLORS_LIGHT,
@@ -1022,21 +1028,25 @@ def test_acervo_search_shows_matches_and_filters_in_real_time():
         UI,
     )
     from src.utils.types import ViewConfig
-    from src.views.works import WorksComposer
+    from src.views.works import AcervoContext, WorksComposer
+
+    class EditorialMonograph(SimpleNamespace):
+        pass
+
+    class Statute(SimpleNamespace):
+        pass
+
+    def work(cls, title, year, day):
+        return cls(
+            title=title, subtitle=None, display_year=year,
+            created_at=datetime(2026, 10, day),
+            parent_bibliographic_resource_id=None,
+        )
 
     works = [
-        SimpleNamespace(
-            id=1,
-            specific_work=SimpleNamespace(title='Alfa: Introdução'),
-        ),
-        SimpleNamespace(
-            id=2,
-            specific_work=SimpleNamespace(title='Alfa: Estudos'),
-        ),
-        SimpleNamespace(
-            id=3,
-            specific_work=SimpleNamespace(title='Beta'),
-        ),
+        SimpleNamespace(id=1, authors=[], specific_work=work(EditorialMonograph, 'Alfa: Introdução', '1990', 1)),
+        SimpleNamespace(id=2, authors=[], specific_work=work(EditorialMonograph, 'Alfa: Estudos', '350 a.C.', 2)),
+        SimpleNamespace(id=3, authors=[], specific_work=work(Statute, 'Beta', '1940', 3)),
     ]
     config = ViewConfig(
         colors=COLORS_LIGHT,
@@ -1060,42 +1070,39 @@ def test_acervo_search_shows_matches_and_filters_in_real_time():
         format_reference=lambda _resource: None,
         on_copy_reference=lambda _reference: None,
         on_delete_work=lambda _resource: None,
+        context=AcervoContext(fragments_by_work={1: [{'id': 9}]}),
     )
-    matched_resource_ids = []
+    composer.compose()
+    composer._refresh = lambda: None
 
-    def render_resources(resources):
-        matched_resource_ids[:] = [resource.id for resource in resources]
-        return [ft.Container(key=str(resource.id)) for resource in resources]
+    ids = lambda: [resource.id for resource, _level in composer.visible_rows()]
+    assert ids() == [3, 2, 1]  # mais recentes primeiro
 
-    composer._nest_resources = render_resources
-    composer._compose_board()
-    composer.board.update = lambda: None
+    composer.query = 'alfa'
+    assert ids() == [2, 1]
 
-    assert not composer.work_search.expand
-    assert composer.work_search_group.expand
-    composer.work_search.value = 'alfa'
-    composer._search_works(SimpleNamespace(
-        control=SimpleNamespace(value='alfa')
-    ))
-    assert composer.work_matches.visible
-    assert [
-        match.content.value for match in composer.work_matches.controls
-    ] == ['Alfa: Introdução', 'Alfa: Estudos']
-    assert matched_resource_ids == [1, 2]
+    composer.set_sort('year')  # ano: mais recente primeiro, a.C. por último
+    assert ids() == [1, 2]
+    composer.set_sort('year')
+    assert ids() == [2, 1]
 
-    composer.work_matches.controls[0].on_click(SimpleNamespace())
-    assert composer.work_search.value == 'Alfa: Introdução'
-    assert not composer.work_matches.visible
-    assert matched_resource_ids == [1]
+    composer.query = ''
+    composer.set_type_filter('Legislação')
+    assert ids() == [3]
+    composer.set_type_filter(None)
 
-    composer.work_search.value = 'ausente'
-    composer._search_works(SimpleNamespace(
-        control=SimpleNamespace(value='ausente')
-    ))
-    assert composer.work_matches.controls[0].value == (
-        'Nenhuma obra encontrada.'
-    )
-    assert matched_resource_ids == []
+    composer.set_sort('frag')
+    assert ids()[0] == 1
+
+    composer.selected_id = None
+    assert composer.handle_key('Arrow Down', False) is True
+    assert composer.selected_id == ids()[0]
+    composer.toggle_checked(2)
+    assert composer.checked == {2}
+    assert composer.handle_key('Escape', False) is True
+    assert composer.checked == set()
+    assert composer.handle_key('Escape', False) is True
+    assert composer.selected_id is None
 
 
 def test_partial_work_controls_are_not_universal_in_form_specs():
@@ -1510,56 +1517,48 @@ def test_repository_creates_corporate_author_with_jurisdiction():
         assert author.jurisdiction.corporation is True
 
 
+def _insert_modal_section(composer, key):
+    return next(
+        control for control in composer.form_body.controls
+        if getattr(control, 'data', None) == key
+    )
+
+
+def _insert_modal_section_rows(section):
+    return section.content.controls[1].controls
+
+
 def test_regular_checkbox_fields_render_in_separate_rows():
+    from src.configs.settings import (
+        COLORS_DARK,
+        FONT_FAMILIES,
+        FONT_SIZES,
+        FONT_WEIGHTS,
+        ICON_SIZES,
+        MAIN_VIEW_CARDS,
+        PAGE_FONTS,
+        TEXTS,
+        UI,
+    )
+    from src.utils.types import ViewConfig
+    from src.views.work_insert_modal import WorkInsertModalComposer
+
     class DummyPage:
         def update(self):
             pass
 
-    config = type(
-        'ConfigStub',
-        (),
-        {
-            'colors': {
-                'border': '#111',
-                'gold': '#d4af37',
-                'text': '#fff',
-                'muted': '#bbb',
-                'surface': '#222',
-                'card_hover': '#333',
-                'black': '#000',
-            },
-            'font_families': {
-                'montserrat': 'Montserrat',
-                'cormorant': 'Cormorant',
-            },
-            'font_sizes': {
-                'cormorant_small': 14,
-                'montserrat_medium': 16,
-                'montserrat_tiny': 12,
-                'cormorant_large': 30,
-                'montserrat_large': 18,
-            },
-            'font_weights': {
-                'montserrat_normal': 'normal',
-                'montserrat_semibold': 'bold',
-                'cormorant_semibold': 'bold',
-                'cormorant_bold': 'bold',
-            },
-            'ui': {
-                'control_gap': 12,
-                'modal_gap': 16,
-                'card_radius': 12,
-                'card_padding': 10,
-                'animation_ms': 200,
-                'modal_content_padding': 10,
-                'modal_type_panel_width': 180,
-                'modal_width': 900,
-                'modal_height': 700,
-            },
-        },
-    )()
-
-    from src.views.work_insert_modal import WorkInsertModalComposer
+    config = ViewConfig(
+        colors=COLORS_DARK,
+        page_fonts=PAGE_FONTS,
+        font_families=FONT_FAMILIES,
+        font_sizes=FONT_SIZES,
+        icon_sizes=ICON_SIZES,
+        font_weights=FONT_WEIGHTS,
+        ui=UI,
+        texts=TEXTS,
+        core_menus={},
+        main_view_cards=MAIN_VIEW_CARDS,
+    )
 
     parent_searches = []
     created_parent_types = []
@@ -1584,20 +1583,25 @@ def test_regular_checkbox_fields_render_in_separate_rows():
     composer.fields['preserve_title_spelling'].value = True
     assert composer._collect()['preserve_title_spelling'] is True
 
-    rows = composer.form.controls[1].controls
-    checkbox_row = next(
-        row for row in rows
-        if isinstance(row, ft.Row)
-        and row.controls
-        and any(isinstance(control, ft.Checkbox) for control in row.controls)
+    # Checkboxes ficam juntos numa linha própria, no fim da seção, sem
+    # misturar com campos de texto.
+    physical_rows = _insert_modal_section_rows(
+        _insert_modal_section(composer, 'descricao_fisica')
     )
-
+    checkbox_row = physical_rows[-1]
+    assert isinstance(checkbox_row, ft.Row) and checkbox_row.wrap
     checkbox_pairs = [
         type(control).__name__ for control in checkbox_row.controls
     ]
     assert checkbox_pairs == ['Checkbox', 'Checkbox']
-    assert all(name != 'Text' for name in checkbox_pairs)
-    assert checkbox_row in rows[:1]
+    assert [control.label for control in checkbox_row.controls] == [
+        'Possui som', 'Colorizado',
+    ]
+    assert not any(
+        isinstance(control, ft.Checkbox)
+        for row in physical_rows[:-1]
+        for control in row.controls
+    )
 
     composer.selected = next(
         spec for spec in WORK_TYPES if spec.key == 'journal_article'
@@ -1605,7 +1609,6 @@ def test_regular_checkbox_fields_render_in_separate_rows():
     composer.partial_enabled = True
     composer.parent_work_search = 'Revista'
     composer._render(update_page=False)
-    parent_row = composer.form.controls[1].controls[0]
 
     assert 'is_partial' not in composer.fields
     assert {
@@ -1620,8 +1623,11 @@ def test_regular_checkbox_fields_render_in_separate_rows():
         'publisher',
         'collection_name',
     } & set(composer.fields)
-    assert isinstance(parent_row.controls[0], ft.Text)
-    assert parent_row.controls[0].value == 'Revista *'
+    # A revista vem logo depois da identificação, como campo obrigatório.
+    assert composer.section_keys[:2] == ['identificacao', 'parte']
+    parent_label = composer.field_wrappers['__parent__'].controls[0]
+    assert parent_label.value == 'Revista'
+    assert parent_label.spans[0].text == ' *'
     assert parent_searches[-1] == ('Revista', 'magazine')
 
     composer._create_parent_work(None)
@@ -1664,6 +1670,9 @@ def test_regular_checkbox_fields_render_in_separate_rows():
         'carrier_type',
     } & set(composer.fields)
     assert parent_searches[-1] == ('Chico', 'audio_document')
+    assert composer.field_wrappers['__parent__'].controls[0].value == (
+        'Obra-pai'
+    )
 
 
 def text_from_reference(view_reference):

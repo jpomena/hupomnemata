@@ -15,7 +15,16 @@ from src.utils.view_styles import (
     text_field_base_style,
     text_field_style,
 )
+from src.views import ui_kit as ui
 from src.views.work_insert_specs import FieldSpec, WorkTypeSpec
+
+DATE_PRECISION_OPTIONS = (
+    "Data exata",
+    "Década",
+    "Século",
+    "Milênio",
+    "Data desconhecida",
+)
 
 
 class SupportsAuthorsControl(Protocol):
@@ -52,9 +61,12 @@ class FieldBuilderMixin:
     on_create_parent_work: Callable[
         [Callable[[int, str], None], str | None], None
     ] | None
-    type_grid: ft.GridView
     form: ft.Column
     modal: ft.AlertDialog | None
+
+    def _value_changed(self, key: str) -> None:
+        """Hook: limpa o erro do campo e atualiza a prévia."""
+        raise NotImplementedError
 
     def _style(self) -> TextFieldStyle:
         """Retorna o estilo compartilhado pelos campos do formulário."""
@@ -69,6 +81,20 @@ class FieldBuilderMixin:
         style = self._style()
         return {**style, **text_field_style(self.config)}
 
+    def _change_handler(
+        self,
+        key: str,
+        formatter: Callable[[ft.Event], None] | None = None,
+    ) -> Callable[[ft.Event], None]:
+        """Encadeia a máscara do campo (se houver) com a prévia ao vivo."""
+
+        def handle(event) -> None:
+            if formatter is not None:
+                formatter(event)
+            self._value_changed(key)
+
+        return handle
+
     def _field(
         self,
         spec: FieldSpec,
@@ -76,206 +102,150 @@ class FieldBuilderMixin:
         on_change=None,
     ) -> ft.Control:
         """Cria o controle correspondente a uma especificação de campo."""
+        c = self.config
         if spec.key == "authors":
             return cast(SupportsAuthorsControl, self)._authors_control()
         if spec.kind == "responsibilities":
-            data = initial_value if isinstance(initial_value, dict) else {}
-            if self.selected.key in {
-                "audio_document",
-                "audiovisual_document",
-            }:
-                role_hint = (
-                    "Ex.: direção, produção"
-                    if self.selected.key == "audiovisual_document"
-                    else (
-                        "Ex.: entrevistado, entrevistador"
-                        if spec.key == "responsibilities"
-                        else "Ex.: intérprete, compositor"
-                    )
-                )
-                controls: list[ft.Control] = []
-                controls.extend(
-                    self._audio_responsibility_row(
-                        role,
-                        names,
-                        role_hint,
-                    )
-                    for role, names in data.items()
-                )
-                if not controls:
-                    controls.append(
-                        self._audio_responsibility_row(
-                            role_hint=role_hint,
-                        )
-                    )
-                fields = ft.Column(
-                    controls=controls,
-                    spacing=self.config.ui["control_gap"],
-                )
-
-                def add_responsibility(
-                    event: ft.Event[ft.IconButton],
-                ) -> None:
-                    del event
-                    fields.controls.append(
-                        self._audio_responsibility_row(
-                            role_hint=role_hint,
-                        )
-                    )
-                    fields.update()
-
-                fields.controls.append(
-                    ft.IconButton(
-                        icon=ft.Icons.ADD,
-                        tooltip="Adicionar responsabilidade",
-                        on_click=add_responsibility,
-                    )
-                )
-                return fields
-            responsibility_key, responsibility_names = next(
-                iter(data.items()), ("", "")
-            )
-            return ft.Row(
-                controls=[
-                    ft.TextField(
-                        label="Tipo de responsabilidade",
-                        hint_text="Ex.: autor, editor, tradutor",
-                        value=responsibility_key,
-                        expand=True,
-                        **self._text_field_style(),
-                    ),
-                    ft.TextField(
-                        label="Pessoa ou entidade",
-                        hint_text="Nomes das pessoas ou entidades",
-                        value=responsibility_names,
-                        expand=True,
-                        **self._text_field_style(),
-                    ),
-                ],
-                spacing=self.config.ui["control_gap"],
-            )
+            return self._responsibilities_control(spec, initial_value)
         if spec.kind == "checkbox":
-            checkbox = ft.Checkbox(
-                label=spec.label,
-                border_side={
-                    ft.ControlState.HOVERED: ft.BorderSide(
-                        width=2,
-                        color=self.config.colors['text']
-                    ),
-                    ft.ControlState.DEFAULT: ft.BorderSide(
-                        width=2,
-                        color=self.config.colors["muted"]
-                    ),
-                },
-                label_position=ft.LabelPosition.LEFT,
+            return ui.checkbox(
+                c,
+                spec.label,
                 value=(
                     initial_value if isinstance(initial_value, bool) else False
                 ),
-                on_change=on_change,
-                label_style=ft.TextStyle(
-                    size=12,
-                    weight=self.config.font_weights["montserrat_normal"],
-                    color=self.config.colors["text"],
-                    font_family=self.config.font_families["montserrat"],
-                ),
+                on_change=on_change or self._change_handler(spec.key),
             )
-            return checkbox
         if spec.kind == "dropdown":
             selected_value = (
                 initial_value
                 if isinstance(initial_value, str) and initial_value
                 else "Data exata"
             )
-            return ft.Dropdown(
-                label=spec.label,
+            return ui.dropdown_field(
+                c,
+                DATE_PRECISION_OPTIONS,
                 value=selected_value,
-                options=[
-                    ft.dropdown.Option(
-                        key=value,
-                        text=value,
-                        content=ft.Text(
-                            value=value,
-                            weight=(
-                                self.config.font_weights["montserrat_normal"]
-                            ),
-                            style=ft.TextStyle(letter_spacing=2),
-                            font_family=(
-                                self.config.font_families["montserrat"]
-                            ),
-                            size=self.config.font_sizes["montserrat_tiny"],
-                        ),
-                    )
-                    for value in (
-                        "Data exata",
-                        "Década",
-                        "Século",
-                        "Milênio",
-                        "Data desconhecida",
-                    )
-                ],
-                **self._dropdown_style(),
+                on_select=on_change or self._change_handler(spec.key),
             )
 
-        common_args = {
-            "label": spec.label + (" *" if spec.required else ""),
-            "hint_text": (
-                "DD/MM/AAAA"
-                if spec.kind == "date"
-                else (
-                    "MM/AAAA"
-                    if spec.kind == "month"
-                    else spec.hint if spec.hint else spec.label
-                )
-            ),
-            "multiline": spec.kind == "multiline",
-            "min_lines": 3 if spec.kind == "multiline" else 1,
-            "expand": True,
-            "value": initial_value if isinstance(initial_value, str) else "",
-        }
+        formatter: Callable[[ft.Event], None] | None = None
         if spec.kind == "date":
-            common_args["on_change"] = self._format_date_input
+            formatter = self._format_date_input
         elif spec.kind == "month":
-            common_args["on_change"] = self._format_month_input
+            formatter = self._format_month_input
         elif spec.key == "issn":
-            common_args["on_change"] = self._format_issn_input
+            formatter = self._format_issn_input
         elif spec.key == "isbn":
-            common_args["on_change"] = self._format_isbn_input
-        if spec.kind == "number":
-            return ft.TextField(
-                **common_args,
-                keyboard_type=ft.KeyboardType.NUMBER,
-                input_filter=ft.NumbersOnlyInputFilter(),
-                **self._text_field_style(),
-            )
-        return ft.TextField(
-            **common_args,
-            **self._text_field_style(),
+            formatter = self._format_isbn_input
+        hint = (
+            "DD/MM/AAAA"
+            if spec.kind == "date"
+            else "MM/AAAA"
+            if spec.kind == "month"
+            else spec.hint or None
         )
+        is_number = spec.kind == "number"
+        return ui.input_field(
+            c,
+            value=initial_value if isinstance(initial_value, str) else "",
+            hint=hint,
+            on_change=on_change or self._change_handler(spec.key, formatter),
+            multiline=spec.kind == "multiline",
+            min_lines=3 if spec.kind == "multiline" else 1,
+            max_lines=8 if spec.kind == "multiline" else None,
+            keyboard_type=ft.KeyboardType.NUMBER if is_number else None,
+            input_filter=ft.NumbersOnlyInputFilter() if is_number else None,
+            autofocus=spec.key == "title" and getattr(self, "focus_title", True),
+            expand=False,
+        )
+
+    def _role_hint(self, spec: FieldSpec) -> str:
+        if self.selected.key == "audiovisual_document":
+            return "Função, ex.: direção, produção"
+        if self.selected.key == "audio_document":
+            if spec.key == "responsibilities":
+                return "Função, ex.: entrevistado, entrevistador"
+            return "Função, ex.: intérprete, compositor"
+        return "Função, ex.: editor, tradutor"
+
+    def _responsibilities_control(
+        self,
+        spec: FieldSpec,
+        initial_value: object,
+    ) -> ft.Control:
+        """Linhas "função + nomes". Áudio e audiovisual aceitam várias."""
+        data = initial_value if isinstance(initial_value, dict) else {}
+        role_hint = self._role_hint(spec)
+        if self.selected.key not in {
+            "audio_document",
+            "audiovisual_document",
+        }:
+            role, names = next(iter(data.items()), ("", ""))
+            return self._audio_responsibility_row(
+                role, names, role_hint, key=spec.key
+            )
+
+        controls: list[ft.Control] = [
+            self._audio_responsibility_row(
+                role, names, role_hint, key=spec.key
+            )
+            for role, names in data.items()
+        ]
+        if not controls:
+            controls.append(
+                self._audio_responsibility_row(
+                    role_hint=role_hint, key=spec.key
+                )
+            )
+        fields = ft.Column(controls=controls, spacing=ui.s(8))
+
+        def add_responsibility(event) -> None:
+            del event
+            fields.controls.insert(
+                len(fields.controls) - 1,
+                self._audio_responsibility_row(
+                    role_hint=role_hint, key=spec.key
+                ),
+            )
+            fields.update()
+
+        fields.controls.append(
+            ui.button(
+                self.config,
+                "Adicionar responsabilidade",
+                on_click=add_responsibility,
+                icon_name="plus",
+                variant="ghost",
+                small=True,
+            )
+        )
+        return fields
 
     def _audio_responsibility_row(
         self,
         role: str = "",
         names: str = "",
-        role_hint: str = "Ex.: entrevistado, entrevistador",
+        role_hint: str = "Função, ex.: entrevistado, entrevistador",
+        key: str = "responsibilities",
     ) -> ft.Row:
+        handler = self._change_handler(key)
         return ft.Row(
             controls=[
-                ft.TextField(
-                    label="Tipo de responsabilidade",
-                    hint_text=role_hint,
+                ui.input_field(
+                    self.config,
                     value=role,
-                    expand=True,
-                    **self._text_field_style(),
+                    hint=role_hint,
+                    on_change=handler,
                 ),
-                ft.TextField(
-                    label="Pessoa ou entidade",
-                    hint_text="Nomes das pessoas ou entidades",
+                ui.input_field(
+                    self.config,
                     value=names,
-                    expand=True,
-                    **self._text_field_style(),
+                    hint="Pessoa ou entidade",
+                    on_change=handler,
                 ),
             ],
-            spacing=self.config.ui["control_gap"],
+            spacing=ui.s(16),
         )
 
     @staticmethod
@@ -298,8 +268,9 @@ class FieldBuilderMixin:
         event.control.update()
 
     def _format_month_input(self, event) -> None:
-        event.control.value = self._format_digits(
-            event.control.value, (2, 4)
+        digits = re.sub(r"\D", "", str(event.control.value))
+        event.control.value = "/".join(
+            part for part in (digits[:2], digits[2:6]) if part
         )
         event.control.update()
 
@@ -314,4 +285,4 @@ class FieldBuilderMixin:
         event.control.update()
 
 
-__all__ = ["FieldBuilderMixin"]
+__all__ = ["FieldBuilderMixin", "DATE_PRECISION_OPTIONS"]

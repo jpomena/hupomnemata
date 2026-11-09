@@ -367,6 +367,22 @@ class WorkControllerMixin:
             'Obra excluída do acervo.', self.view_config.colors['gold']
         )
 
+    def delete_works(self, resources) -> None:
+        """Remove várias obras do acervo (ação em lote) e atualiza a listagem."""
+        removed = 0
+        for resource in resources:
+            try:
+                self.service.remove_work(resource)
+                removed += 1
+            except Exception as error:
+                log_exception("Falha ao excluir uma obra em lote", error)
+        self.navigate('Acervo', push_history=False)
+        if removed == len(resources):
+            message = 'Obra excluída do acervo.' if removed == 1 else f'{removed} obras excluídas do acervo.'
+        else:
+            message = f'{removed} de {len(resources)} obras excluídas. Veja o log para os erros.'
+        self.show_message(message, self.view_config.colors['gold'])
+
     def search_authors(self, query: str) -> list[AuthorSearchResult]:
         """Retorna autores existentes para a busca do modal."""
         return self.service.search_authors(query)

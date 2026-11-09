@@ -115,6 +115,10 @@ class CoreComposer:
         on_new_compilation: Callable[[], None] | None = None,
         palette_search: Callable[[str], dict] | None = None,
         on_navigate_with: Callable[..., None] | None = None,
+        get_acervo_context: Callable[[], object] | None = None,
+        on_delete_works: Callable[[list], None] | None = None,
+        get_dashboard_data: Callable[[], dict] | None = None,
+        compilation_work_references: Callable[[list[int]], dict] | None = None,
     ):
         self.page = page
         self.scale = scale
@@ -187,6 +191,12 @@ class CoreComposer:
         self.can_go_forward = False
         self.view_options: dict = {}
         self.palette = None
+        self.get_acervo_context = get_acervo_context
+        self.on_delete_works = on_delete_works
+        self.works_composer = None
+        self.get_dashboard_data = get_dashboard_data
+        self.compilation_work_references = compilation_work_references
+        self.fragment_dialog_composer: FragmentsComposer | None = None
 
     # ── shell: barra de título, sidebar, breadcrumb ────────
 
@@ -443,9 +453,9 @@ class CoreComposer:
         compilations: list[CompilationRecord] | None,
         compilation_id: int,
     ) -> ft.Control:
-        """Página de uma compilação. Até o port da tela, abre a lista com o hub."""
+        """Página de uma compilação; se ela não existe mais, cai na lista."""
         control = self._compose_compilations(compilations)
-        if self.compilations_composer is not None and hasattr(self.compilations_composer, "open_compilation_page"):
+        if self.compilations_composer is not None:
             return self.compilations_composer.open_compilation_page(compilation_id) or control
         return control
 
@@ -483,7 +493,41 @@ class CoreComposer:
             scale=self.scale,
             config=self.config,
             on_navigate=self.on_navigate,
+            get_dashboard_data=getattr(self, "get_dashboard_data", None),
+            on_navigate_with=getattr(self, "on_navigate_with", None),
+            on_new_fragment=self.open_fragment_create,
+            on_open_palette=self.open_palette,
         ).compose()
+
+    def open_fragment_create(self) -> None:
+        """Abre o diálogo de novo fragmento sem sair da tela atual."""
+        self.fragment_dialog_composer = FragmentsComposer(
+            page=self.page,
+            config=self.config,
+            fragments=[],
+            search_works=self.search_fragment_works,
+            on_save=self.on_fragment_save,
+            on_delete=self.on_fragment_delete,
+            on_copy_reference=self.on_copy_reference,
+        )
+        self.fragment_dialog_composer.open_create()
+
+    def _fragment_compilations(self) -> dict[int, list[str]]:
+        """Nomes das compilações em que cada fragmento entrou (selo na linha)."""
+        names: dict[int, list[str]] = {}
+        refresh = getattr(self, "refresh_compilations", None)
+        if refresh is None:
+            return names
+        try:
+            compilations = refresh() or []
+        except Exception:
+            return names
+        for compilation in compilations:
+            for work in compilation.get("works", []):
+                for fragment in work.get("fragments", []):
+                    if fragment.get("is_member"):
+                        names.setdefault(fragment["id"], []).append(compilation["name"])
+        return names
 
     def _compose_placeholder_dashboard(self, section: str) -> ft.Control:
         return DashboardComposer(
@@ -539,7 +583,9 @@ class CoreComposer:
         self,
         works: list[BibliographicResource] | None,
     ) -> ft.Control:
-        return WorksComposer(
+        options = getattr(self, "view_options", {}) or {}
+        context = self.get_acervo_context() if getattr(self, "get_acervo_context", None) else None
+        self.works_composer = WorksComposer(
             scale=self.scale,
             config=self.config,
             works=works or [],
@@ -549,13 +595,31 @@ class CoreComposer:
             format_reference=self.on_format_reference,
             on_copy_reference=self.on_copy_reference,
             on_delete_work=self.on_delete_work,
-        ).compose()
+            page=self.page,
+            context=context,
+            focus_work_id=options.get("focus_work_id"),
+            type_filter=options.get("type_filter"),
+            sort_key=options.get("sort_key"),
+            sort_desc=options.get("sort_desc"),
+            on_add_to_compilation=self.on_compilation_add_work,
+            on_delete_works=getattr(self, "on_delete_works", None),
+            nous_service=getattr(self, "nous_service", None),
+        )
+        return self.works_composer.compose()
+
+    def handle_view_key(self, key: str, mod: bool) -> bool:
+        """Repassa atalhos de teclado para a tela ativa (ex.: tabela do Acervo)."""
+        if self.current_destination == "Acervo" and getattr(self, "works_composer", None) is not None:
+            return self.works_composer.handle_key(key, mod)
+        return False
 
     def _compose_fragments(
         self,
         fragments: list[FragmentRecord] | None,
     ) -> ft.Control:
-        return FragmentsComposer(
+        options = getattr(self, "view_options", {}) or {}
+        on_navigate_with = getattr(self, "on_navigate_with", None)
+        composer = FragmentsComposer(
             page=self.page,
             config=self.config,
             fragments=fragments or [],
@@ -563,7 +627,18 @@ class CoreComposer:
             on_save=self.on_fragment_save,
             on_delete=self.on_fragment_delete,
             on_copy_reference=self.on_copy_reference,
-        ).compose()
+            compilations_by_fragment=self._fragment_compilations(),
+            on_open_work=(
+                (lambda work_id: on_navigate_with("Acervo", focus_work_id=work_id))
+                if on_navigate_with is not None
+                else None
+            ),
+            initial_query=str(options.get("query") or ""),
+        )
+        control = composer.compose()
+        if options.get("create"):
+            composer.open_create()
+        return control
 
     def _compose_compilations(
         self,
@@ -600,8 +675,14 @@ class CoreComposer:
             on_edit_work=self.on_compilation_edit_work,
             on_create_fragment=self.on_compilation_create_fragment,
             on_edit_fragment=self.on_compilation_edit_fragment,
+            on_navigate=self.on_navigate,
+            on_open_work=lambda work_id: self.on_navigate_with("Acervo", focus_work_id=work_id),
+            on_chrome_changed=self.refresh_chrome,
+            work_references=getattr(self, "compilation_work_references", None),
         )
-        return self.compilations_composer.compose()
+        return self.compilations_composer.compose(
+            open_create=bool(self.view_options.get("create"))
+        )
 
     def refresh_compilation_hub(self, compilation_id: int) -> None:
         if self.compilations_composer is not None:

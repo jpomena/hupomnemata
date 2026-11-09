@@ -4,6 +4,7 @@ import flet as ft
 
 from src.contracts import CompilationPayload, FragmentRecord
 from src.utils.error_log import log_exception
+from src.utils.types import ViewReference
 from src.views.fragments import FragmentsComposer
 from src.views.core_composer import CoreComposer
 
@@ -503,6 +504,26 @@ class CompilationControllerMixin:
             compilation_id
         )[0]
         composer.open_edit_fragment(fragment)
+
+    def compilation_work_references(
+        self,
+        resource_ids: list[int],
+    ) -> dict[int, ViewReference]:
+        """Referências ABNT das obras pedidas, para a lateral do caderno."""
+        wanted = set(resource_ids)
+        references: dict[int, ViewReference] = {}
+        if not wanted:
+            return references
+        try:
+            for resource in self.service.list_works():
+                if resource.id not in wanted:
+                    continue
+                reference = self.format_reference(resource)
+                if reference is not None:
+                    references[resource.id] = reference
+        except Exception as error:
+            log_exception('Falha ao formatar referências da compilação', error)
+        return references
 
     def refresh_compilation_hub(self, compilation_id: int) -> None:
         application = getattr(self, 'application', None)

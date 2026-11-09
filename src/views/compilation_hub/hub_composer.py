@@ -1,6 +1,12 @@
-"""Orquestrador principal da janela modal do Hub de Compilações."""
+"""Página de uma compilação (destino ``compilacao:<id>``).
+
+Cabeçalho com nome, descrição, selos e ações; abas Visão geral, Obras e
+fragmentos e Caderno de trabalho. Depois de cada mudança a página se redesenha
+no lugar com ``refresh()``.
+"""
 
 from collections.abc import Awaitable, Callable
+
 import flet as ft
 
 from src.contracts import (
@@ -8,13 +14,16 @@ from src.contracts import (
     CompilationRecord,
     FragmentRecord,
 )
-from src.utils.types import ViewConfig
-from src.utils.view_styles import button_text_style, text_field_style
-from .common import EventControl, _control_list
+from src.utils.types import ViewConfig, ViewReference
+from src.views import ui_kit as ui
+from src.views.ui_kit import s
+from .caderno_mixin import CompilationHubCadernoMixin
+from .common import EventControl, more_menu, plural
 from .notes_mixin import CompilationHubNotesMixin
 from .overview_mixin import CompilationHubOverviewMixin
 from .works_mixin import CompilationHubWorksMixin
-from .caderno_mixin import CompilationHubCadernoMixin
+
+TABS = ('visao', 'obras', 'caderno')
 
 
 class CompilationHubComposer(
@@ -23,10 +32,7 @@ class CompilationHubComposer(
     CompilationHubCadernoMixin,
     CompilationHubNotesMixin,
 ):
-    """
-    Compositor visual do menu Compilações integrando visões e mixins
-    especializados.
-    """
+    """Compõe a página da compilação e guarda o estado da tela (aba, ideia ativa)."""
 
     def __init__(
         self,
@@ -41,25 +47,25 @@ class CompilationHubComposer(
         on_reorder_works: Callable[[int, list[int]], bool],
         on_fragment_membership: Callable[[int, int, bool], bool],
         on_fragment_note: Callable[[int, int, str | None], bool],
-        on_create_section: Callable[
-            [int, str, str | None], int | None
-        ],
+        on_create_section: Callable[[int, str, str | None], int | None],
         on_update_section: Callable[[int, int, str, str | None], bool],
         on_delete_section: Callable[[int, int], bool],
         on_reorder_sections: Callable[[int, list[int]], bool],
-        on_assign_fragment_to_section: Callable[
-            [int, int, int | None], bool
-        ],
-        on_reorder_section_fragments: Callable[
-            [int, int, list[int]], bool
-        ],
+        on_assign_fragment_to_section: Callable[[int, int, int | None], bool],
+        on_reorder_section_fragments: Callable[[int, int, list[int]], bool],
         on_copy_caderno: Callable[[str], Awaitable[None]],
         on_create_work: Callable[[int], None],
         on_edit_work: Callable[[int, int], None],
         on_create_fragment: Callable[[int, int], None],
         on_edit_fragment: Callable[[int, FragmentRecord], None],
-        on_close: Callable[[], None],
-        on_data_changed: Callable[[CompilationRecord], None],
+        on_close: Callable[[], None] | None = None,
+        on_data_changed: Callable[[CompilationRecord], None] | None = None,
+        on_delete: Callable[[int], bool] | None = None,
+        on_navigate: Callable[[str], None] | None = None,
+        on_open_work: Callable[[int], None] | None = None,
+        on_chrome_changed: Callable[[], None] | None = None,
+        work_references: Callable[[list[int]], dict[int, ViewReference]] | None = None,
+        initial_tab: str = 'caderno',
     ) -> None:
         self.page = page
         self.config = config
@@ -85,93 +91,20 @@ class CompilationHubComposer(
         self.on_edit_fragment = on_edit_fragment
         self.on_close = on_close
         self.on_data_changed = on_data_changed
-        self.selected_tab = 1
-        self.editing_outline = False
-        self.expanded_note_fragment_ids: set[int] = set()
-        self.new_section_title = ft.TextField(
-            label='Nome da seção/ideia *',
-            hint_text='Ex.: Argumento central',
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            max_length=150,
-            **text_field_style(config),
-        )
-        self.new_section_idea = ft.TextField(
-            label='Ideia central (opcional)',
-            hint_text='Que papel esta seção terá no texto?',
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            max_length=2000,
-            **text_field_style(config),
-        )
-        self.work_search = ft.TextField(
-            label='Adicionar obra existente',
-            hint_text='Busque pelo título no Acervo',
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            on_change=self._search_work_matches,
-            **text_field_style(config),
-        )
-        self.work_matches = ft.Column(
-            spacing=2,
-            tight=True,
-            visible=False,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-        self.name_field = ft.TextField(
-            label='Nome da compilação *',
-            value=compilation['name'],
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            **text_field_style(config),
-        )
-        self.description_field = ft.TextField(
-            label='Descrição (opcional)',
-            value=compilation['description'] or '',
-            multiline=True,
-            min_lines=3,
-            max_lines=6,
-            filled=True,
-            fill_color=config.colors['surface'],
-            expand=True,
-            **text_field_style(config),
-        )
-        dialog_actions: list[ft.Control] = [
-            ft.TextButton(
-                content=ft.Text(
-                    'Fechar',
-                    color=config.colors['text'],
-                    font_family=config.font_families['montserrat'],
-                    size=config.font_sizes['montserrat_medium'],
-                    weight=config.font_weights['montserrat_normal'],
-                ),
-                style=ft.ButtonStyle(
-                    text_style=button_text_style(config),
-                ),
-                on_click=self._close,
-            )
-        ]
-        self.dialog = ft.AlertDialog(
-            modal=True,
-            bgcolor=config.colors['surface'],
-            content=self._compose_content(),
-            actions=dialog_actions,
-            actions_alignment=ft.MainAxisAlignment.END,
-            shape=ft.RoundedRectangleBorder(
-                radius=config.ui['card_radius']
-            ),
-            content_padding=config.ui['modal_content_padding'],
-            on_dismiss=self.on_close,
-        )
-
-    def _close(self) -> None:
-        self.dialog.open = False
-        self.on_close()
-        self.page.update()
+        self.on_delete = on_delete
+        self.on_navigate = on_navigate
+        self.on_open_work = on_open_work
+        self.on_chrome_changed = on_chrome_changed
+        self.work_references = work_references
+        self.selected_tab = initial_tab if initial_tab in TABS else 'caderno'
+        self.active_section_id: int | str | None = None
+        self.deleted = False
+        self.root: ft.Container | None = None
+        self.outline_host: ft.Container | None = None
+        self.writing_column: ft.Column | None = None
+        self.work_search: ft.TextField | None = None
+        self.work_matches = ft.Column(spacing=s(1), tight=True, visible=False)
+        self.work_matches_box: ft.Container | None = None
 
     def _run_click_action(
         self,
@@ -181,146 +114,111 @@ class CompilationHubComposer(
         del event
         action()
 
-    def open(self) -> None:
-        self.page.show_dialog(self.dialog)
+    # ── ciclo de vida ──────────────────────────────────────
 
-    def refresh(self) -> None:
+    def compose(self) -> ft.Container:
+        self.root = ft.Container(
+            content=self._compose_body(),
+            expand=True,
+            bgcolor=self.config.colors['bg'],
+        )
+        return self.root
+
+    def _reload(self) -> bool:
         for item in self.refresh_compilations():
             if item['id'] == self.compilation['id']:
                 self.compilation = item
-                break
-        self.name_field.value = self.compilation['name']
-        self.description_field.value = self.compilation['description'] or ''
-        self.work_search.value = ''
+                return True
+        return False
+
+    def refresh(self) -> None:
+        """Relê a compilação do banco e redesenha a página no lugar."""
+        if not self._reload():
+            self.deleted = True
+            if self.on_navigate is not None:
+                self.on_navigate('Compilações')
+            return
+        valid_ids = {section['id'] for section in self.compilation['sections']}
+        if isinstance(self.active_section_id, int) and self.active_section_id not in valid_ids:
+            self.active_section_id = None
         self.work_matches.controls = []
         self.work_matches.visible = False
-        self.new_section_title.value = ''
-        self.new_section_idea.value = ''
-        self.dialog.content = self._compose_content()
-        self.on_data_changed(self.compilation)
+        if self.work_search is not None:
+            self.work_search.value = ''
+        if self.on_data_changed is not None:
+            self.on_data_changed(self.compilation)
+        self._render()
+
+    def _render(self) -> None:
+        if self.root is not None:
+            self.root.content = self._compose_body()
         self.page.update()
 
-    def _compose_content(self) -> ft.Container:
-        tab_bar = ft.TabBar(
-            tabs=[
-                ft.Tab(label='Visão geral'),
-                ft.Tab(label='Obras e fragmentos'),
-                ft.Tab(label='Caderno de trabalho'),
+    def _select_tab(self, key: str) -> None:
+        if key not in TABS:
+            return
+        self.selected_tab = key
+        self._render()
+
+    # ── composição ─────────────────────────────────────────
+
+    def _compose_header(self) -> ft.Container:
+        c = self.config
+        compilation = self.compilation
+        meta = [
+            ui.badge(c, plural(len(compilation['works']), 'obra', 'obras')),
+            ui.badge(c, plural(self._member_count(), 'fragmento', 'fragmentos')),
+            ui.badge(c, plural(len(compilation['sections']), 'ideia', 'ideias')),
+        ]
+        updated = self._updated_label()
+        if updated:
+            meta.append(ui.badge(c, f'Atualizada em {updated}'))
+        self.copy_button = ui.button(
+            c,
+            'Copiar esqueleto',
+            on_click=self._copy_caderno,
+            icon_name='copy',
+            icon_style='regular',
+            disabled=not self._has_caderno_content(),
+            tooltip='Copia o roteiro com as ideias, os fragmentos e as notas',
+        )
+        menu_items = [('pen', 'Editar detalhes', self._open_details_dialog, False)]
+        if self.on_delete is not None:
+            menu_items += [None, ('trash-can', 'Excluir compilação', self._confirm_delete, True)]
+        self.header_menu = more_menu(c, menu_items, boxed=True, size=32)
+        return ui.page_header(
+            c,
+            compilation['name'],
+            compilation['description'],
+            actions=[self.copy_button, self.header_menu],
+            meta=meta,
+        )
+
+    def _compose_tabs(self) -> ft.Container:
+        c = self.config
+        self.tab_bar = ui.tabs(
+            c,
+            [
+                ('visao', 'Visão geral', None),
+                ('obras', 'Obras e fragmentos', len(self.compilation['works'])),
+                ('caderno', 'Caderno de trabalho', len(self.compilation['sections'])),
             ],
-            label_text_style=ft.TextStyle(
-                font_family=self.config.font_families['cormorant'],
-                size=self.config.font_sizes['cormorant_small'],
-                weight=self.config.font_weights['cormorant_semibold'],
-            ),
-            unselected_label_text_style=ft.TextStyle(
-                font_family=self.config.font_families['cormorant'],
-                size=self.config.font_sizes['cormorant_small'],
-                weight=self.config.font_weights['cormorant_semibold'],
-            ),
-            label_color=self.config.colors['gold'],
-            unselected_label_color=self.config.colors['muted'],
-            indicator_color=self.config.colors['gold'],
-            divider_color=self.config.colors['border'],
+            self.selected_tab,
+            self._select_tab,
         )
-        tab_views = ft.TabBarView(
+        return self.tab_bar
+
+    def _compose_tab_content(self) -> ft.Control:
+        if self.selected_tab == 'caderno':
+            return self._compose_caderno()
+        body = self._compose_works_and_fragments() if self.selected_tab == 'obras' else self._compose_overview()
+        return ft.Column([body], scroll=ft.ScrollMode.AUTO, expand=True)
+
+    def _compose_body(self) -> ft.Column:
+        self.tab_content = self._compose_tab_content()
+        return ft.Column(
+            [self._compose_header(), self._compose_tabs(), self.tab_content],
+            spacing=0,
             expand=True,
-            controls=[
-                ft.Container(
-                    content=self._compose_overview(),
-                    padding=ft.Padding.only(top=12),
-                    expand=True,
-                ),
-                ft.Container(
-                    content=self._compose_works_and_fragments(),
-                    padding=ft.Padding.only(top=12),
-                    expand=True,
-                ),
-                ft.Container(
-                    content=self._compose_caderno(),
-                    padding=ft.Padding.only(top=12),
-                    expand=True,
-                ),
-            ],
-        )
-        tabs = ft.Tabs(
-            length=3,
-            selected_index=self.selected_tab,
-            on_change=lambda event: setattr(
-                self,
-                'selected_tab',
-                event.control.selected_index,
-            ),
-            content=ft.Column(
-                controls=[tab_bar, tab_views],
-                expand=True,
-                spacing=0,
-            ),
-            expand=True,
-        )
-        return ft.Container(
-            content=ft.Column(
-                controls=_control_list(
-                    ft.Row(
-                        controls=_control_list(
-                            ft.Column(
-                                controls=[
-                                    ft.Text(
-                                        value=self.compilation['name'],
-                                        size=self.config.font_sizes[
-                                            'cormorant_large'
-                                        ],
-                                        font_family=(
-                                            self.config.font_families[
-                                                'cormorant'
-                                            ]
-                                        ),
-                                        weight=(
-                                            self.config.font_weights[
-                                                'cormorant_semibold'
-                                            ]
-                                        ),
-                                        color=self.config.colors['gold'],
-                                    ),
-                                    ft.Text(
-                                        value=(
-                                            'Hub de obras, fragmentos e '
-                                            'relações deste projeto'
-                                        ),
-                                        color=self.config.colors['muted'],
-                                        size=self.config.font_sizes[
-                                            'montserrat_large'
-                                        ],
-                                        font_family=(
-                                            self.config.font_families[
-                                                'montserrat'
-                                            ]
-                                        ),
-                                    ),
-                                ],
-                                spacing=2,
-                                expand=True,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.CLOSE,
-                                tooltip='Fechar hub',
-                                icon_color=self.config.colors['text'],
-                                on_click=self._close,
-                            ),
-                        ),
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    ft.Divider(
-                        color=self.config.colors['border'],
-                        height=1,
-                    ),
-                    tabs,
-                ),
-                spacing=self.config.ui['modal_gap'],
-                expand=True,
-                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-            ),
-            width=min(self.config.ui['modal_width'], 1200),
-            height=min(self.config.ui['modal_height'], 820),
-            padding=self.config.ui['card_padding'],
-            bgcolor=self.config.colors['surface'],
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
