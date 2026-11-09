@@ -89,6 +89,25 @@ class SidebarComposer:
             count_ctrl = ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True)
             controls.append(count_ctrl)
 
+        active_border = ft.Border(
+            left=ft.BorderSide(s(3), c.colors["gold"]),
+            top=ft.BorderSide(1, c.colors["border_strong"]),
+            right=ft.BorderSide(1, c.colors["border_strong"]),
+            bottom=ft.BorderSide(1, c.colors["border_strong"]),
+        )
+        hover_border = ft.Border(
+            left=ft.BorderSide(s(3), c.colors["gold"]),
+            top=ft.BorderSide(1, c.colors["border_strong"]),
+            right=ft.BorderSide(1, c.colors["border_strong"]),
+            bottom=ft.BorderSide(1, c.colors["border_strong"]),
+        )
+        item_radius = ft.BorderRadius.only(
+            top_left=0,
+            bottom_left=0,
+            top_right=s(6),
+            bottom_right=s(6),
+        )
+
         def _on_hover_item(hovering: bool) -> None:
             if not active:
                 if isinstance(glyph, ft.Text):
@@ -96,7 +115,7 @@ class SidebarComposer:
                 elif isinstance(glyph, ft.Container) and hasattr(glyph, "bgcolor"):
                     glyph.border = ft.Border.all(1.5, c.colors["gold"]) if hovering else ft.Border.all(1.5, c.colors["faint"])
                     glyph.bgcolor = c.colors["gold"] if hovering else None
-                label_text.color = c.colors["text"] if hovering else c.colors["muted"]
+                label_text.color = c.colors["gold"] if hovering else c.colors["muted"]
                 if count_ctrl is not None:
                     count_ctrl.color = c.colors["gold"] if hovering else c.colors["faint"]
 
@@ -107,6 +126,9 @@ class SidebarComposer:
             selected=active,
             padding=ft.Padding.symmetric(horizontal=s(8)),
             height=s(30),
+            radius=item_radius,
+            border=active_border if active else None,
+            hover_border=hover_border,
             on_hover=_on_hover_item,
         )
         item.data = destination

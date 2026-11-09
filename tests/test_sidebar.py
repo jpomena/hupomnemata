@@ -18,6 +18,7 @@ from src.configs.settings import (
 )
 from src.utils.types import ViewConfig
 from src.views.sidebar import SidebarComposer, SidebarData
+from src.views.ui_kit import s
 
 
 @pytest.fixture
@@ -105,14 +106,17 @@ def test_sidebar_item_hover_illuminates_glyph_and_label(view_config):
     # Hover in
     inactive_item.on_hover(SimpleNamespace(data="true"))
     assert inactive_item.bgcolor == view_config.colors["card_hover"]
+    assert inactive_item.border.left.color == view_config.colors["gold"]
+    assert inactive_item.border.left.width == s(3)
     # Row controls: [Container(glyph), label_text, count]
     row = inactive_item.content
     glyph_container, label_text = row.controls[0], row.controls[1]
     assert glyph_container.content.color == view_config.colors["gold"]
-    assert label_text.color == view_config.colors["text"]
+    assert label_text.color == view_config.colors["gold"]
 
     # Hover out
     inactive_item.on_hover(SimpleNamespace(data="false"))
     assert inactive_item.bgcolor is None
+    assert inactive_item.border is None
     assert glyph_container.content.color == view_config.colors["faint"]
     assert label_text.color == view_config.colors["muted"]

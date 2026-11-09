@@ -230,6 +230,7 @@ def icon_button(
         border=ft.Border.all(1, colors["border_strong"]) if boxed else None,
         tooltip=tooltip,
         opacity=0.35 if disabled else 1.0,
+        animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
         on_click=None if disabled else on_click,
     )
 
@@ -238,8 +239,13 @@ def icon_button(
             return
         hovering = e.data in (True, "true")
         box.bgcolor = colors["card_hover"] if hovering else None
-        glyph.color = (hover_color or colors["text"]) if hovering else (color or colors["faint"])
-        box.update()
+        if boxed:
+            box.border = ft.Border.all(1, colors["gold"] if hovering else colors["border_strong"])
+        glyph.color = (hover_color or colors["gold"]) if hovering else (color or colors["faint"])
+        try:
+            box.update()
+        except Exception:
+            pass
 
     box.on_hover = _hover
     return box
@@ -645,7 +651,7 @@ def hover_surface(
     selected: bool = False,
     padding: ft.Padding | float | None = None,
     height: float | None = None,
-    radius: float = 6,
+    radius: float | ft.BorderRadius = 6,
     base: str | None = None,
     on_hover: Callable[[bool], None] | None = None,
     border: ft.Border | None = None,
@@ -662,6 +668,13 @@ def hover_surface(
             right=ft.BorderSide(1, colors["border_strong"]),
             bottom=ft.BorderSide(1, colors["border_strong"]),
         )
+    if isinstance(radius, ft.BorderRadius):
+        b_radius = radius
+    elif radius:
+        b_radius = ft.BorderRadius.all(s(radius))
+    else:
+        b_radius = None
+
     box = ft.Container(
         content=content,
         on_click=on_click,
@@ -669,7 +682,7 @@ def hover_surface(
         height=height,
         bgcolor=base_bg,
         border=normal_border,
-        border_radius=ft.BorderRadius.all(s(radius)) if radius else None,
+        border_radius=b_radius,
         animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
     )
 
