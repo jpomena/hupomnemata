@@ -74,17 +74,28 @@ class SidebarComposer:
             size=s(13),
             color=c.colors["gold"] if active else c.colors["faint"],
         )
+        label_text = ui.ui_text(
+            c, label, size=13,
+            weight=ui.W600 if active else ui.W500,
+            color=c.colors["text"] if active else c.colors["muted"],
+            expand=True,
+        )
         controls: list[ft.Control] = [
             ft.Container(glyph, width=s(18), alignment=ft.Alignment.CENTER),
-            ui.ui_text(
-                c, label, size=13,
-                weight=ui.W600 if active else ui.W500,
-                color=c.colors["text"] if active else c.colors["muted"],
-                expand=True,
-            ),
+            label_text,
         ]
         if count is not None:
             controls.append(ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True))
+
+        def _on_hover_item(hovering: bool) -> None:
+            if not active:
+                if isinstance(glyph, ft.Text):
+                    glyph.color = c.colors["gold"] if hovering else c.colors["faint"]
+                elif isinstance(glyph, ft.Container) and hasattr(glyph, "bgcolor"):
+                    glyph.border = ft.Border.all(1.5, c.colors["gold"]) if hovering else ft.Border.all(1.5, c.colors["faint"])
+                    glyph.bgcolor = c.colors["gold"] if hovering else None
+                label_text.color = c.colors["text"] if hovering else c.colors["muted"]
+
         item = ui.hover_surface(
             c,
             ft.Row(controls, spacing=s(10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -92,6 +103,7 @@ class SidebarComposer:
             selected=active,
             padding=ft.Padding.symmetric(horizontal=s(8)),
             height=s(30),
+            on_hover=_on_hover_item,
         )
         item.data = destination
         return item
@@ -110,12 +122,20 @@ class SidebarComposer:
 
     def _compose_top(self) -> ft.Container:
         c = self.config
+        search_icon = fa_icon("magnifying-glass", size=s(12), color=c.colors["faint"])
+        search_label = ui.ui_text(c, "Buscar", size=13, color=c.colors["faint"], expand=True)
+
+        def _on_hover_search(hovering: bool) -> None:
+            search_icon.color = c.colors["gold"] if hovering else c.colors["faint"]
+            search_label.color = c.colors["text"] if hovering else c.colors["faint"]
+            search.border = ft.Border.all(1, c.colors["gold"] if hovering else c.colors["border_strong"])
+
         search = ui.hover_surface(
             c,
             ft.Row(
                 [
-                    fa_icon("magnifying-glass", size=s(12), color=c.colors["faint"]),
-                    ui.ui_text(c, "Buscar", size=13, color=c.colors["faint"], expand=True),
+                    search_icon,
+                    search_label,
                     ui.kbd(c, "⌘K"),
                 ],
                 spacing=s(8),
@@ -125,6 +145,7 @@ class SidebarComposer:
             padding=ft.Padding.only(left=s(8), right=s(6)),
             height=s(32),
             base=c.colors["bg"],
+            on_hover=_on_hover_search,
         )
         search.border = ft.Border.all(1, c.colors["border_strong"])
         search.expand = True

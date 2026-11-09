@@ -90,3 +90,29 @@ def test_sidebar_menu_click_triggers_navigation(view_config):
     items["Fragmentos"].on_click(None)
     items["compilacao:7"].on_click(None)
     assert navigated == ["Fragmentos", "compilacao:7"]
+
+
+def test_sidebar_item_hover_illuminates_glyph_and_label(view_config):
+    from types import SimpleNamespace
+    sidebar = SidebarComposer(
+        scale=1.0, config=view_config, on_navigate=lambda _d: None, current="Acervo",
+        data=SidebarData(compilations=[(7, "Tese")]),
+    )
+    items = {item.data: item for item in _nav_items(sidebar.compose())}
+    inactive_item = items["Fragmentos"]
+    assert callable(inactive_item.on_hover)
+
+    # Hover in
+    inactive_item.on_hover(SimpleNamespace(data="true"))
+    assert inactive_item.bgcolor == view_config.colors["card_hover"]
+    # Row controls: [Container(glyph), label_text, count]
+    row = inactive_item.content
+    glyph_container, label_text = row.controls[0], row.controls[1]
+    assert glyph_container.content.color == view_config.colors["gold"]
+    assert label_text.color == view_config.colors["text"]
+
+    # Hover out
+    inactive_item.on_hover(SimpleNamespace(data="false"))
+    assert inactive_item.bgcolor is None
+    assert glyph_container.content.color == view_config.colors["faint"]
+    assert label_text.color == view_config.colors["muted"]

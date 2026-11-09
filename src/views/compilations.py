@@ -282,11 +282,16 @@ class CompilationsComposer:
 
     def _compose_row(self, compilation: CompilationRecord, last: bool) -> ft.Container:
         c = self.config
-        name_column: list[ft.Control] = [ui.ui_text(c, compilation['name'], size=13, weight=ui.W600)]
+        name_ctrl = ui.ui_text(c, compilation['name'], size=13, weight=ui.W600)
+        name_column: list[ft.Control] = [name_ctrl]
         if compilation['description']:
             name_column.append(ui.ui_text(c, compilation['description'], size=12, color=c.colors['faint']))
         number = lambda value: ui.ui_text(c, str(value), size=13, tabular=True)  # noqa: E731
         date = lambda value: ui.ui_text(c, fmt_date(value), size=13, color=c.colors['faint'], tabular=True)  # noqa: E731
+
+        def _on_hover_row(hovering: bool) -> None:
+            name_ctrl.color = c.colors['gold'] if hovering else c.colors['text']
+
         row = ui.hover_surface(
             c,
             ft.Row(
@@ -304,6 +309,8 @@ class CompilationsComposer:
             on_click=lambda _e, cid=compilation['id']: self._open(cid),
             padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(10)),
             radius=0,
+            on_hover=_on_hover_row,
+            accent_left=True,
         )
         row.data = compilation['id']
         return ft.Container(row, border=None if last else ft.Border.only(bottom=ft.BorderSide(1, self.config.colors['border'])), data=compilation['id'])
