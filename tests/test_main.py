@@ -1102,7 +1102,99 @@ def test_acervo_search_filter_sort_and_keyboard():
     assert composer.handle_key('Escape', False) is True
     assert composer.checked == set()
     assert composer.handle_key('Escape', False) is True
-    assert composer.selected_id is None
+    assert composer.selected_id == None
+
+
+def test_acervo_row_child_work_title_truncation():
+    import flet as ft
+    from types import SimpleNamespace
+    from src.configs.settings import (
+        COLORS_LIGHT,
+        FONT_FAMILIES,
+        FONT_SIZES,
+        FONT_WEIGHTS,
+        ICON_SIZES,
+        MAIN_VIEW_CARDS,
+        PAGE_FONTS,
+        TEXTS,
+        UI,
+    )
+    from src.utils.types import ViewConfig
+    from src.views.works import AcervoContext, WorksComposer
+
+    class EditorialMonograph(SimpleNamespace):
+        pass
+
+    parent_work = EditorialMonograph(
+        title="Título de Obra Pai Muito Extenso Que Deve Ter Reticências",
+        subtitle="Subtítulo da Obra Pai",
+        display_year="2020",
+        created_at=None,
+    )
+    child_work = EditorialMonograph(
+        title="Título de Obra Filho Excessivamente Longo Que Não Pode Escapar Para Outras Colunas",
+        subtitle=None,
+        display_year="2021",
+        created_at=None,
+    )
+    res_parent = SimpleNamespace(id=1, authors=[], specific_work=parent_work)
+    res_child = SimpleNamespace(id=2, authors=[], specific_work=child_work)
+
+    config = ViewConfig(
+        colors=COLORS_LIGHT,
+        page_fonts=PAGE_FONTS,
+        font_families=FONT_FAMILIES,
+        font_sizes=FONT_SIZES,
+        icon_sizes=ICON_SIZES,
+        font_weights=FONT_WEIGHTS,
+        ui=UI,
+        texts=TEXTS,
+        core_menus={},
+        main_view_cards=MAIN_VIEW_CARDS,
+    )
+    composer = WorksComposer(
+        scale=1,
+        config=config,
+        works=[res_parent, res_child],
+        on_navigate=lambda _destination: None,
+        on_work_click=lambda _resource: None,
+        on_edit_work=lambda _resource: None,
+        format_reference=lambda _resource: None,
+        on_copy_reference=lambda _reference: None,
+        on_delete_work=lambda _resource: None,
+        context=AcervoContext(),
+    )
+
+    # Render obra-filho row (level=1)
+    child_row = composer._row(res_child, level=1)
+    title_cell_child = child_row.content.controls[1]
+    title_row_child = title_cell_child.content
+    assert isinstance(title_row_child, ft.Row)
+    # Child row has turn-up icon container and title text
+    assert len(title_row_child.controls) == 2
+    child_title_text = title_row_child.controls[1]
+    assert isinstance(child_title_text, ft.Text)
+    assert child_title_text.expand is True
+    assert child_title_text.expand_loose is True
+    assert child_title_text.max_lines == 1
+    assert child_title_text.overflow == ft.TextOverflow.ELLIPSIS
+    assert child_title_text.tooltip == child_work.title
+
+    # Render obra-pai row (level=0)
+    parent_row = composer._row(res_parent, level=0)
+    title_cell_parent = parent_row.content.controls[1]
+    title_row_parent = title_cell_parent.content
+    assert isinstance(title_row_parent, ft.Row)
+    # Parent row has title text and subtitle text
+    assert len(title_row_parent.controls) == 2
+    parent_title_text = title_row_parent.controls[0]
+    parent_subtitle_text = title_row_parent.controls[1]
+    assert parent_title_text.expand is True
+    assert parent_title_text.expand_loose is True
+    assert parent_title_text.overflow == ft.TextOverflow.ELLIPSIS
+    assert parent_subtitle_text.expand is True
+    assert parent_subtitle_text.expand_loose is True
+    assert parent_subtitle_text.overflow == ft.TextOverflow.ELLIPSIS
 
 
 def test_partial_work_controls_are_not_universal_in_form_specs():

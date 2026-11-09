@@ -592,11 +592,17 @@ class WorksComposer:
         title_parts: list[ft.Control] = []
         if level:
             title_parts.append(ft.Container(fa_icon("turn-up", size=s(9), color=c.colors["border_strong"]), rotate=ft.Rotate(1.5708), width=s(16), margin=ft.Margin.only(left=s(4 + 12 * (level - 1)))))
-        title_text = ui.ui_text(c, work.title or "", size=13, weight=ui.W600)
+        title_text = ui.ui_text(c, work.title or "", size=13, weight=ui.W600, expand=True)
+        title_text.expand_loose = True
+        if work.title:
+            title_text.tooltip = work.title
         title_parts.append(title_text)
         subtitle = getattr(work, "subtitle", None)
         if subtitle:
-            title_parts.append(ui.ui_text(c, subtitle, size=13, color=c.colors["faint"], expand=True))
+            sub_text = ui.ui_text(c, subtitle, size=13, color=c.colors["faint"], expand=True)
+            sub_text.expand_loose = True
+            sub_text.tooltip = subtitle
+            title_parts.append(sub_text)
         values = {
             "title": ft.Row(title_parts, spacing=s(8), vertical_alignment=ft.CrossAxisAlignment.CENTER),
             "author": ui.ui_text(c, author_names(resource) or "Sem autoria", size=13, color=c.colors["muted"]),
