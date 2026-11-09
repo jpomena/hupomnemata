@@ -253,21 +253,33 @@ class CoreComposer:
             toggle_maximize_window,
             "Restaurar" if is_maximized else "Maximizar",
         )
+        brand_text = ft.Text(
+            value=c.texts["app"]["name_normalized"],
+            size=s(24),
+            color=c.colors["text"],
+            font_family=c.font_families["greek"],
+            style=ft.TextStyle(letter_spacing=1.2),
+            no_wrap=True,
+        )
         brand = ft.Container(
-            content=ft.Text(
-                value=c.texts["app"]["name_normalized"],
-                size=s(17),
-                color=c.colors["text"],
-                font_family=c.font_families["greek"],
-                style=ft.TextStyle(letter_spacing=0.4),
-                no_wrap=True,
-            ),
+            content=brand_text,
             width=s(c.ui["sidebar_width"]),
             padding=ft.Padding.only(left=s(16)),
             alignment=ft.Alignment.CENTER_LEFT,
             border=ft.Border.only(right=ft.BorderSide(1, c.colors["border"])),
             on_click=lambda _e: self.on_navigate("dashboard"),
+            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
         )
+
+        def _on_hover_brand(e):
+            hovering = e.data in (True, "true")
+            brand_text.color = c.colors["gold"] if hovering else c.colors["text"]
+            try:
+                brand.update()
+            except Exception:
+                pass
+
+        brand.on_hover = _on_hover_brand
         self.back_button = ui.icon_button(
             c, "arrow-left", on_click=lambda _e: self.on_history(-1) if self.on_history else None,
             tooltip="Voltar (⌘[)", disabled=not self.can_go_back,
