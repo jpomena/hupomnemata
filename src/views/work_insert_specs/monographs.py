@@ -1,13 +1,12 @@
 """Especificações para obras monográficas (livros, trabalhos acadêmicos, correspondências)."""
 
-import flet as ft
 from .base import FieldSpec, PUBLICATION, _spec
 
 EDITORIAL_MONOGRAPH_SPEC = _spec(
     "editorial_monograph",
     "Livros em geral",
     "Livro, enciclopédia ou catálogo",
-    ft.Icons.BOOK_OUTLINED,
+    "book-open",
     *PUBLICATION,
     FieldSpec(key="edition", label="Edição", kind="number"),
     FieldSpec(
@@ -70,8 +69,8 @@ EDITORIAL_MONOGRAPH_SPEC = _spec(
 ACADEMIC_MONOGRAPH_SPEC = _spec(
     "academic_monograph",
     "Trabalho acadêmico",
-    "Trabalho acadêmico",
-    ft.Icons.SCHOOL_OUTLINED,
+    "Tese, dissertação ou trabalho de conclusão de curso",
+    "graduation-cap",
     *PUBLICATION,
     FieldSpec(
         key="page_quantity",
@@ -117,7 +116,7 @@ CORRESPONDENCE_MONOGRAPH_SPEC = _spec(
     "correspondence_monograph",
     "Correspondência",
     "Carta, telegrama ou e-mail",
-    ft.Icons.MAIL_OUTLINE,
+    "envelope",
     *PUBLICATION,
     FieldSpec(
         key="recipient", label="Destinatário", hint="Ex.: Machado de Assis"

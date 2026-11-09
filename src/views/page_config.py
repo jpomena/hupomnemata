@@ -20,11 +20,18 @@ class PageConfigurator:
         page.theme = ft.Theme(
             font_family=self.config.font_families["cormorant"],
             tooltip_theme=ft.TooltipTheme(
-                text_style=(
-                    ft.TextStyle(
-                        font_family=self.config.font_families["montserrat"]
-                    )
-                )
+                text_style=ft.TextStyle(
+                    font_family=self.config.font_families["montserrat"],
+                    size=12,
+                    color=self.config.colors["bg"],
+                    weight=ft.FontWeight.W_500,
+                ),
+                decoration=ft.BoxDecoration(
+                    bgcolor=self.config.colors["text"],
+                    border_radius=ft.BorderRadius.all(4),
+                ),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                wait_duration=600,
             )
         )
         page.title = (

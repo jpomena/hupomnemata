@@ -1,13 +1,12 @@
 """Especificações para documentos multimídia, artísticos, sonoros e digitais."""
 
-import flet as ft
 from .base import FieldSpec, PUBLICATION, _spec
 
 MISC_DIGITAL_SPEC = _spec(
     "miscellaneous_digital_document",
     "Documento digital",
     "Documento digital diverso",
-    ft.Icons.INSERT_DRIVE_FILE_OUTLINED,
+    "file-lines",
     FieldSpec(
         key="version", label="Versão", hint="Ex.: 2", kind="number"
     ),
@@ -24,7 +23,7 @@ AUDIOVISUAL_SPEC = _spec(
     "audiovisual_document",
     "Audiovisual",
     "Filme, vídeo ou gravação",
-    ft.Icons.VIDEO_LIBRARY_OUTLINED,
+    "film",
     FieldSpec(
         key="carrier_type",
         label="Tipo de suporte",
@@ -53,7 +52,7 @@ AUDIO_SPEC = _spec(
     "audio_document",
     "Áudio",
     "Disco, podcast ou gravação sonora",
-    ft.Icons.AUDIOTRACK,
+    "music",
     FieldSpec(
         key="carrier_type",
         label="Tipo de suporte (obrigatório se não houver URL)",
@@ -94,7 +93,7 @@ MUSICAL_SCORE_SPEC = _spec(
     "musical_score",
     "Partitura",
     "Partitura ou obra musical",
-    ft.Icons.MUSIC_NOTE,
+    "music",
     FieldSpec(
         key="instrumentation",
         label="Instrumentação",
@@ -121,7 +120,7 @@ VISUAL_SPEC = _spec(
     "visual_document",
     "Documento visual",
     "Fotografia, cartaz ou imagem",
-    ft.Icons.IMAGE_OUTLINED,
+    "image",
     FieldSpec(
         key="physical_description",
         label="Especificação do suporte",
@@ -135,7 +134,7 @@ CARTOGRAPHIC_SPEC = _spec(
     "cartographic_document",
     "Cartográfico",
     "Mapa, atlas ou carta",
-    ft.Icons.MAP_OUTLINED,
+    "map",
     FieldSpec(
         key="edition", label="Edição", hint="Ex.: 2", kind="number"
     ),
@@ -157,7 +156,7 @@ THREE_DIMENSIONAL_SPEC = _spec(
     "three_dimensional_document",
     "Tridimensional",
     "Objeto tridimensional",
-    ft.Icons.VIEW_IN_AR,
+    "cube",
     FieldSpec(
         key="manufacturing_place",
         label="Local (se houver)",

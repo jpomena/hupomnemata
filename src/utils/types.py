@@ -18,6 +18,7 @@ WORK_TYPE_LABELS = {
     "Statute": "Legislação",
     "CaseLaw": "Jurisprudência",
     "MiscellaneousDigitalDocument": "Documento digital",
+    "MiscDigitalDocument": "Documento digital",
     "AudiovisualDocument": "Audiovisual",
     "AudioDocument": "Áudio",
     "MusicalScore": "Partitura",

@@ -1,7 +1,6 @@
 """Estruturas base e campos comuns para especificações de cadastro de obras."""
 
 from dataclasses import dataclass
-import flet as ft
 
 
 @dataclass(frozen=True)
@@ -22,7 +21,8 @@ class WorkTypeSpec:
     key: str
     label: str
     description: str
-    icon: ft.IconData
+    icon: str
+    """Nome do ícone no Font Awesome Free (ver ``catalog.TYPE_ICONS``)."""
     fields: tuple[FieldSpec, ...]
     date_kind: str = "year"
 

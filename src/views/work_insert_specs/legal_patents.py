@@ -1,20 +1,19 @@
 """Especificações para documentos legais e patentes."""
 
-import flet as ft
 from .base import FieldSpec, _spec
 
 STATUTE_SPEC = _spec(
     "statute",
     "Legislação",
     "Lei, decreto ou norma",
-    ft.Icons.GAVEL,
+    "gavel",
 )
 
 CASELAW_SPEC = _spec(
     "caselaw",
     "Jurisprudência",
     "Acórdão, sentença ou decisão",
-    ft.Icons.ACCOUNT_BALANCE,
+    "building-columns",
     FieldSpec(
         key="publication_media",
         label="Veículo / mídia de publicação",
@@ -63,7 +62,7 @@ PATENT_SPEC = _spec(
     "patent",
     "Patente",
     "Documento de propriedade industrial",
-    ft.Icons.LIGHTBULB_OUTLINE,
+    "lightbulb",
     FieldSpec(
         key="applicant",
         label="Requerente",

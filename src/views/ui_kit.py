@@ -160,7 +160,7 @@ def button(
         bgcolor=bg,
         border=ft.Border.all(1, border) if border else None,
         border_radius=ft.BorderRadius.all(s(6)),
-        alignment=ft.Alignment.CENTER,
+        alignment=ft.Alignment.CENTER if expand else None,
         tooltip=tooltip,
         expand=expand,
         opacity=0.5 if disabled else 1.0,
@@ -282,7 +282,6 @@ def badge(c: ViewConfig, label: str, icon_name: str | None = None, accent: bool 
         border_radius=ft.BorderRadius.all(s(4)),
         bgcolor=alpha(colors["gold"], 0.12) if accent else colors["bg"],
         border=ft.Border.all(1, alpha(colors["gold"], 0.12) if accent else colors["border_strong"]),
-        alignment=ft.Alignment.CENTER,
     )
 
 
@@ -291,7 +290,6 @@ def kbd(c: ViewConfig, label: str) -> ft.Container:
         content=ft.Text(label, size=s(10.5), color=c.colors["faint"], font_family=c.font_families["mono"]),
         padding=ft.Padding.symmetric(horizontal=s(4)),
         height=s(18),
-        alignment=ft.Alignment.CENTER,
         border=ft.Border(
             top=ft.BorderSide(1, c.colors["border_strong"]),
             left=ft.BorderSide(1, c.colors["border_strong"]),
@@ -406,11 +404,11 @@ def search_field(
         autofocus=autofocus,
         height=s(32),
         dense=True,
-        content_padding=ft.Padding.only(left=s(4), right=s(10), top=s(8), bottom=s(8)),
-        prefix=ft.Container(fa_icon("magnifying-glass", size=s(12), color=colors["faint"]), padding=ft.Padding.only(left=s(6), right=s(6))),
+        content_padding=ft.Padding.only(left=s(0), right=s(10), top=s(8), bottom=s(8)),
+        prefix_icon=ft.Container(fa_icon("magnifying-glass", size=s(12), color=colors["faint"]), width=s(30), alignment=ft.Alignment.CENTER),
         text_size=s(13),
-        text_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["text"], weight=W500),
-        hint_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["faint"], weight=W500),
+        text_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["text"], weight=W500, letter_spacing=UI_TRACKING),
+        hint_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["faint"], weight=W500, letter_spacing=UI_TRACKING, size=s(13)),
         bgcolor=colors["bg"],
         border_color=colors["border_strong"],
         focused_border_color=colors["gold"],
@@ -454,7 +452,7 @@ def props(c: ViewConfig, rows: Sequence[tuple[str, ft.Control | str | None]], la
         out.append(
             ft.Row(
                 controls=[
-                    ft.Container(ui_text(c, label, size=13, color=c.colors["faint"]), width=s(label_width)),
+                    ft.Container(ui_text(c, label, size=13, color=c.colors["faint"], max_lines=2), width=s(label_width), padding=ft.Padding.only(right=s(8))),
                     ft.Container(value_control, expand=True),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.START,
@@ -536,7 +534,6 @@ def chip_filter(
         border=ft.Border.all(1, colors["border_strong"]),
         border_radius=ft.BorderRadius.all(s(6)),
         on_click=on_click,
-        alignment=ft.Alignment.CENTER,
     )
 
 
@@ -627,3 +624,258 @@ def toast(page: ft.Page, c: ViewConfig, message: str, icon_name: str = "circle-c
         shape=ft.RoundedRectangleBorder(radius=s(8)),
     )
     page.show_dialog(snack)
+
+
+# ── formulário ─────────────────────────────────────────────
+# Rótulo 12/600 acima do campo, campo de 32 px com borda de 1 px
+# (``border_strong``), foco dourado e erro com borda ``danger`` e mensagem
+# abaixo. Sem espaçamento de letras.
+
+
+def input_field(
+    c: ViewConfig,
+    value: str = "",
+    hint: str | None = None,
+    on_change: Callable | None = None,
+    multiline: bool = False,
+    min_lines: int = 1,
+    max_lines: int | None = None,
+    keyboard_type: ft.KeyboardType | None = None,
+    input_filter: ft.InputFilter | None = None,
+    expand: bool | int | None = True,
+    width: float | None = None,
+    on_submit: Callable | None = None,
+    prefix_icon: str | None = None,
+    autofocus: bool = False,
+) -> ft.TextField:
+    """Campo de texto do padrão v2 (sem rótulo flutuante; use ``form_field``)."""
+    colors = c.colors
+    text_style = ft.TextStyle(
+        font_family=c.font_families["montserrat"],
+        color=colors["text"],
+        weight=W500,
+        size=s(13),
+        height=1.5 if multiline else None,
+    )
+    hint_style = ft.TextStyle(
+        font_family=c.font_families["montserrat"],
+        color=colors.get("faint", colors["muted"]),
+        weight=W500,
+        size=s(13),
+        letter_spacing=UI_TRACKING,
+    )
+    prefix = None
+    if prefix_icon:
+        prefix = ft.Container(
+            fa_icon(prefix_icon, size=s(12), color=colors.get("faint", colors["muted"])),
+            padding=ft.Padding.only(left=s(6), right=s(6)),
+        )
+    return ft.TextField(
+        value=value,
+        hint_text=hint,
+        on_change=on_change,
+        on_submit=on_submit,
+        multiline=multiline,
+        min_lines=min_lines if multiline else None,
+        max_lines=max_lines if multiline else 1,
+        keyboard_type=keyboard_type,
+        input_filter=input_filter,
+        expand=expand,
+        width=s(width) if width else None,
+        height=None if multiline else s(34),
+        autofocus=autofocus,
+        dense=True,
+        prefix=prefix,
+        content_padding=ft.Padding.only(
+            left=s(4 if prefix else 10), right=s(10), top=s(8), bottom=s(8)
+        ),
+        text_size=s(13),
+        text_style=text_style,
+        hint_style=hint_style,
+        bgcolor=colors["bg"],
+        border_color=colors.get("border_strong", colors["border"]),
+        focused_border_color=colors["gold"],
+        border_width=1,
+        focused_border_width=1,
+        border_radius=ft.BorderRadius.all(s(6)),
+        cursor_color=colors["gold"],
+    )
+
+
+def dropdown_field(
+    c: ViewConfig,
+    options: Sequence[str | tuple[str, str]],
+    value: str | None = None,
+    on_select: Callable | None = None,
+    expand: bool | int | None = None,
+    width: float | None = None,
+) -> ft.Dropdown:
+    """Menu de seleção do padrão v2. ``options`` aceita textos ou ``(chave, texto)``."""
+    colors = c.colors
+    text_style = ft.TextStyle(
+        font_family=c.font_families["montserrat"],
+        color=colors["text"],
+        weight=W500,
+        size=s(13),
+    )
+    built: list[ft.DropdownOption] = []
+    for option in options:
+        key, text = option if isinstance(option, tuple) else (option, option)
+        built.append(
+            ft.DropdownOption(
+                key=key,
+                text=text,
+                content=ft.Text(
+                    text,
+                    size=s(13),
+                    weight=W500,
+                    color=colors["text"],
+                    font_family=c.font_families["montserrat"],
+                ),
+            )
+        )
+    return ft.Dropdown(
+        value=value,
+        options=built,
+        on_select=on_select,
+        expand=expand,
+        width=s(width) if width else None,
+        expanded_insets=None if width else ft.Padding.all(0),
+        dense=True,
+        text_size=s(13),
+        text_style=text_style,
+        content_padding=ft.Padding.only(left=s(10), right=s(6), top=s(6), bottom=s(6)),
+        bgcolor=colors["surface"],
+        fill_color=colors["bg"],
+        filled=True,
+        border_color=colors.get("border_strong", colors["border"]),
+        focused_border_color=colors["gold"],
+        border_width=1,
+        focused_border_width=1,
+        border_radius=ft.BorderRadius.all(s(6)),
+        trailing_icon=fa_icon("chevron-down", size=s(10), color=colors.get("faint", colors["muted"])),
+        selected_trailing_icon=fa_icon("chevron-up", size=s(10), color=colors.get("faint", colors["muted"])),
+    )
+
+
+def checkbox(
+    c: ViewConfig,
+    label: str,
+    value: bool = False,
+    on_change: Callable | None = None,
+) -> ft.Checkbox:
+    """Checkbox de 16 px: borda neutra, marcado em dourado."""
+    colors = c.colors
+    return ft.Checkbox(
+        label=label,
+        value=value,
+        on_change=on_change,
+        label_position=ft.LabelPosition.RIGHT,
+        label_style=ft.TextStyle(
+            size=s(13),
+            weight=W500,
+            color=colors["text"],
+            font_family=c.font_families["montserrat"],
+        ),
+        fill_color={
+            ft.ControlState.SELECTED: colors["gold"],
+            ft.ControlState.DEFAULT: colors["bg"],
+        },
+        check_color=colors.get("on_gold", colors["bg"]),
+        border_side={
+            ft.ControlState.SELECTED: ft.BorderSide(1, colors["gold"]),
+            ft.ControlState.HOVERED: ft.BorderSide(1, colors["muted"]),
+            ft.ControlState.DEFAULT: ft.BorderSide(1, colors.get("faint", colors["muted"])),
+        },
+        shape=ft.RoundedRectangleBorder(radius=s(4)),
+        splash_radius=0,
+        visual_density=ft.VisualDensity.COMPACT,
+    )
+
+
+def field_label(c: ViewConfig, label: str, required: bool = False) -> ft.Text:
+    """Rótulo de campo (12/600) com asterisco dourado quando obrigatório."""
+    colors = c.colors
+    spans = [ft.TextSpan(" *", style=ft.TextStyle(color=colors["gold"], weight=W600))] if required else []
+    return ft.Text(
+        label,
+        spans=spans,
+        size=s(12),
+        weight=W600,
+        color=colors["muted"],
+        font_family=c.font_families["montserrat"],
+        max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS,
+    )
+
+
+def form_field(
+    c: ViewConfig,
+    label: str | None,
+    control: ft.Control,
+    required: bool = False,
+    help_text: str | None = None,
+    expand: bool | int | None = True,
+    error_target: ft.Control | None = None,
+) -> ft.Column:
+    """Rótulo acima, controle e linha de ajuda ou erro abaixo.
+
+    O controle não deve ter ``expand`` (aqui ele seria vertical); a largura vem
+    do ``STRETCH``. ``expand`` do próprio ``form_field`` vale para a ``Row``
+    que o contém. ``data`` guarda ``control``, ``error_target`` (o campo que ganha a borda de
+    erro), ``message`` e ``help`` para ``set_field_error``.
+    """
+    colors = c.colors
+    message_icon = fa_icon("circle-exclamation", size=s(11), color=colors["danger"])
+    message_icon.visible = False
+    message_text = ui_text(
+        c, help_text or "", size=12, color=colors.get("faint", colors["muted"]), max_lines=3
+    )
+    message = ft.Row(
+        [message_icon, ft.Container(message_text, expand=True)],
+        spacing=s(4),
+        visible=bool(help_text),
+        vertical_alignment=ft.CrossAxisAlignment.START,
+    )
+    controls: list[ft.Control] = []
+    if label:
+        controls.append(field_label(c, label, required))
+    controls.extend([control, message])
+    wrapper = ft.Column(
+        controls,
+        spacing=s(6),
+        expand=expand,
+        tight=True,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+    )
+    wrapper.data = {
+        "control": control,
+        "error_target": error_target or control,
+        "message": message,
+        "message_icon": message_icon,
+        "message_text": message_text,
+        "help": help_text,
+        "error": None,
+    }
+    return wrapper
+
+
+def set_field_error(c: ViewConfig, wrapper: ft.Control, message: str | None) -> None:
+    """Liga ou desliga o estado de erro de um ``form_field`` (sem ``update``)."""
+    data = getattr(wrapper, "data", None)
+    if not isinstance(data, dict):
+        return
+    colors = c.colors
+    data["error"] = message
+    target = data.get("error_target")
+    normal_border = colors.get("border_strong", colors["border"])
+    if target is not None and hasattr(target, "border_color"):
+        target.border_color = colors["danger"] if message else normal_border
+        if hasattr(target, "focused_border_color"):
+            target.focused_border_color = colors["danger"] if message else colors["gold"]
+    text = data["message_text"]
+    help_text = data.get("help")
+    text.value = message or help_text or ""
+    text.color = colors["danger"] if message else colors.get("faint", colors["muted"])
+    data["message_icon"].visible = bool(message)
+    data["message"].visible = bool(message or help_text)

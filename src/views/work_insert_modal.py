@@ -1,4 +1,11 @@
-"""Composer stateful do diálogo de inserção de obras."""
+"""Composer stateful do diálogo "Nova obra" / "Editar obra" (v2).
+
+Layout (``design/prototype/index.html``, ``renderNewWork``): cabeçalho de 52 px,
+lista de tipos agrupada com busca à esquerda (248 px, fundo ``chrome``),
+formulário em seções com a legenda à esquerda e rodapé fixo com a prévia ABNT
+ao vivo, Cancelar e Salvar. A validação acontece ao salvar: o campo fica com
+borda vermelha, a mensagem aparece abaixo e o foco vai para o primeiro erro.
+"""
 
 from collections.abc import Callable
 from typing import TypedDict
@@ -6,16 +13,50 @@ from typing import TypedDict
 import flet as ft
 
 from src.contracts import AuthorReference, AuthorSearchResult
+from src.services.reference_preview import PreviewResult
 from src.utils.types import ViewConfig
+from src.views import ui_kit as ui
 from src.views.work_insert_modal_author import AuthorSearchMixin
 from src.views.work_insert_modal_fields import FieldBuilderMixin
-from src.views.work_insert_modal_render import RenderMixin
+from src.views.work_insert_modal_render import PARENT_KEY, RenderMixin
 from src.views.work_insert_specs import (
     ALWAYS_PARTIAL_TYPES,
     MAGAZINE_PARENT_TYPES,
     WORK_TYPES,
     WorkTypeSpec,
 )
+
+DIALOG_WIDTH = 1040
+DIALOG_HEIGHT = 740
+TYPE_COLUMN_WIDTH = 248
+SINGLE_TYPE_WIDTH = 820
+PARENT_DIALOG_WIDTH = 780
+PARENT_DIALOG_HEIGHT = 680
+
+CARRY_OVER_FIELDS = {
+    "title",
+    "subtitle",
+    "abstract",
+    "url",
+    "viewed_at",
+    "preserve_title_spelling",
+}
+
+SAVE_LABEL = "Salvar no acervo"
+SAVE_EDIT_LABEL = "Salvar alterações"
+SAVING_LABEL = "Salvando"
+
+# Rótulos que ``WorkSubmissionController._missing_required_fields`` devolve
+# fora das specs, mapeados para o campo do formulário.
+SPECIAL_MISSING_LABELS = {
+    "Obra-pai": PARENT_KEY,
+    "Página inicial da parte": "part_start_page",
+    "Página final da parte": "part_end_page",
+    "Identificador da parte": "part_identifier",
+    "Data de acesso": "viewed_at",
+    "Tipo de suporte": "carrier_type",
+    "URL": "url",
+}
 
 
 class DropdownStyle(TypedDict):
@@ -28,6 +69,15 @@ class DropdownStyle(TypedDict):
     bgcolor: str
     border_width: int | float
     text_style: ft.TextStyle
+
+
+def _safe_update(control: ft.Control | None) -> None:
+    if control is None:
+        return
+    try:
+        control.update()
+    except (RuntimeError, AssertionError, AttributeError):
+        pass
 
 
 class WorkInsertModalComposer(
@@ -67,11 +117,12 @@ class WorkInsertModalComposer(
         ] | None = on_create_parent_work
         self.parent_mode = parent_mode
         self.edit_mode = edit_mode
-        self.selected: WorkTypeSpec = next(
-            (spec for spec in WORK_TYPES if spec.key == initial_work_type),
-            WORK_TYPES[0],
-        )
+        self.initial_work_type = initial_work_type
+        self.selected: WorkTypeSpec = self._initial_spec()
         self.fields: dict[str, ft.Control] = {}
+        self.field_wrappers: dict[str, ft.Control] = {}
+        self.field_order: list[str] = []
+        self.errors: dict[str, str] = {}
         self.stored_values: dict[str, object] = dict(initial_values or {})
         self.partial_enabled = (
             self.selected.key in ALWAYS_PARTIAL_TYPES
@@ -90,105 +141,80 @@ class WorkInsertModalComposer(
         self.parent_work_id = initial_parent_work_id
         self.parent_work_field: ft.TextField | None = None
         self.parent_work_results: ft.Column | None = None
-        self.type_grid = ft.GridView(
-            runs_count=3,
-            spacing=self.config.ui["control_gap"] - 4,
-            run_spacing=self.config.ui["control_gap"] - 4,
-            expand=True,
+        self.saving = False
+        self.focus_title = True
+        self.type_query = ""
+        self._logged_preview_errors: set[str] = set()
+        self.preview_result: PreviewResult | None = None
+
+        c = self.config
+        self.type_search = ui.search_field(
+            c,
+            "Buscar tipo",
+            on_change=self._filter_types,
+            on_submit=self._choose_first_visible_type,
+            width=None,
+            expand=False,
         )
-        self.form = ft.Column(
+        self.type_list = ft.Column(
+            spacing=ui.s(8),
             scroll=ft.ScrollMode.AUTO,
             expand=True,
-            spacing=self.config.ui["modal_gap"],
         )
+        self.form_intro = ft.Container()
+        self.form_body = ft.Column(spacing=ui.s(24), tight=True)
+        self.form = ft.Column(
+            controls=[
+                ft.Container(
+                    content=self.form_body,
+                    padding=ft.Padding.only(
+                        left=ui.s(32), right=ui.s(32),
+                        top=ui.s(24), bottom=ui.s(32),
+                    ),
+                )
+            ],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            spacing=0,
+        )
+        self.preview_text = ft.Text(
+            "",
+            size=ui.s(13),
+            weight=ui.W500,
+            color=c.colors.get("faint", c.colors["muted"]),
+            font_family=c.font_families["montserrat"],
+            max_lines=3,
+            overflow=ft.TextOverflow.ELLIPSIS,
+            selectable=True,
+            style=ft.TextStyle(height=1.55),
+        )
+        self.save_button: ft.Container | None = None
         self.modal: ft.AlertDialog | None = None
 
-    def _type_card(
-        self,
-        spec,
-        selected: bool,
-        on_select: Callable[[], None],
-    ) -> ft.Container:
-        """Cria um cartão para selecionar o tipo de obra."""
-        icon = ft.Icon(
-            spec.icon,
-            size=36,
-            color=self.config.colors["gold"],
-            align=ft.Alignment.CENTER,
-        )
-        card = ft.Container(
-            content=ft.Column(
-                controls=[
-                    icon,
-                    ft.Text(
-                        value=spec.label,
-                        size=self.config.font_sizes["montserrat_tiny"],
-                        color=self.config.colors["text"],
-                        font_family=self.config.font_families["montserrat"],
-                        weight=self.config.font_weights["montserrat_semibold"],
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=6,
-            ),
-            width=120,
-            height=260,
-            padding=8,
-            bgcolor=(
-                self.config.colors["card_hover"]
-                if selected
-                else self.config.colors["surface"]
-            ),
-            border=ft.Border.all(
-                2 if selected else 1,
-                self.config.colors["gold"]
-                if selected
-                else self.config.colors["border"],
-            ),
-            border_radius=self.config.ui["card_radius"],
-            on_click=lambda e: on_select(),
-            animate=ft.Animation(
-                int(self.config.ui["animation_ms"]),
-                ft.AnimationCurve.EASE_OUT,
-            ),
+    def _initial_spec(self) -> WorkTypeSpec:
+        return next(
+            (spec for spec in WORK_TYPES if spec.key == self.initial_work_type),
+            WORK_TYPES[0],
         )
 
-        def handle_hover(e: ft.Event[ft.Container]):
-            if e.data:
-                card.bgcolor = self.config.colors["card_hover"]
-                card.border = ft.Border()
-                card.border.left = ft.BorderSide(
-                    1, self.config.colors["text"]
-                )
-                card.border.top = ft.BorderSide(
-                    1, self.config.colors["text"]
-                )
-                card.border.right = ft.BorderSide(
-                    1, self.config.colors["text"]
-                )
-                card.border.bottom = ft.BorderSide(
-                    4, self.config.colors["text"]
-                )
-                icon.color = self.config.colors["text"]
-            else:
-                card.bgcolor = (
-                    self.config.colors["card_hover"]
-                    if selected
-                    else self.config.colors["surface"]
-                )
-                card.border = ft.Border.all(
-                    2 if selected else 1,
-                    self.config.colors["gold"]
-                    if selected
-                    else self.config.colors["border"],
-                )
-                icon.color = self.config.colors["gold"]
-            card.update()
+    @property
+    def shows_type_list(self) -> bool:
+        """A troca de tipo só existe no cadastro novo."""
+        return not self.parent_mode and not self.edit_mode
 
-        card.on_hover = handle_hover
-        return card
+    @property
+    def title(self) -> str:
+        if self.edit_mode:
+            return "Editar obra"
+        if self.parent_mode:
+            return (
+                "Nova revista"
+                if self.selected.key == "magazine"
+                else "Nova obra-pai"
+            )
+        return "Nova obra"
+
+    # ── estado do formulário ───────────────────────────────
 
     def _collect(self) -> dict[str, object]:
         """Converte os controles atuais em dados do formulário."""
@@ -207,18 +233,18 @@ class WorkInsertModalComposer(
                 for row in control.controls:
                     if not isinstance(row, ft.Row) or len(row.controls) < 2:
                         continue
-                    role = getattr(row.controls[0], "value", "").strip()
-                    names = getattr(row.controls[1], "value", "").strip()
+                    role = (getattr(row.controls[0], "value", "") or "").strip()
+                    names = (getattr(row.controls[1], "value", "") or "").strip()
                     if role and names:
                         responsibilities[role] = names
                 data[key] = responsibilities
             elif isinstance(control, ft.Row):
-                responsibility_key = getattr(
+                responsibility_key = (getattr(
                     control.controls[0], "value", ""
-                ).strip()
-                responsibility_names = getattr(
+                ) or "").strip()
+                responsibility_names = (getattr(
                     control.controls[1], "value", ""
-                ).strip()
+                ) or "").strip()
                 data[key] = (
                     {responsibility_key: responsibility_names}
                     if responsibility_key and responsibility_names
@@ -229,21 +255,64 @@ class WorkInsertModalComposer(
         data["parent_bibliographic_resource_id"] = self.parent_work_id
         return data
 
+    def _value_changed(self, key: str) -> None:
+        """Qualquer edição limpa o erro do campo e atualiza a prévia."""
+        self._clear_error(key)
+        self._refresh_preview()
+
     def _toggle_partial(self, event) -> None:
         """Alterna campos parciais preservando valores preenchidos."""
         self.partial_enabled = bool(event.control.value)
         if not self.partial_enabled:
             self.parent_work_search = ""
             self.parent_work_id = None
-        self._render()
+        self.focus_title = False
+        try:
+            self._render()
+        finally:
+            self.focus_title = True
 
     def _choose(self, spec) -> None:
-        """Seleciona tipo de obra e reinicia estado do formulário."""
+        """Seleciona tipo de obra e reinicia o formulário.
+
+        Título, subtítulo, resumo, URL, data de acesso, grafia do título e
+        autores passam para o novo tipo quando ele também tem esses campos;
+        o resto é específico de cada tipo e recomeça vazio.
+        """
+        if spec.key == self.selected.key:
+            return
+        carried = {
+            key: value
+            for key, value in (self._collect() if self.fields else {}).items()
+            if key in CARRY_OVER_FIELDS and value not in ("", None)
+        }
+        keep_authors = any(field.key == "authors" for field in spec.fields)
         self.selected = spec
         self.partial_enabled = (
             spec.key in ALWAYS_PARTIAL_TYPES
             or spec.key in MAGAZINE_PARENT_TYPES
         )
+        if not keep_authors:
+            self.author_references.clear()
+        self.author_search = ""
+        self.author_control = None
+        self.author_search_field = None
+        self.author_results = None
+        self.author_pills = None
+        self.parent_work_search = ""
+        self.parent_work_id = None
+        self.parent_work_field = None
+        self.parent_work_results = None
+        self.errors.clear()
+        self.stored_values.clear()
+        self.stored_values.update(carried)
+        self.fields = {}
+        self._render()
+
+    def _reset(self) -> None:
+        """Reseta formulário e estado do modal."""
+        self.selected = WORK_TYPES[0]
+        self.partial_enabled = False
         self.author_references.clear()
         self.author_search = ""
         self.author_control = None
@@ -254,28 +323,114 @@ class WorkInsertModalComposer(
         self.parent_work_id = None
         self.parent_work_field = None
         self.parent_work_results = None
-        if self.author_search_field is not None:
-            self.author_search_field.value = ""
-        self._refresh_author_search()
-        self.stored_values.clear()
-        self._render()
-
-    def _reset(self) -> None:
-        """Reseta formulário e estado do modal."""
-        self.selected = WORK_TYPES[0]
-        self.partial_enabled = False
-        self.author_references.clear()
-        self.author_control = None
-        self.author_search_field = None
-        self.author_results = None
-        self.author_pills = None
-        self.parent_work_search = ""
-        self.parent_work_id = None
-        self.parent_work_field = None
-        self.parent_work_results = None
+        self.errors.clear()
         self.stored_values.clear()
         self.fields.clear()
+        self.type_query = ""
+        self.type_search.value = ""
+        self._set_saving(False, update=False)
         self._render(update_page=False)
+
+    # ── validação ──────────────────────────────────────────
+
+    def _error_message(self, key: str) -> str:
+        if key == PARENT_KEY:
+            return (
+                "Escolha a revista na busca ou cadastre uma nova."
+                if self._parent_is_magazine()
+                else "Escolha a obra-pai na busca ou cadastre uma nova."
+            )
+        if key == "title":
+            return "Informe o título da obra."
+        if key == "date_anchor":
+            if "date_precision" in self.fields:
+                return "Informe a data ou escolha “Data desconhecida” na precisão."
+            return "Informe a data."
+        if key == "viewed_at":
+            return "Com URL, informe a data de acesso."
+        if key == "carrier_type" and self.selected.key == "audio_document":
+            return "Informe o suporte ou preencha a URL."
+        if key == "url":
+            return "Para conteúdo on-line, informe a URL."
+        return "Campo obrigatório."
+
+    def _validation_errors(
+        self, data: dict[str, object]
+    ) -> dict[str, str]:
+        """Mesma regra do controller, devolvida por campo e na ordem da tela."""
+        from src.controllers.work_submission_controller import (
+            WorkSubmissionController,
+        )
+
+        missing = WorkSubmissionController._missing_required_fields(data)
+        label_to_key = {
+            field.label.rstrip(" *"): field.key
+            for field in self.selected.fields
+        }
+        keys: set[str] = set()
+        for label in missing:
+            key = label_to_key.get(label) or SPECIAL_MISSING_LABELS.get(label)
+            if key is not None:
+                keys.add(key)
+        return {
+            key: self._error_message(key)
+            for key in self.field_order
+            if key in keys and key in self.field_wrappers
+        }
+
+    def _clear_error(self, key: str) -> None:
+        if key not in self.errors:
+            return
+        self.errors.pop(key, None)
+        wrapper = self.field_wrappers.get(key)
+        if wrapper is not None:
+            ui.set_field_error(self.config, wrapper, None)
+            _safe_update(wrapper)
+
+    def _apply_errors(self, errors: dict[str, str]) -> None:
+        for key in list(self.errors):
+            if key not in errors:
+                self._clear_error(key)
+        self.errors = dict(errors)
+        for key, message in errors.items():
+            wrapper = self.field_wrappers.get(key)
+            if wrapper is not None:
+                ui.set_field_error(self.config, wrapper, message)
+                _safe_update(wrapper)
+
+    def _focus_first_error(self) -> None:
+        if not self.errors:
+            return
+        wrapper = self.field_wrappers.get(next(iter(self.errors)))
+        data = getattr(wrapper, "data", None)
+        target = data.get("error_target") if isinstance(data, dict) else wrapper
+        focus = getattr(target, "focus", None)
+        run_task = getattr(self.page, "run_task", None)
+        if focus is None or run_task is None:
+            return
+        try:
+            run_task(focus)
+        except Exception:  # noqa: BLE001 - foco é conveniência
+            pass
+
+    # ── ações ──────────────────────────────────────────────
+
+    def _set_saving(self, saving: bool, update: bool = True) -> None:
+        self.saving = saving
+        button = self.save_button
+        if button is None:
+            return
+        data = button.data or {}
+        label = data.get("label")
+        if label is not None:
+            label.value = (
+                SAVING_LABEL
+                if saving
+                else SAVE_EDIT_LABEL if self.edit_mode else SAVE_LABEL
+            )
+        button.opacity = 0.7 if saving else 1.0
+        if update:
+            _safe_update(button)
 
     def _close(self, event) -> None:
         """Fecha o diálogo sem persistir dados."""
@@ -285,158 +440,153 @@ class WorkInsertModalComposer(
             self.page.update()
 
     def _save(self, event) -> None:
-        """Envia os dados ao controller e fecha o modal."""
-        if self.on_save(self._collect()) and self.modal is not None:
+        """Valida, mostra o estado de gravação e envia ao controller."""
+        if self.saving:
+            return
+        data = self._collect()
+        errors = self._validation_errors(data)
+        if errors:
+            self._apply_errors(errors)
+            self._focus_first_error()
+            return
+        self._apply_errors({})
+        self._set_saving(True)
+        try:
+            saved = self.on_save(data)
+        finally:
+            self._set_saving(False)
+        if saved and self.modal is not None:
             self._reset()
             self.modal.open = False
             self.page.update()
 
-    def compose(self) -> ft.AlertDialog:
-        """Montagem final do modal em tela."""
-        modal_title = (
-            "Editar obra"
-            if self.edit_mode
-            else (
-                "Cadastrar nova obra-pai"
-                if self.parent_mode
-                else "Cadastrar nova obra".title()
-            )
-        )
-        type_panel = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        value=(
-                            "Tipo da obra-pai"
-                            if self.parent_mode
-                            else "Tipo de obra"
-                        ),
-                        size=self.config.font_sizes["montserrat_large"],
-                        color=self.config.colors["muted"],
-                        font_family=(
-                            self.config.font_families["montserrat"]
-                        ),
-                        weight=(
-                            self.config.font_weights["montserrat_semibold"]
-                        ),
-                    ),
-                    (
-                        ft.Text(
-                            value=self.selected.label,
-                            size=self.config.font_sizes["montserrat_small"],
-                            color=self.config.colors["gold"],
-                            font_family=(
-                                self.config.font_families["montserrat"]
-                            ),
-                            weight=(
-                                self.config.font_weights[
-                                    "montserrat_semibold"
-                                ]
-                            ),
-                        )
-                        if self.parent_mode or self.edit_mode
-                        else self.type_grid
+    # ── montagem ───────────────────────────────────────────
+
+    def _header(self) -> ft.Container:
+        c = self.config
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ui.ui_text(c, self.title, size=15, weight=ui.W600, expand=True),
+                    ui.icon_button(
+                        c, "xmark", on_click=self._close, tooltip="Fechar (Esc)"
                     ),
                 ],
-                spacing=self.config.ui["modal_gap"],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=ui.s(52),
+            padding=ft.Padding.only(left=ui.s(24), right=ui.s(12)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
+        )
+
+    def _type_column(self) -> ft.Container:
+        c = self.config
+        return ft.Container(
+            content=ft.Column(
+                [self.type_search, self.type_list],
+                spacing=ui.s(8),
                 expand=True,
             ),
-            width=(
-                self.config.ui["modal_type_panel_width"]
-                if not self.parent_mode and not self.edit_mode
-                else None
-            ),
-            expand=False,
-        )
-        row_controls: list[ft.Control] = [type_panel]
-        if not self.parent_mode:
-            row_controls.append(
-                ft.VerticalDivider(
-                    width=1,
-                    color=self.config.colors["border"],
-                )
-            )
-        row_controls.append(ft.Container(content=self.form, expand=True))
-
-        modal_width = (
-            int(self.config.ui["modal_width"] * 0.7)
-            if self.parent_mode
-            else (
-                760 if self.edit_mode
-                else self.config.ui["modal_width"]
-            )
-        )
-        modal_height = (
-            int(self.config.ui["modal_height"] * 0.7)
-            if self.parent_mode
-            else (
-                650 if self.edit_mode
-                else self.config.ui["modal_height"]
-            )
+            width=ui.s(TYPE_COLUMN_WIDTH),
+            padding=ui.s(8),
+            bgcolor=c.colors.get("chrome", c.colors["surface"]),
+            border=ft.Border.only(right=ft.BorderSide(1, c.colors["border"])),
         )
 
-        modal_content = ft.Column(
-            controls=[
-                ft.Text(
-                    value=modal_title,
-                    size=self.config.font_sizes["cormorant_large"],
-                    color=self.config.colors["text"],
-                    font_family=self.config.font_families["cormorant"],
-                    weight=self.config.font_weights["cormorant_bold"],
-                ),
-                ft.Row(
-                    controls=row_controls,
-                    spacing=self.config.ui["control_gap"] + 6,
-                    expand=True,
-                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-                ),
-            ],
-            width=modal_width,
-            height=modal_height,
-            spacing=self.config.ui["modal_gap"],
-        )
-
-        dialog_wrapper = ft.Container(content=modal_content)
-
-        cancel_button = ft.TextButton(
-            content=ft.Text(
-                value="Cancelar",
-                font_family=self.config.font_families["montserrat"],
-                size=self.config.font_sizes["montserrat_medium"],
-                weight=self.config.font_weights["montserrat_normal"],
-                color=self.config.colors["text"],
-            ),
-            on_click=self._close,
-            style=ft.ButtonStyle(
-                color=self.config.colors["text"],
-            ),
-        )
-        save_button = ft.ElevatedButton(
-            content=ft.Text(
-                value=(
-                    "Salvar alterações"
-                    if self.edit_mode
-                    else "Salvar acervo"
-                ),
-                font_family=self.config.font_families["montserrat"],
-                size=self.config.font_sizes["montserrat_medium"],
-                weight=self.config.font_weights["montserrat_normal"],
-                color=self.config.colors["bg"],
-            ),
+    def _footer(self) -> ft.Container:
+        c = self.config
+        self.save_button = ui.button(
+            c,
+            SAVE_EDIT_LABEL if self.edit_mode else SAVE_LABEL,
             on_click=self._save,
-            bgcolor=self.config.colors["gold"],
-            color=self.config.colors["bg"],
+            icon_name="check",
+            variant="primary",
         )
-        action_controls: list[ft.Control] = [cancel_button, save_button]
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ui.ui_text(
+                                c,
+                                "Prévia da referência ABNT",
+                                size=12,
+                                weight=ui.W600,
+                                color=c.colors.get("faint", c.colors["muted"]),
+                            ),
+                            self.preview_text,
+                        ],
+                        spacing=ui.s(2),
+                        expand=True,
+                        tight=True,
+                    ),
+                    ft.Row(
+                        [
+                            ui.button(
+                                c, "Cancelar", on_click=self._close, variant="ghost"
+                            ),
+                            self.save_button,
+                        ],
+                        spacing=ui.s(8),
+                        tight=True,
+                    ),
+                ],
+                spacing=ui.s(24),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(
+                left=ui.s(24), right=ui.s(12), top=ui.s(12), bottom=ui.s(12)
+            ),
+            bgcolor=c.colors.get("chrome", c.colors["surface"]),
+            border=ft.Border.only(top=ft.BorderSide(1, c.colors["border"])),
+        )
 
+    def _dialog_size(self) -> tuple[float, float]:
+        if self.parent_mode:
+            return PARENT_DIALOG_WIDTH, PARENT_DIALOG_HEIGHT
+        if self.edit_mode:
+            return SINGLE_TYPE_WIDTH, DIALOG_HEIGHT
+        return DIALOG_WIDTH, DIALOG_HEIGHT
+
+    def compose(self) -> ft.AlertDialog:
+        """Montagem final do modal em tela."""
+        c = self.config
+        body_controls: list[ft.Control] = []
+        if self.shows_type_list:
+            body_controls.append(self._type_column())
+        body_controls.append(ft.Container(content=self.form, expand=True))
+        width, height = self._dialog_size()
+        dialog_box = ft.Container(
+            content=ft.Column(
+                [
+                    self._header(),
+                    ft.Row(
+                        body_controls,
+                        spacing=0,
+                        expand=True,
+                        vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                    ),
+                    self._footer(),
+                ],
+                spacing=0,
+                expand=True,
+            ),
+            width=ui.s(width),
+            height=ui.s(height),
+            bgcolor=c.colors["surface"],
+            border_radius=ft.BorderRadius.all(ui.s(10)),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        )
         self.modal = ft.AlertDialog(
             modal=False,
-            bgcolor=self.config.colors["surface"],
+            bgcolor=c.colors["surface"],
             on_dismiss=self._close,
-            shape=ft.RoundedRectangleBorder(radius=8),
-            content_padding=self.config.ui["modal_content_padding"],
-            content=dialog_wrapper,
-            actions=action_controls,
+            shape=ft.RoundedRectangleBorder(radius=ui.s(10)),
+            content_padding=0,
+            inset_padding=ft.Padding.symmetric(horizontal=ui.s(24), vertical=ui.s(24)),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            content=dialog_box,
+            actions=[],
         )
-        self._render()
+        self._render(update_page=False)
         return self.modal

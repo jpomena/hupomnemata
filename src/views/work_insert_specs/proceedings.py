@@ -1,13 +1,12 @@
 """Especificações para anais de eventos (volume único e em periódico)."""
 
-import flet as ft
 from .base import FieldSpec, PUBLICATION, _spec
 
 MONOGRAPHIC_PROCEEDINGS_SPEC = _spec(
     "monographic_proceedings",
     "Anais de evento em volume único",
-    "Anais de evento em volume único",
-    ft.Icons.EVENT,
+    "Anais publicados em volume próprio",
+    "calendar-days",
     FieldSpec(
         key="event_name",
         label="Nome do evento",
@@ -40,8 +39,8 @@ MONOGRAPHIC_PROCEEDINGS_SPEC = _spec(
 PERIODICAL_PROCEEDINGS_SPEC = _spec(
     "periodical_proceedings",
     "Anais de evento em periódico",
-    "Anais de evento periódico",
-    ft.Icons.EVENT_NOTE,
+    "Anais publicados em fascículo de periódico",
+    "calendar-days",
     FieldSpec(
         key="event_name",
         label="Nome do evento",

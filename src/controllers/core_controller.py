@@ -30,6 +30,8 @@ from src.services import (
 from src.utils.normalizers import CoreNormalizer
 from src.views.core_composer import CoreComposer
 from src.views.sidebar import SidebarData
+from src.views.works import AcervoContext
+from src.utils.error_log import log_exception
 from src.views.page_config import PageConfigurator
 from src.utils.types import ViewConfig
 from src.services.work_form_service import WorkFormService
@@ -250,6 +252,78 @@ class CoreController(
         works.sort(key=lambda item: -item[0])
         return {"works": works, "fragments": fragments}
 
+    def acervo_context(self) -> AcervoContext:
+        fragments_by_work: dict[int, list[dict]] = {}
+        compilations_by_work: dict[int, list[tuple[int, str]]] = {}
+        compilations: list[tuple[int, str]] = []
+        try:
+            for record in self.fragment_service.list_fragments():
+                fragments_by_work.setdefault(record["bib_res_id"], []).append(record)
+            for record in self.compilation_service.list_compilations():
+                compilations.append((record["id"], record["name"]))
+                for work in record.get("works", []):
+                    compilations_by_work.setdefault(work["id"], []).append((record["id"], record["name"]))
+        except Exception as error:
+            log_exception("Falha ao montar o contexto do Acervo", error)
+        return AcervoContext(fragments_by_work=fragments_by_work, compilations_by_work=compilations_by_work, compilations=compilations)
+
+    def dashboard_data(self) -> dict:
+        """Dados reais da tela Início: obras, fragmentos e compilações."""
+        from src.utils.types import WORK_TYPE_LABELS
+
+        data: dict = {"works": [], "fragments": [], "compilations": []}
+        try:
+            for resource in self.service.list_works():
+                work = resource.specific_work
+                if work is None:
+                    continue
+                authors = ", ".join(
+                    name
+                    for name in (
+                        author.given_names
+                        if author.corporation
+                        else " ".join(filter(None, (author.given_names, author.last_name)))
+                        for author in (getattr(resource, "authors", None) or [])
+                    )
+                    if name
+                )
+                data["works"].append({
+                    "id": resource.id,
+                    "title": work.title,
+                    "authors": authors,
+                    "type": WORK_TYPE_LABELS.get(type(work).__name__, type(work).__name__),
+                    "year": getattr(work, "display_year", "") or "",
+                    "created_at": getattr(work, "created_at", None),
+                })
+            for record in self.fragment_service.list_fragments():
+                data["fragments"].append({
+                    "id": record["id"],
+                    "kind": record["fragment_type"],
+                    "excerpt": record["excerpt"],
+                    "bib_res_id": record["bib_res_id"],
+                    "work_title": record["work_title"],
+                    "created_at": record.get("created_at"),
+                })
+            for record in self.compilation_service.list_compilations():
+                works = record.get("works", [])
+                data["compilations"].append({
+                    "id": record["id"],
+                    "name": record["name"],
+                    "description": record.get("description"),
+                    "work_ids": [work["id"] for work in works],
+                    "fragments": sum(
+                        1
+                        for work in works
+                        for fragment in work.get("fragments", [])
+                        if fragment.get("is_member")
+                    ),
+                    "ideas": len(record.get("sections", [])),
+                    "updated_at": record.get("updated_at") or record.get("created_at"),
+                })
+        except Exception as error:
+            log_exception("Falha ao montar os dados do Início", error)
+        return data
+
     def toggle_theme(self) -> None:
         current = "dark" if self.view_config.colors == COLORS_DARK else "light"
         self.change_theme("light" if current == "dark" else "dark")
@@ -262,6 +336,8 @@ class CoreController(
         mod = bool(getattr(event, "meta", False) or getattr(event, "ctrl", False))
         application = getattr(self, "application", None)
         if application is not None and application.handle_palette_key(key):
+            return
+        if application is not None and hasattr(application, "handle_view_key") and application.handle_view_key(key, mod):
             return
         if mod and key.upper() == "K":
             application.open_palette()
@@ -343,6 +419,10 @@ class CoreController(
             on_new_compilation=self.new_compilation,
             palette_search=self.palette_search,
             on_navigate_with=self.navigate_with,
+            get_acervo_context=self.acervo_context,
+            on_delete_works=self.delete_works,
+            get_dashboard_data=self.dashboard_data,
+            compilation_work_references=self.compilation_work_references,
         )
 
     def build_application(self) -> None:
@@ -389,11 +469,16 @@ class CoreController(
             self.page.update()
 
     def show_message(self, message: str, bgcolor: str) -> None:
-        self.page.show_dialog(
-            ft.SnackBar(
-                content=ft.Text(
-                    value=message, color=self.view_config.colors['surface']
-                ),
-                bgcolor=bgcolor,
+        """Aviso curto no padrão v2. Cor de texto/erro vira ícone de alerta."""
+        from src.views import ui_kit
+
+        is_error = bgcolor in {self.view_config.colors.get("text"), self.view_config.colors.get("danger")} or message.lower().startswith(("não ", "erro", "falha"))
+        try:
+            ui_kit.toast(
+                self.page,
+                self.view_config,
+                message,
+                icon_name="circle-exclamation" if is_error else "circle-check",
             )
-        )
+        except Exception:
+            self.page.show_dialog(ft.SnackBar(content=ft.Text(value=message)))
