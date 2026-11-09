@@ -211,13 +211,22 @@ class DashboardComposer:
     ) -> ft.Container:
         c = self.config
         colors = c.colors
+        kpi_icon = ui.icon(c, icon_name, size=12, style=icon_style)
+        kpi_label = ui.ui_text(c, label, size=12, color=colors['muted'])
+        normal_border = None if last else ft.Border.only(right=ft.BorderSide(1, colors['border']))
+        hover_border = ft.Border(
+            left=ft.BorderSide(s(3), colors['gold']),
+            top=ft.BorderSide(1, colors['border_strong']),
+            right=ft.BorderSide(1, colors['border'] if not last else colors['border_strong']),
+            bottom=ft.BorderSide(1, colors['border_strong']),
+        )
         cell = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
-                            ui.icon(c, icon_name, size=12, style=icon_style),
-                            ui.ui_text(c, label, size=12, color=colors['muted']),
+                            kpi_icon,
+                            kpi_label,
                         ],
                         spacing=s(6),
                         tight=True,
@@ -233,14 +242,22 @@ class DashboardComposer:
             ),
             padding=s(16),
             expand=True,
-            border=None if last else ft.Border.only(right=ft.BorderSide(1, colors['border'])),
+            border=normal_border,
+            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
             on_click=on_click,
         )
         cell.data = {'kpi': label, 'value': value}
 
         def _hover(e):
-            cell.bgcolor = colors['card_hover'] if e.data in (True, 'true') else None
-            cell.update()
+            hovering = e.data in (True, 'true')
+            cell.bgcolor = colors['card_hover'] if hovering else None
+            cell.border = hover_border if hovering else normal_border
+            kpi_icon.color = colors['gold'] if hovering else colors['faint']
+            kpi_label.color = colors['text'] if hovering else colors['muted']
+            try:
+                cell.update()
+            except Exception:
+                pass
 
         cell.on_hover = _hover
         return cell
@@ -482,7 +499,10 @@ class DashboardComposer:
                 letter_spacing=ui.UI_TRACKING,
                 decoration=ft.TextDecoration.UNDERLINE if hovering else ft.TextDecoration.NONE,
             )
-            name_box.update()
+            try:
+                name_box.update()
+            except Exception:
+                pass
 
         name_box.on_hover = _hover
         row = ft.Container(
@@ -543,10 +563,12 @@ class DashboardComposer:
             trailing.append(ui.badge(c, 'Planejado'))
         elif shortcut:
             trailing.append(ui.kbd(c, shortcut))
+        icon_ctrl = ui.icon(c, icon_name, size=14)
+        label_ctrl = ui.ui_text(c, label, size=13, color=colors['faint'] if planned else colors['text'], expand=True)
         content = ft.Row(
             controls=[
-                ui.icon(c, icon_name, size=14),
-                ui.ui_text(c, label, size=13, color=colors['faint'] if planned else colors['text'], expand=True),
+                icon_ctrl,
+                label_ctrl,
                 *trailing,
             ],
             spacing=s(10),
@@ -555,7 +577,10 @@ class DashboardComposer:
         if planned:
             box = ft.Container(content, height=s(34), padding=ft.Padding.symmetric(horizontal=s(8)), tooltip=tooltip)
         else:
-            box = ui.hover_surface(c, content, on_click=on_click, padding=ft.Padding.symmetric(horizontal=s(8)), height=s(34))
+            def _on_hover_sc(hovering: bool) -> None:
+                icon_ctrl.color = colors['gold'] if hovering else colors['faint']
+
+            box = ui.hover_surface(c, content, on_click=on_click, padding=ft.Padding.symmetric(horizontal=s(8)), height=s(34), on_hover=_on_hover_sc)
             box.tooltip = tooltip
         box.data = {'shortcut': label, 'planned': planned}
         return box

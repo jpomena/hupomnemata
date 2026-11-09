@@ -618,8 +618,19 @@ class FragmentsComposer:
             height=s(44),
             padding=ft.Padding.only(left=s(8), right=s(8)),
             border=None if collapsed else ft.Border.only(bottom=ft.BorderSide(1, colors['border'])),
+            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
             on_click=lambda _e, wid=work_id: self.toggle_group(wid),
         )
+
+        def _head_hover(e) -> None:
+            hovering = e.data in (True, 'true')
+            head.bgcolor = colors['card_hover'] if hovering else None
+            try:
+                head.update()
+            except Exception:
+                pass
+
+        head.on_hover = _head_hover
         rows: list[ft.Control] = [head]
         if not collapsed:
             rows.extend(
@@ -699,14 +710,27 @@ class FragmentsComposer:
             ),
             padding=ft.Padding.only(left=s(16), right=s(8), top=s(10), bottom=s(10)),
             border=None if last else ft.Border.only(bottom=ft.BorderSide(1, colors['border'])),
+            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
         row.data = {'fragment_id': fragment['id'], 'tools': tools}
 
         def _hover(event) -> None:
             hovering = event.data in (True, 'true')
             row.bgcolor = colors['card_hover'] if hovering else None
+            if hovering:
+                row.border = ft.Border(
+                    left=ft.BorderSide(s(3), colors['gold']),
+                    top=ft.BorderSide(1, colors['border_strong']),
+                    right=ft.BorderSide(1, colors['border_strong']),
+                    bottom=ft.BorderSide(1, colors['border'] if not last else colors['border_strong']),
+                )
+            else:
+                row.border = None if last else ft.Border.only(bottom=ft.BorderSide(1, colors['border']))
             tools.opacity = 1 if hovering else 0
-            row.update()
+            try:
+                row.update()
+            except Exception:
+                pass
 
         row.on_hover = _hover
         return row

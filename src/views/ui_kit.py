@@ -309,22 +309,84 @@ def card(
     controls: Sequence[ft.Control],
     expand: bool | int | None = None,
     danger: bool = False,
+    interactive: bool = False,
+    on_click: Callable | None = None,
+    on_hover: Callable[[bool], None] | None = None,
+    padding: ft.Padding | float | None = None,
+    accent_left: bool = True,
 ) -> ft.Container:
-    return ft.Container(
-        content=ft.Column(list(controls), spacing=0, tight=True),
-        bgcolor=c.colors["surface"],
-        border=ft.Border.all(1, alpha(c.colors["danger"], 0.35) if danger else c.colors["border"]),
+    colors = c.colors
+    normal_border = ft.Border.all(1, alpha(colors["danger"], 0.35) if danger else colors["border"])
+    hover_border = (
+        ft.Border(
+            left=ft.BorderSide(s(3), colors["gold"]),
+            top=ft.BorderSide(1, colors["border_strong"]),
+            right=ft.BorderSide(1, colors["border_strong"]),
+            bottom=ft.BorderSide(1, colors["border_strong"]),
+        )
+        if accent_left
+        else ft.Border.all(1, colors["border_strong"])
+    )
+    col = ft.Column(list(controls), spacing=0, tight=True)
+    body = ft.Container(content=col, padding=padding) if padding else col
+    box = ft.Container(
+        content=body,
+        bgcolor=colors["surface"],
+        border=normal_border,
         border_radius=ft.BorderRadius.all(s(8)),
         clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         expand=expand,
+        on_click=on_click,
+        animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT) if (interactive or on_click or on_hover) else None,
+    )
+
+    if interactive or on_click or on_hover:
+        def _hover(e):
+            hovering = e.data in (True, "true")
+            box.bgcolor = colors["card_hover"] if hovering else colors["surface"]
+            box.border = hover_border if hovering else normal_border
+            if on_hover:
+                on_hover(hovering)
+            try:
+                box.update()
+            except Exception:
+                pass
+
+        box.on_hover = _hover
+
+    return box
+
+
+def interactive_card(
+    c: ViewConfig,
+    controls: Sequence[ft.Control],
+    on_click: Callable | None = None,
+    expand: bool | int | None = None,
+    danger: bool = False,
+    on_hover: Callable[[bool], None] | None = None,
+    padding: ft.Padding | float | None = None,
+    accent_left: bool = True,
+) -> ft.Container:
+    """Card interativo com realces visuais (borda dourada lateral de 3px, fundo card_hover e animação de 150ms)."""
+    return card(
+        c=c,
+        controls=controls,
+        expand=expand,
+        danger=danger,
+        interactive=True,
+        on_click=on_click,
+        on_hover=on_hover,
+        padding=padding,
+        accent_left=accent_left,
     )
 
 
 def card_head(c: ViewConfig, title: str, trailing: ft.Control | None = None, count: int | None = None) -> ft.Container:
-    left: list[ft.Control] = [ui_text(c, title, size=13, weight=W600)]
+    title_text = ui_text(c, title, size=13, weight=W600)
+    left: list[ft.Control] = [title_text]
     if count is not None:
         left.append(ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True))
-    return ft.Container(
+    head_box = ft.Container(
         content=ft.Row(
             controls=[ft.Row(left, spacing=s(8), tight=True)] + ([trailing] if trailing else []),
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -334,6 +396,8 @@ def card_head(c: ViewConfig, title: str, trailing: ft.Control | None = None, cou
         padding=ft.Padding.only(left=s(16), right=s(12)),
         border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
     )
+    head_box.data = {"title": title_text}
+    return head_box
 
 
 def page_header(
@@ -583,23 +647,44 @@ def hover_surface(
     height: float | None = None,
     radius: float = 6,
     base: str | None = None,
+    on_hover: Callable[[bool], None] | None = None,
+    border: ft.Border | None = None,
+    hover_border: ft.Border | None = None,
+    accent_left: bool = False,
 ) -> ft.Container:
     colors = c.colors
     base_bg = colors["selected"] if selected else base
+    normal_border = border
+    if accent_left and hover_border is None:
+        hover_border = ft.Border(
+            left=ft.BorderSide(s(3), colors["gold"]),
+            top=ft.BorderSide(1, colors["border_strong"]),
+            right=ft.BorderSide(1, colors["border_strong"]),
+            bottom=ft.BorderSide(1, colors["border_strong"]),
+        )
     box = ft.Container(
         content=content,
         on_click=on_click,
         padding=padding,
         height=height,
         bgcolor=base_bg,
+        border=normal_border,
         border_radius=ft.BorderRadius.all(s(radius)) if radius else None,
+        animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
     )
 
     def _hover(e):
         hovering = e.data in (True, "true")
         if not selected:
             box.bgcolor = colors["card_hover"] if hovering else base
-            box.update()
+            if hover_border is not None:
+                box.border = hover_border if hovering else normal_border
+            if on_hover:
+                on_hover(hovering)
+            try:
+                box.update()
+            except Exception:
+                pass
 
     box.on_hover = _hover
     return box

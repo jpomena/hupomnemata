@@ -619,8 +619,9 @@ class WorksComposer:
             radius=0,
             base=base,
             padding=ft.Padding.only(right=s(16)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
+            accent_left=True,
         )
-        row.border = ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"]))
         row.key = f"work-{resource.id}"
         return row
 

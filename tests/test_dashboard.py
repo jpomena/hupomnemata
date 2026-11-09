@@ -330,6 +330,23 @@ def test_dashboard_without_data_shows_empty_states():
     assert [cell.data['value'] for cell in composer.kpi_cells] == [0, 0, 0, 0]
 
 
+def test_dashboard_kpi_hover_enhancement():
+    composer = DashboardComposer(scale=1, config=_config(), on_navigate=lambda _d: None)
+    composer.compose()
+    cell = composer.kpi_cells[0]
+    assert callable(cell.on_hover)
+
+    # Hover in
+    cell.on_hover(SimpleNamespace(data='true'))
+    assert cell.bgcolor == _config().colors['card_hover']
+    assert cell.border.left.color == _config().colors['gold']
+    assert cell.border.left.width == 3
+
+    # Hover out
+    cell.on_hover(SimpleNamespace(data='false'))
+    assert cell.bgcolor is None
+
+
 def test_core_composer_dashboard_uses_controller_data():
     composer = CoreComposer.__new__(CoreComposer)
     composer.config = _config()
