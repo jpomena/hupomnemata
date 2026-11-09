@@ -1,0 +1,111 @@
+/* Hallmark · genre: modern-minimal (enterprise register) · surface: desktop app · theme: custom (identidade Hupomnēmata)
+ * vibe: "gabinete de leitura, ferramenta profissional, ouro velho"
+ * dark  canvas oklch(16.2% 0.005 286) · accent oklch(72.5% 0.100 82) ouro
+ * light canvas oklch(98.8% 0.003 85)  · accent oklch(52.3% 0.108 81) ouro velho
+ * ui: Montserrat · display/leitura: Cormorant Garamond · atalhos: JetBrains Mono · wordmark: Ancient Geek
+ * axes: dark / grotesk-sans + serif reading / warm
+ */
+
+@font-face { font-family: "Cormorant Garamond"; src: url("../../assets/fonts/Cormorant_Garamond/CormorantGaramond-VariableFont_wght.ttf") format("truetype"); font-weight: 300 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Cormorant Garamond"; src: url("../../assets/fonts/Cormorant_Garamond/CormorantGaramond-Italic-VariableFont_wght.ttf") format("truetype"); font-weight: 300 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("../../assets/fonts/Montserrat/Montserrat-VariableFont_wght.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("../../assets/fonts/JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
+@font-face { font-family: "Ancient Geek"; src: url("../../assets/fonts/ancient_geek/geek.ttf") format("truetype"); font-display: swap; }
+
+:root {
+  --font-ui:      "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --font-brand:   "Ancient Geek", var(--font-display);
+
+  /* escala de UI (Montserrat) */
+  --text-2xs: 0.6875rem;  /* 11 · badge, kbd */
+  --text-xs:  0.75rem;    /* 12 · rótulo, metadado, cabeçalho de coluna */
+  --text-sm:  0.8125rem;  /* 13 · UI padrão, células */
+  --text-md:  0.875rem;   /* 14 · títulos de seção */
+  --text-lg:  1rem;       /* 16 · KPI secundário */
+  --text-xl:  1.5rem;     /* 24 · KPI */
+  /* escala de leitura e títulos (Cormorant) */
+  --text-read: 1.125rem;  /* 18 · citação */
+  --text-h2:   1.5rem;    /* 24 · título no painel / ideia */
+  --text-h1:   1.875rem;  /* 30 · título de página */
+
+  --track-ui: -0.006em;
+
+  --space-3xs: 0.125rem; --space-2xs: 0.25rem; --space-xs: 0.5rem;
+  --space-sm: 0.75rem;   --space-md: 1rem;     --space-lg: 1.5rem;
+  --space-xl: 2rem;      --space-2xl: 3rem;    --space-3xl: 4rem;
+
+  --radius-xs: 4px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 10px;
+  --rule-w: 1px;
+
+  --titlebar-h: 40px;
+  --sidebar-w: 240px;
+  --inspector-w: 380px;
+  --row-h: 40px;
+  --control-h: 32px;
+  --control-h-sm: 28px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 100ms; --dur-short: 180ms; --dur-long: 280ms;
+
+  --z-raised: 10; --z-sticky: 200; --z-dropdown: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+}
+
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-chrome:    oklch(14.2% 0.004 286);  /* sidebar, barra de título */
+  --color-canvas:    oklch(16.2% 0.005 286);  /* área de conteúdo */
+  --color-surface:   oklch(19.3% 0.006 286);  /* #141417 · cards, painel, diálogo */
+  --color-hover:     oklch(21.5% 0.008 286);
+  --color-selected:  oklch(24.0% 0.010 286);
+  --color-rule:      oklch(25.8% 0.009 286);  /* #232328 */
+  --color-rule-2:    oklch(31.0% 0.010 286);
+  --color-ink:       oklch(92.5% 0.008 293);
+  --color-ink-2:     oklch(72.0% 0.014 295);
+  --color-ink-3:     oklch(60.5% 0.012 290);
+  --color-accent:    oklch(72.5% 0.100 82);   /* #c5a059 */
+  --color-accent-2:  oklch(77.5% 0.095 82);
+  --color-accent-ink: oklch(15.5% 0.004 286);
+  --color-accent-wash: oklch(72.5% 0.100 82 / 0.12);
+  --color-mark:      oklch(72.5% 0.100 82 / 0.22);
+  --color-danger:    oklch(68% 0.150 25);
+  --color-danger-wash: oklch(68% 0.150 25 / 0.12);
+  --color-ok:        oklch(74% 0.110 155);
+  --color-focus:     oklch(80% 0.110 82);
+  --color-scrim:     oklch(6% 0.004 286 / 0.66);
+  --color-toast:     oklch(92.5% 0.008 293);
+  --color-toast-ink: oklch(15.5% 0.004 286);
+  --shadow-pop: 0 16px 40px oklch(4% 0.004 286 / 0.6), 0 0 0 1px var(--color-rule-2);
+  --shadow-menu: 0 8px 24px oklch(4% 0.004 286 / 0.5), 0 0 0 1px var(--color-rule-2);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-chrome:    oklch(95.6% 0.006 85);
+  --color-canvas:    oklch(98.8% 0.003 85);
+  --color-surface:   oklch(99.6% 0.002 85);
+  --color-hover:     oklch(95.0% 0.006 85);
+  --color-selected:  oklch(92.8% 0.012 85);
+  --color-rule:      oklch(90.5% 0.006 85);
+  --color-rule-2:    oklch(84.0% 0.008 85);
+  --color-ink:       oklch(23.2% 0.008 286);  /* #1D1D21 */
+  --color-ink-2:     oklch(44.0% 0.012 286);
+  --color-ink-3:     oklch(52.0% 0.012 286);
+  --color-accent:    oklch(52.3% 0.108 81);   /* #896200 */
+  --color-accent-2:  oklch(46.0% 0.105 81);
+  --color-accent-ink: oklch(99.6% 0.002 85);
+  --color-accent-wash: oklch(52.3% 0.108 81 / 0.10);
+  --color-mark:      oklch(80% 0.110 85 / 0.40);
+  --color-danger:    oklch(50% 0.170 25);
+  --color-danger-wash: oklch(50% 0.170 25 / 0.08);
+  --color-ok:        oklch(48% 0.110 155);
+  --color-focus:     oklch(52.3% 0.108 81);
+  --color-scrim:     oklch(25% 0.010 286 / 0.32);
+  --color-toast:     oklch(23.2% 0.008 286);
+  --color-toast-ink: oklch(98.8% 0.003 85);
+  --shadow-pop: 0 16px 40px oklch(25% 0.010 286 / 0.14), 0 0 0 1px var(--color-rule-2);
+  --shadow-menu: 0 8px 24px oklch(25% 0.010 286 / 0.12), 0 0 0 1px var(--color-rule-2);
+}

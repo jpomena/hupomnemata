@@ -32,6 +32,7 @@ class PageConfigurator:
             f"{self.config.texts['app']['version']}"
         )
         page.padding = 0
+        page.bgcolor = self.config.colors["bg"]
         page.window.width = 1400
         page.window.height = 900
         page.window.resizable = True

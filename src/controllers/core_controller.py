@@ -29,6 +29,7 @@ from src.services import (
 )
 from src.utils.normalizers import CoreNormalizer
 from src.views.core_composer import CoreComposer
+from src.views.sidebar import SidebarData
 from src.views.page_config import PageConfigurator
 from src.utils.types import ViewConfig
 from src.services.work_form_service import WorkFormService
@@ -134,6 +135,8 @@ class CoreController(
                 if effective_theme == "dark"
                 else ft.ThemeMode.LIGHT
             )
+        if hasattr(self.page, "on_keyboard_event"):
+            self.page.on_keyboard_event = self.handle_keyboard
         if hasattr(self.page, "on_resize"):
             self.page.on_resize = self.handle_window_resize
         if hasattr(self.page, "on_platform_brightness_change"):
@@ -144,26 +147,32 @@ class CoreController(
         if window is not None and hasattr(window, "on_event"):
             window.on_event = self.handle_window_event
 
-    def navigate(self, destination: str) -> None:
+    def navigate(self, destination: str, push_history: bool = True, **options) -> None:
+        """Abre um destino. ``options`` segue para a view (ex.: ``focus_work_id``)."""
+        if destination == "work_insert":
+            self.open_insert_work()
+            return
+        if push_history:
+            self._push_history(destination)
         self.current_destination = destination
         if destination == "dashboard":
-            self.application.show_view("dashboard")
-        elif destination == "work_insert":
-            self.open_insert_work()
+            self.application.show_view("dashboard", **options)
         elif destination == "Acervo":
             works = self.service.list_works()
-            self.application.show_view("Acervo", works)
+            self.application.show_view("Acervo", works, **options)
         elif destination == "Fragmentos":
             fragments = self.fragment_service.list_fragments()
             self.application.show_view(
                 "Fragmentos",
                 fragments=fragments,
+                **options,
             )
-        elif destination == "Compilações":
+        elif destination == "Compilações" or destination.startswith("compilacao:"):
             compilations = self.compilation_service.list_compilations()
             self.application.show_view(
-                "Compilações",
+                destination,
                 compilations=compilations,
+                **options,
             )
         elif destination in {
             "Nous",
@@ -172,6 +181,96 @@ class CoreController(
             "Estruturas de Saber",
         }:
             self.application.show_view(destination)
+        self._sync_history_buttons()
+
+    def navigate_with(self, destination: str, **options) -> None:
+        self.navigate(destination, **options)
+
+    # ── histórico (voltar / avançar) ───────────────────────
+
+    def _push_history(self, destination: str) -> None:
+        history = getattr(self, "_history", None)
+        if history is None:
+            self._history, self._history_index = [], -1
+        if self._history and self._history[self._history_index] == destination:
+            return
+        self._history = self._history[: self._history_index + 1] + [destination]
+        self._history_index = len(self._history) - 1
+
+    def go_history(self, step: int) -> None:
+        history = getattr(self, "_history", [])
+        target = getattr(self, "_history_index", -1) + step
+        if not 0 <= target < len(history):
+            return
+        self._history_index = target
+        self.navigate(history[target], push_history=False)
+
+    def _sync_history_buttons(self) -> None:
+        application = getattr(self, "application", None)
+        if application is None or not hasattr(application, "set_history_state"):
+            return
+        history = getattr(self, "_history", [])
+        index = getattr(self, "_history_index", -1)
+        application.set_history_state(index > 0, index < len(history) - 1)
+
+    # ── dados do shell ─────────────────────────────────────
+
+    def sidebar_data(self) -> SidebarData:
+        try:
+            works = len(self.service.list_works())
+            fragments = len(self.fragment_service.list_fragments())
+            compilations = [
+                (record["id"], record["name"])
+                for record in self.compilation_service.list_compilations()
+            ]
+        except Exception:
+            return SidebarData()
+        return SidebarData(works=works, fragments=fragments, compilations=compilations)
+
+    def palette_search(self, query: str) -> dict:
+        query = (query or "").strip().lower()
+        works = []
+        for resource in self.service.list_works():
+            work = resource.specific_work
+            if work is None:
+                continue
+            authors = ", ".join(
+                (author.corporation if isinstance(author.corporation, str) else None)
+                or " ".join(filter(None, [author.given_names, author.last_name]))
+                for author in (getattr(work, "authors", None) or [])
+            )
+            haystack = f"{work.title} {authors} {getattr(work, 'display_year', '')}".lower()
+            if not query or query in haystack:
+                works.append((resource.id, work.title, authors or "Sem autoria", "book"))
+        fragments = []
+        if query:
+            for record in self.fragment_service.list_fragments():
+                if query in str(record.get("excerpt", "")).lower():
+                    fragments.append((record["id"], record["excerpt"], record["work_title"]))
+        works.sort(key=lambda item: -item[0])
+        return {"works": works, "fragments": fragments}
+
+    def toggle_theme(self) -> None:
+        current = "dark" if self.view_config.colors == COLORS_DARK else "light"
+        self.change_theme("light" if current == "dark" else "dark")
+
+    def new_compilation(self) -> None:
+        self.navigate("Compilações", create=True)
+
+    def handle_keyboard(self, event) -> None:
+        key = getattr(event, "key", "")
+        mod = bool(getattr(event, "meta", False) or getattr(event, "ctrl", False))
+        application = getattr(self, "application", None)
+        if application is not None and application.handle_palette_key(key):
+            return
+        if mod and key.upper() == "K":
+            application.open_palette()
+        elif mod and key.upper() == "N":
+            self.open_insert_work()
+        elif mod and key == "[":
+            self.go_history(-1)
+        elif mod and key == "]":
+            self.go_history(1)
 
     def create_composer(self) -> CoreComposer:
         return CoreComposer(
@@ -238,6 +337,12 @@ class CoreController(
             on_reset_settings=self.reset_settings,
             on_toggle_maximize=self.toggle_maximize,
             nous_service=self.nous_service,
+            get_sidebar_data=self.sidebar_data,
+            on_history=self.go_history,
+            on_toggle_theme=self.toggle_theme,
+            on_new_compilation=self.new_compilation,
+            palette_search=self.palette_search,
+            on_navigate_with=self.navigate_with,
         )
 
     def build_application(self) -> None:
@@ -253,6 +358,7 @@ class CoreController(
         )
         self.application = self.create_composer()
         self.page.add(self.application.compose_main())
+        self._push_history("dashboard")
 
     def rebuild_ui(self) -> None:
         if not hasattr(self, "application") or self.application is None:
@@ -276,7 +382,9 @@ class CoreController(
         self.application = self.create_composer()
         self.page.add(self.application.compose_main())
         if self.current_destination != "dashboard":
-            self.navigate(self.current_destination)
+            self.navigate(self.current_destination, push_history=False)
+        else:
+            self._sync_history_buttons()
         if hasattr(self.page, "update"):
             self.page.update()
 
