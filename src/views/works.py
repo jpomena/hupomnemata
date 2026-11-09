@@ -592,7 +592,8 @@ class WorksComposer:
         title_parts: list[ft.Control] = []
         if level:
             title_parts.append(ft.Container(fa_icon("turn-up", size=s(9), color=c.colors["border_strong"]), rotate=ft.Rotate(1.5708), width=s(16), margin=ft.Margin.only(left=s(4 + 12 * (level - 1)))))
-        title_parts.append(ui.ui_text(c, work.title or "", size=13, weight=ui.W600))
+        title_text = ui.ui_text(c, work.title or "", size=13, weight=ui.W600)
+        title_parts.append(title_text)
         subtitle = getattr(work, "subtitle", None)
         if subtitle:
             title_parts.append(ui.ui_text(c, subtitle, size=13, color=c.colors["faint"], expand=True))
@@ -610,6 +611,11 @@ class WorksComposer:
         for key, _label, width, right in self._visible_columns():
             cells.append(self._cell(key, width, values[key], right))
         base = ui.alpha(c.colors["gold"], 0.10) if checked else None
+
+        def _on_hover_work(hovering: bool) -> None:
+            if not selected:
+                title_text.color = c.colors["gold"] if hovering else c.colors["text"]
+
         row = ui.hover_surface(
             c,
             ft.Row(cells, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -621,6 +627,7 @@ class WorksComposer:
             padding=ft.Padding.only(right=s(16)),
             border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
             accent_left=True,
+            on_hover=_on_hover_work,
         )
         row.key = f"work-{resource.id}"
         return row

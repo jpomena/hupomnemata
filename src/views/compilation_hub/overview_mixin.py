@@ -137,12 +137,17 @@ class CompilationHubOverviewMixin:
         )
         rows: list[ft.Control] = []
         for index, section in enumerate(sections):
+            sec_title = ui.ui_text(c, section['title'], size=13, weight=ui.W600)
+
+            def _on_hover_sec(hovering: bool, st=sec_title) -> None:
+                st.color = c.colors['gold'] if hovering else c.colors['text']
+
             row = ui.hover_surface(
                 c,
                 ft.Row(
                     cells(
                         ui.ui_text(c, str(index + 1), size=13, color=c.colors['faint'], tabular=True),
-                        ui.ui_text(c, section['title'], size=13, weight=ui.W600),
+                        sec_title,
                         ui.ui_text(c, section['central_idea'] or '', size=13, color=c.colors['muted']),
                         ui.ui_text(c, str(len(self._section_fragments(section['id']))), size=13, tabular=True),
                     ),
@@ -152,6 +157,8 @@ class CompilationHubOverviewMixin:
                 on_click=lambda _e, sid=section['id']: self._focus_idea(sid),
                 padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(10)),
                 radius=0,
+                on_hover=_on_hover_sec,
+                accent_left=True,
             )
             row.data = section['id']
             rows.append(ft.Container(row, border=ft.Border.only(bottom=ft.BorderSide(1, c.colors['border'])) if index < len(sections) - 1 else None))

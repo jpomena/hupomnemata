@@ -625,6 +625,7 @@ class FragmentsComposer:
         def _head_hover(e) -> None:
             hovering = e.data in (True, 'true')
             head.bgcolor = colors['card_hover'] if hovering else None
+            title_text.color = colors['gold'] if hovering else colors['text']
             try:
                 head.update()
             except Exception:
@@ -727,6 +728,7 @@ class FragmentsComposer:
             else:
                 row.border = None if last else ft.Border.only(bottom=ft.BorderSide(1, colors['border']))
             tools.opacity = 1 if hovering else 0
+            body.color = colors['gold'] if hovering else (colors['text'] if is_quote else colors['muted'])
             try:
                 row.update()
             except Exception:

@@ -213,6 +213,7 @@ class DashboardComposer:
         colors = c.colors
         kpi_icon = ui.icon(c, icon_name, size=12, style=icon_style)
         kpi_label = ui.ui_text(c, label, size=12, color=colors['muted'])
+        value_text = ui.ui_text(c, str(value), size=24, weight=W600, tabular=True)
         normal_border = None if last else ft.Border.only(right=ft.BorderSide(1, colors['border']))
         hover_border = ft.Border(
             left=ft.BorderSide(s(3), colors['gold']),
@@ -232,7 +233,7 @@ class DashboardComposer:
                         tight=True,
                     ),
                     ft.Container(
-                        ui.ui_text(c, str(value), size=24, weight=W600, tabular=True),
+                        value_text,
                         margin=ft.Margin.only(top=s(4)),
                     ),
                     ui.ui_text(c, caption, size=12, color=colors['faint']),
@@ -254,6 +255,7 @@ class DashboardComposer:
             cell.border = hover_border if hovering else normal_border
             kpi_icon.color = colors['gold'] if hovering else colors['faint']
             kpi_label.color = colors['text'] if hovering else colors['muted']
+            value_text.color = colors['gold'] if hovering else colors['text']
             try:
                 cell.update()
             except Exception:
@@ -374,7 +376,8 @@ class DashboardComposer:
         table_rows: list[ft.Control] = [header]
         for index, row in enumerate(rows):
             last = index == len(rows) - 1
-            name_column: list[ft.Control] = [ui.ui_text(c, row.get('name') or 'Sem nome', size=13, weight=W600, max_lines=2)]
+            name_text = ui.ui_text(c, row.get('name') or 'Sem nome', size=13, weight=W600, max_lines=2)
+            name_column: list[ft.Control] = [name_text]
             if row.get('description'):
                 name_column.append(ui.ui_text(c, row['description'], size=12, color=colors['faint'], max_lines=2))
             content = ft.Row(
@@ -393,12 +396,18 @@ class DashboardComposer:
                 spacing=s(12),
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
+
+            def _on_hover_proj(hovering: bool, nt=name_text) -> None:
+                nt.color = colors['gold'] if hovering else colors['text']
+
             row_box = ui.hover_surface(
                 c,
                 content,
                 on_click=lambda _e, cid=row['id']: self._open_compilation(cid),
                 padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(10)),
                 radius=0,
+                on_hover=_on_hover_proj,
+                accent_left=True,
             )
             row_box.data = {'compilation_id': row['id']}
             table_rows.append(
@@ -413,10 +422,11 @@ class DashboardComposer:
         c = self.config
         colors = c.colors
         family = c.font_families['montserrat']
+        title_span = ft.TextSpan(event['title'], style=ft.TextStyle(color=colors['text'], weight=W600, font_family=family, size=s(13), letter_spacing=ui.UI_TRACKING))
         what = ft.Text(
             spans=[
                 ft.TextSpan(event['prefix'], style=ft.TextStyle(color=colors['muted'], weight=W500, font_family=family, size=s(13), letter_spacing=ui.UI_TRACKING)),
-                ft.TextSpan(event['title'], style=ft.TextStyle(color=colors['text'], weight=W600, font_family=family, size=s(13), letter_spacing=ui.UI_TRACKING)),
+                title_span,
             ],
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
@@ -425,27 +435,40 @@ class DashboardComposer:
             snippet = ui.serif_text(c, event['snippet'], size=16, color=colors['muted'], max_lines=1, height=1.3)
         else:
             snippet = ui.ui_text(c, event['snippet'], size=12, color=colors['faint'])
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Container(
-                        ui.icon(c, event['icon'], size=12.5, color=colors['muted'], style=event['icon_style']),
-                        width=s(28),
-                        height=s(28),
-                        bgcolor=colors['card_hover'],
-                        border_radius=ft.BorderRadius.all(s(6)),
-                        alignment=ft.Alignment.CENTER,
-                    ),
-                    ft.Column([what, snippet], spacing=s(1), tight=True, expand=True),
-                    ft.Container(
-                        ui.ui_text(c, format_time(event['at']), size=12, color=colors['faint'], tabular=True),
-                        padding=ft.Padding.only(top=s(2)),
-                    ),
-                ],
-                spacing=s(8),
-                vertical_alignment=ft.CrossAxisAlignment.START,
-            ),
+        feed_icon = ui.icon(c, event['icon'], size=12.5, color=colors['muted'], style=event['icon_style'])
+
+        def _on_hover_feed(hovering: bool) -> None:
+            feed_icon.color = colors['gold'] if hovering else colors['muted']
+            title_span.style.color = colors['gold'] if hovering else colors['text']
+            if event['serif']:
+                snippet.color = colors['text'] if hovering else colors['muted']
+
+        row_content = ft.Row(
+            controls=[
+                ft.Container(
+                    feed_icon,
+                    width=s(28),
+                    height=s(28),
+                    bgcolor=colors['card_hover'],
+                    border_radius=ft.BorderRadius.all(s(6)),
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Column([what, snippet], spacing=s(1), tight=True, expand=True),
+                ft.Container(
+                    ui.ui_text(c, format_time(event['at']), size=12, color=colors['faint'], tabular=True),
+                    padding=ft.Padding.only(top=s(2)),
+                ),
+            ],
+            spacing=s(8),
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+        return ui.hover_surface(
+            c,
+            row_content,
             padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(10)),
+            radius=0,
+            on_hover=_on_hover_feed,
+            accent_left=True,
         )
 
     def _compose_activity_card(self) -> ft.Container:
@@ -494,7 +517,7 @@ class DashboardComposer:
 
         def _hover(e):
             hovering = e.data in (True, 'true')
-            name.color = colors['text'] if hovering else colors['muted']
+            name.color = colors['gold'] if hovering else colors['muted']
             name.style = ft.TextStyle(
                 letter_spacing=ui.UI_TRACKING,
                 decoration=ft.TextDecoration.UNDERLINE if hovering else ft.TextDecoration.NONE,
@@ -579,6 +602,7 @@ class DashboardComposer:
         else:
             def _on_hover_sc(hovering: bool) -> None:
                 icon_ctrl.color = colors['gold'] if hovering else colors['faint']
+                label_ctrl.color = colors['gold'] if hovering else colors['text']
 
             box = ui.hover_surface(c, content, on_click=on_click, padding=ft.Padding.symmetric(horizontal=s(8)), height=s(34), on_hover=_on_hover_sc)
             box.tooltip = tooltip
