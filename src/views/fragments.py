@@ -1,7 +1,7 @@
 """Tela Fragmentos e diálogo de criar/editar fragmento.
 
 O layout segue ``viewFragmentos`` e ``fragRow`` do protótipo
-(``design/prototype/index.html``): segmentado Todos/Citações/Comentários,
+(``design/prototype/index.html``): segmentado Todos/Citações/Paráfrases,
 filtro de texto, grupos por obra que recolhem e linhas com as ações no hover.
 O diálogo também é usado pelas compilações (``open_create_for_work`` e
 ``open_edit_fragment``), por isso é montado já no construtor.
@@ -21,8 +21,8 @@ from src.views.ui_kit import W500, W600, s
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
-KIND_LABELS = {'quote': 'Citação', 'comment': 'Comentário'}
-KIND_FILTERS = (('all', 'Todos'), ('quote', 'Citações'), ('comment', 'Comentários'))
+KIND_LABELS = {'quote': 'Citação', 'comment': 'Paráfrase'}
+KIND_FILTERS = (('all', 'Todos'), ('quote', 'Citações'), ('comment', 'Paráfrases'))
 LOCATION_PREFIXES = {
     'Página': 'p.',
     'Capítulo': 'cap.',
@@ -266,7 +266,7 @@ class FragmentsComposer:
     def _render_kind_selector(self) -> None:
         self.kind_host.content = ui.segmented(
             self.config,
-            [('quote', 'Citação', None), ('comment', 'Comentário', None)],
+            [('quote', 'Citação', None), ('comment', 'Paráfrase', None)],
             self.fragment_type_value,
             self._set_fragment_type,
         )
@@ -548,7 +548,7 @@ class FragmentsComposer:
                     c,
                     'quote-left',
                     'Nenhum fragmento ainda',
-                    'Registre citações e comentários das obras do acervo para reunir aqui o que você leu.',
+                    'Registre citações e paráfrases das obras do acervo para reunir aqui o que você leu.',
                     action=ui.button(c, 'Novo fragmento', icon_name='plus', small=True, on_click=self._open_create_modal),
                 )
             ]
@@ -714,9 +714,9 @@ class FragmentsComposer:
     def _page_description(self) -> str:
         total = len(self.fragments)
         if not total:
-            return 'Citações e comentários das obras do seu acervo.'
+            return 'Citações e paráfrases das obras do seu acervo.'
         works = len({fragment['bib_res_id'] for fragment in self.fragments})
-        what = 'citação ou comentário' if total == 1 else 'citações e comentários'
+        what = 'citação ou paráfrase' if total == 1 else 'citações e paráfrases'
         return f"{total} {what} de {_plural(works, 'obra', 'obras')} do acervo."
 
     def compose(self) -> ft.Container:

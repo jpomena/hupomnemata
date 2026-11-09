@@ -89,7 +89,7 @@ acima do campo.
 ## Ícones
 
 **Font Awesome Free 6.7.2.** Usar `fa-regular` quando existir na versão gratuita
-(pasta, arquivo, comentário, lixeira, copiar, marcador, calendário), senão
+(pasta, arquivo, paráfrase, lixeira, copiar, marcador, calendário), senão
 `fa-solid`. Tamanho 14 px na interface e 12,5 px em botões pequenos. Ícone nunca
 substitui rótulo em ação primária.
 
@@ -157,10 +157,10 @@ arquivos.
   fecha.
 
 ### Fragmentos
-- **Barra de ferramentas**: segmentado Todos / Citações / Comentários, filtro de
+- **Barra de ferramentas**: segmentado Todos / Citações / Paráfrases, filtro de
   texto, contagem e “Recolher tudo”.
 - **Grupos por obra** em card, que recolhem.
-- **Linha de fragmento**: ícone do tipo; citação em Cormorant 18 ou comentário em
+- **Linha de fragmento**: ícone do tipo; citação em Cormorant 18 ou paráfrase em
   Montserrat 13 `ink_2`; metadados (tipo, localizador, data) e selo da compilação.
   As ações aparecem no hover ou no foco.
 

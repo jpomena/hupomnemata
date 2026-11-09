@@ -39,7 +39,7 @@ class FragmentService:
             or fragment_type not in FRAGMENT_TYPE_LABELS
         ):
             raise ValueError(
-                'Selecione se o fragmento é citação ou comentário.'
+                'Selecione se o fragmento é citação ou paráfrase.'
             )
 
         excerpt = data.get('excerpt')

@@ -48,9 +48,9 @@
 
 ## 5. Implementar Fragmentos
 
-- [x] Associar citações e comentários a obras do Acervo.
+- [x] Associar citações e paráfrases a obras do Acervo.
 - [x] Exigir localização tipada em citações e permitir localização opcional
-  em comentários.
+  em paráfrases.
 - [x] Oferecer localizadores por página, capítulo, seção, posição e tempo.
 - [x] Criar, listar, editar e excluir fragmentos; remover fragmentos junto com
   a obra associada.

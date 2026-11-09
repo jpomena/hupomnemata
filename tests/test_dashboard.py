@@ -231,7 +231,7 @@ SAMPLE_DATA = {
     ],
     'fragments': [
         {'id': 10, 'kind': 'quote', 'excerpt': 'Trecho citado', 'bib_res_id': 1, 'work_title': 'Vigiar e punir', 'created_at': BASE + timedelta(days=1)},
-        {'id': 11, 'kind': 'comment', 'excerpt': 'Um comentário', 'bib_res_id': 1, 'work_title': 'Vigiar e punir', 'created_at': BASE + timedelta(days=1, minutes=5)},
+        {'id': 11, 'kind': 'comment', 'excerpt': 'Um paráfrase', 'bib_res_id': 1, 'work_title': 'Vigiar e punir', 'created_at': BASE + timedelta(days=1, minutes=5)},
         {'id': 12, 'kind': 'quote', 'excerpt': 'Outro trecho', 'bib_res_id': 2, 'work_title': 'A escrita de si', 'created_at': None},
     ],
     'compilations': [
@@ -254,7 +254,7 @@ def test_dashboard_summary_counts_real_data():
     assert [event['title'] for event in summary.events] == [
         'Vigiar e punir', 'Vigiar e punir', 'A escrita de si', 'Vigiar e punir',
     ]
-    assert [event['prefix'] for event in summary.events][:2] == ['Comentário em ', 'Citação em ']
+    assert [event['prefix'] for event in summary.events][:2] == ['Paráfrase em ', 'Citação em ']
     assert summary.events[1]['serif'] and not summary.events[0]['serif']
 
     empty = summarize_dashboard({})
@@ -283,7 +283,7 @@ def test_dashboard_compose_shows_kpis_tables_and_shortcuts(colors):
     for expected in (
         'Gabinete de Leitura', 'Novo fragmento', 'Nova obra',
         'Obras', 'Fragmentos', 'Compilações', 'Obras sem fragmentos',
-        'em 2 tipos documentais', '2 citações · 1 comentário', '2 obras vinculadas',
+        'em 2 tipos documentais', '2 citações · 1 paráfrase', '2 obras vinculadas',
         'Compilações em andamento', 'O multiplicador punitivo', 'Abrir caderno',
         'Atividade recente', 'Obra cadastrada: ', 'Acervo por tipo', 'Livros em geral',
         'Atalhos', 'Inserir nova obra', 'Registrar fragmento', 'Buscar no gabinete',

@@ -10,7 +10,7 @@ O projeto ainda está em fase de protótipo. A interface principal já existe em
 * Cadastro local de obras bibliográficas.
 * Cadastro de obras com autoria opcional; sem autor, a referência começa pelo título.
 * Opção por obra para preservar a grafia original do título nas referências.
-* Cadastro de citações e comentários vinculados às obras do Acervo.
+* Cadastro de citações e paráfrases vinculados às obras do Acervo.
 * Organização de obras em compilações com nome, descrição opcional e ordem manual.
 * Localização tipada de fragmentos, com página, capítulo, seção, localizador/posição ou tempo.
 * Persistência em SQLite via SQLAlchemy.
@@ -20,7 +20,7 @@ O projeto ainda está em fase de protótipo. A interface principal já existe em
 * Formatação ABNT inicial para periódicos.
 * Interface desktop com Flet.
 
-Citações exigem um tipo e um valor de localização; comentários podem ser registrados sem localização. O cadastro de fragmentos permite criar, listar, editar e excluir registros. Ao excluir uma obra, seus fragmentos também são removidos.
+Citações exigem um tipo e um valor de localização; paráfrases podem ser registrados sem localização. O cadastro de fragmentos permite criar, listar, editar e excluir registros. Ao excluir uma obra, seus fragmentos também são removidos.
 
 Compilações funcionam como projetos de pesquisa ou escrita: uma obra pode participar de várias compilações, sem duplicação dentro do mesmo projeto. O dashboard permite buscar por nome ou descrição e abrir o hub de cada projeto, com abas para editar seus dados e organizar obras e fragmentos. Os fragmentos das obras vinculadas aparecem aninhados por obra. No caderno de trabalho, o usuário transforma a seleção de fragmentos em um esqueleto de escrita: organiza-os em seções/ideias, registra a ideia central e notas de articulação, e copia o conjunto com suas referências formatadas. Fragmentos selecionados que ainda não foram organizados ficam em “A organizar”; mover um fragmento entre ideias não cria duplicatas. A seleção e as notas continuam específicas de cada compilação. O usuário pode reordenar ideias; remover uma delas devolve seus fragmentos a “A organizar” sem desfazer a seleção. O hub também permite criar e editar obras e fragmentos; fragmentos criados ali são vinculados automaticamente e só podem pertencer a obras do projeto. A exclusão de uma compilação ou a remoção de uma obra dela remove apenas os vínculos do projeto, preservando as obras e os fragmentos no Acervo. Ao excluir uma obra do Acervo, seus fragmentos e vínculos com compilações também são removidos.
 
@@ -68,7 +68,7 @@ python -m venv .venv
 
 ## Fluxo entre Camadas
 
-As views compõem a interface e enviam eventos por callbacks, sem importar formatters nem repositórios; contratos compartilhados ficam em `src/contracts.py`. O `CoreController` coordena as telas e seleciona o formatter adequado para cada obra. O `WorkSubmissionController` cuida do fluxo de cadastro e resolução de autores duplicados. O `WorkFormService` converte os valores dos formulários em payloads de domínio, o `WorkService` coordena as operações de obras e o `WorkRepository` concentra o acesso ao SQLAlchemy. O `FragmentService` e o `FragmentRepository` coordenam e persistem citações e comentários associados ao Acervo. O `CompilationService` e o `CompilationRepository` gerenciam os projetos, seus vínculos ordenáveis com as obras, as seções do esqueleto e os fragmentos selecionados, distribuídos e anotados no caderno de trabalho; o `CompilationHubComposer` apresenta o hub de cada projeto.
+As views compõem a interface e enviam eventos por callbacks, sem importar formatters nem repositórios; contratos compartilhados ficam em `src/contracts.py`. O `CoreController` coordena as telas e seleciona o formatter adequado para cada obra. O `WorkSubmissionController` cuida do fluxo de cadastro e resolução de autores duplicados. O `WorkFormService` converte os valores dos formulários em payloads de domínio, o `WorkService` coordena as operações de obras e o `WorkRepository` concentra o acesso ao SQLAlchemy. O `FragmentService` e o `FragmentRepository` coordenam e persistem citações e paráfrases associados ao Acervo. O `CompilationService` e o `CompilationRepository` gerenciam os projetos, seus vínculos ordenáveis com as obras, as seções do esqueleto e os fragmentos selecionados, distribuídos e anotados no caderno de trabalho; o `CompilationHubComposer` apresenta o hub de cada projeto.
 
 ## Status dos Formatadores
 

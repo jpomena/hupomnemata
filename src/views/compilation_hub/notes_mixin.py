@@ -23,7 +23,7 @@ class CompilationHubNotesMixin:
     def _prompt_fragment_note(self, fragment: CompilationFragmentRecord) -> ft.AlertDialog:
         c = self.config
         work_title = self._work_title_of(fragment)
-        kind = 'Citação' if fragment['fragment_type'] == 'quote' else 'Comentário'
+        kind = 'Citação' if fragment['fragment_type'] == 'quote' else 'Paráfrase'
         subtitle = ' · '.join(part for part in (kind, work_title, fragment_abnt_notation(fragment)) if part)
         note_field = text_input(
             c,

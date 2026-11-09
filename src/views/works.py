@@ -865,7 +865,7 @@ class WorksComposer:
         c = self.config
         if not fragments:
             return [ft.Container(
-                ui.empty_state(c, "quote-left", "Nenhum fragmento", "Registre uma citação ou um comentário desta obra em Fragmentos.", action=ui.button(c, "Ir para Fragmentos", small=True, on_click=lambda _e: self.on_navigate("Fragmentos"))),
+                ui.empty_state(c, "quote-left", "Nenhum fragmento", "Registre uma citação ou um paráfrase desta obra em Fragmentos.", action=ui.button(c, "Ir para Fragmentos", small=True, on_click=lambda _e: self.on_navigate("Fragmentos"))),
                 padding=s(24),
             )]
         out: list[ft.Control] = []
@@ -873,7 +873,7 @@ class WorksComposer:
             is_quote = record.get("fragment_type") == "quote"
             excerpt = str(record.get("excerpt") or "")
             text = excerpt if not is_quote or excerpt.strip()[:1] in "“\"«" else f"“{excerpt}”"
-            meta = ["Citação" if is_quote else "Comentário"]
+            meta = ["Citação" if is_quote else "Paráfrase"]
             if record.get("location_value"):
                 meta.append(str(record["location_value"]))
             copy_button = ui.icon_button(c, "copy", style="regular", tooltip="Copiar com citação")
