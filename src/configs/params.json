@@ -1,13 +1,21 @@
 {
   "COLORS_DARK": {
-    "bg": "#0c0c0e",
+    "bg": "#0d0d10",
+    "chrome": "#09090b",
     "surface": "#141417",
+    "card_hover": "#19191d",
+    "selected": "#1f1f24",
     "border": "#232328",
+    "border_strong": "#303035",
+    "text": "#e6e5eb",
+    "muted": "#a5a3ad",
+    "faint": "#818189",
     "gold": "#c5a059",
-    "muted": "#A09EA8",
-    "text": "#e2e1e8",
+    "gold_hover": "#d4b06d",
+    "on_gold": "#0c0c0e",
+    "danger": "#df6862",
+    "ok": "#6ebf8c",
     "black": "#101010",
-    "card_hover": "#1a1a1f",
     "constellation_ring": "#C5A059",
     "constellation_grid": "#A89260",
     "constellation_grid_tick": "#C5A059",
@@ -26,16 +34,23 @@
       "#988979"
     ]
   },
-
   "COLORS_LIGHT": {
-    "bg": "#E7E7E7",
-    "surface": "#FFFFFF",
-    "border": "#C4C4C7",
+    "bg": "#fcfbf9",
+    "chrome": "#f2f0ec",
+    "surface": "#fefefc",
+    "card_hover": "#f0eeea",
+    "selected": "#ebe7de",
+    "border": "#e1dfdb",
+    "border_strong": "#cdcac5",
+    "text": "#1d1d21",
+    "muted": "#525259",
+    "faint": "#686870",
     "gold": "#896200",
-    "muted": "#86868f",
-    "text": "#1D1D21",
+    "gold_hover": "#765000",
+    "on_gold": "#fefefc",
+    "danger": "#b02a2d",
+    "ok": "#156f41",
     "black": "#101010",
-    "card_hover": "#f2f2f7",
     "constellation_ring": "#7A5C00",
     "constellation_grid": "#8C733E",
     "constellation_grid_tick": "#7A5C00",
@@ -54,7 +69,6 @@
       "#665749"
     ]
   },
-
   "FONTS": {
     "cormorant": {
       "name": "Cormorant Garamond",
@@ -139,22 +153,34 @@
         "semibold": "W_600",
         "bold": "W_700"
       }
+    },
+    "fa_solid": {
+      "name": "FA Solid",
+      "path": "fonts/FontAwesome/fa-solid-900.ttf",
+      "weights": {
+        "normal": "W_900"
+      }
+    },
+    "fa_regular": {
+      "name": "FA Regular",
+      "path": "fonts/FontAwesome/fa-regular-400.ttf",
+      "weights": {
+        "normal": "W_400"
+      }
     }
   },
-
   "ICON_SIZES": {
     "icon_large": 64,
     "icon_medium": 36
   },
-
   "UI": {
-    "sidebar_width": 350,
+    "sidebar_width": 240,
     "sidebar_padding": 20,
     "sidebar_footnote_height": 180,
     "navigation_padding": 15,
     "card_padding": 12,
     "card_height": 283,
-    "card_radius": 6,
+    "card_radius": 8,
     "modal_width": 1100,
     "modal_height": 1300,
     "modal_type_panel_width": 360,
@@ -169,23 +195,27 @@
     "header_bottom_padding": 5,
     "content_top_padding": 10,
     "content_padding": 50,
-    "grid_gap": 20
+    "grid_gap": 20,
+    "titlebar_height": 40,
+    "control_height": 32,
+    "control_height_small": 28,
+    "row_height": 40,
+    "inspector_width": 380,
+    "page_padding": 32,
+    "control_radius": 6
   },
-
   "PHYSICAL_ATTRIBUTES": {
     "page_quantity": " p.",
     "volumes": " v.",
     "illustrations": " il.",
     "dimensions": ""
   },
-
   "PART_IDENTIFIERS": [
     "part_volume",
     "part_chapter_number",
     "part_start_page",
     "part_end_page"
   ],
-
   "CORE_MENUS": {
     "Acervo": "book_outlined",
     "Fragmentos": "note_outlined",
@@ -195,7 +225,6 @@
     "Configurações": "settings",
     "Limbo": "thrash"
   },
-
   "MAIN_VIEW_CARDS": {
     "Inserir Nova Obra": {
       "description": "Inserir manualmente nova obra em seu acervo",

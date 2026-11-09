@@ -1,136 +1,228 @@
-"""Composer da barra lateral de navegacao."""
+"""Composer da barra lateral de navegação (redesign v2)."""
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 import flet as ft
 
-from typing import Callable
-from src.utils.ft_controls import ControlsUtils
-from src.utils.ft_icons import get_icon
+from src.utils.fa import fa_icon
 from src.utils.types import ViewConfig
+from src.views import ui_kit as ui
+from src.views.ui_kit import s
+
+
+@dataclass
+class SidebarData:
+    """Contagens e projetos mostrados na barra lateral."""
+
+    works: int | None = None
+    fragments: int | None = None
+    compilations: list[tuple[int, str]] = field(default_factory=list)
+
+
+# (destino, ícone, rótulo, chave da contagem)
+MAIN_ITEMS = [
+    ("dashboard", "house", "Início", None),
+    ("Acervo", "book", "Acervo", "works"),
+    ("Fragmentos", "quote-left", "Fragmentos", "fragments"),
+]
+EXPLORE_ITEMS = [
+    ("Estruturas de Saber", "diagram-project", "Estruturas de Saber"),
+    ("Nous", "brain", "Nous"),
+]
 
 
 class SidebarComposer:
-    """Compoe marca, navegacao e nota da barra lateral."""
+    """Compõe busca, navegação agrupada e rodapé com status e tema."""
 
     def __init__(
-            self, scale: float, config: ViewConfig,
-            on_navigate: Callable[[str], None]
+        self,
+        scale: float,
+        config: ViewConfig,
+        on_navigate: Callable[[str], None],
+        current: str = "dashboard",
+        data: SidebarData | None = None,
+        on_search: Callable[[], None] | None = None,
+        on_new_work: Callable[[], None] | None = None,
+        on_new_compilation: Callable[[], None] | None = None,
+        on_toggle_theme: Callable[[], None] | None = None,
     ) -> None:
         self.scale = scale
         self.config = config
         self.on_navigate = on_navigate
+        self.current = current
+        self.data = data or SidebarData()
+        self.on_search = on_search
+        self.on_new_work = on_new_work
+        self.on_new_compilation = on_new_compilation
+        self.on_toggle_theme = on_toggle_theme
 
-    def _compose_branding(self) -> ft.Container:
-        """Cria a marca e o slogan exibidos no topo."""
-        return ft.Container(
-            padding=self.config.ui["sidebar_padding"],
-            bgcolor=self.config.colors["surface"],
-            content=ft.Column(
-                controls=[
-                    ft.TextButton(
-                        content=ft.Text(
-                            value=self.config.texts["app"]["name_normalized"],
-                            size=self.config.font_sizes["greek_brand"],
-                            weight=self.config.font_weights["greek_semibold"],
-                            color=self.config.colors["text"],
-                            font_family=self.config.font_families["greek"],
-                            style=ft.TextStyle(letter_spacing=4),
-                            text_align=ft.TextAlign.CENTER
-                        ),
-                        on_click=lambda e: self.on_navigate("dashboard")
-                    ),
-                    ft.Text(
-                        value=self.config.texts["app"]["slogan"],
-                        align=ft.Alignment.BOTTOM_CENTER,
-                        font_family=self.config.font_families["cormorant"],
-                        color=self.config.colors["muted"],
-                        style=ft.TextStyle(letter_spacing=3),
-                        size=self.config.font_sizes["cormorant_small"],
-                        weight=self.config.font_weights[
-                            "cormorant_semibold"
-                        ],
-                    ),
-                ],
-                spacing=6,
+    # ── peças ──────────────────────────────────────────────
+
+    def _item(
+        self,
+        destination: str,
+        icon_name: str | None,
+        label: str,
+        count: int | None = None,
+        leading: ft.Control | None = None,
+    ) -> ft.Container:
+        c = self.config
+        active = self.current == destination
+        glyph = leading or fa_icon(
+            icon_name or "circle",
+            size=s(13),
+            color=c.colors["gold"] if active else c.colors["faint"],
+        )
+        controls: list[ft.Control] = [
+            ft.Container(glyph, width=s(18), alignment=ft.Alignment.CENTER),
+            ui.ui_text(
+                c, label, size=13,
+                weight=ui.W600 if active else ui.W500,
+                color=c.colors["text"] if active else c.colors["muted"],
+                expand=True,
             ),
+        ]
+        if count is not None:
+            controls.append(ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True))
+        item = ui.hover_surface(
+            c,
+            ft.Row(controls, spacing=s(10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            on_click=lambda _e: self.on_navigate(destination),
+            selected=active,
+            padding=ft.Padding.symmetric(horizontal=s(8)),
+            height=s(30),
+        )
+        item.data = destination
+        return item
+
+    def _group_head(self, label: str, action: ft.Control | None = None) -> ft.Container:
+        c = self.config
+        return ft.Container(
+            content=ft.Row(
+                [ui.ui_text(c, label, size=12, weight=ui.W600, color=c.colors["faint"])] + ([action] if action else []),
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=s(26),
+            padding=ft.Padding.only(left=s(8), right=s(2)),
+        )
+
+    def _compose_top(self) -> ft.Container:
+        c = self.config
+        search = ui.hover_surface(
+            c,
+            ft.Row(
+                [
+                    fa_icon("magnifying-glass", size=s(12), color=c.colors["faint"]),
+                    ui.ui_text(c, "Buscar", size=13, color=c.colors["faint"], expand=True),
+                    ui.kbd(c, "⌘K"),
+                ],
+                spacing=s(8),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            on_click=lambda _e: self.on_search() if self.on_search else None,
+            padding=ft.Padding.only(left=s(8), right=s(6)),
+            height=s(32),
+            base=c.colors["bg"],
+        )
+        search.border = ft.Border.all(1, c.colors["border_strong"])
+        search.expand = True
+        new_work = ui.icon_button(
+            c, "plus",
+            on_click=lambda _e: self.on_new_work() if self.on_new_work else self.on_navigate("work_insert"),
+            tooltip="Nova obra (⌘N)", boxed=True, size=32,
+        )
+        return ft.Container(
+            content=ft.Row([search, new_work], spacing=s(8)),
+            padding=ft.Padding.only(left=s(12), right=s(12), top=s(12), bottom=s(8)),
         )
 
     def _compose_navigation(self) -> ft.Container:
-        """Cria os itens de navegacao da secao de cadernos."""
-        menu_items = [
-            ControlsUtils.create_sidebar_menu(
-                label_ref=label,
-                icon_data=get_icon(icon_name),
-                scale=self.scale,
-                config=self.config,
-                on_navigate=self.on_navigate
+        c = self.config
+        counts = {"works": self.data.works, "fragments": self.data.fragments}
+        main = [self._item(dest, ic, label, counts.get(key) if key else None) for dest, ic, label, key in MAIN_ITEMS]
+
+        add_comp = ui.icon_button(
+            c, "plus",
+            on_click=lambda _e: self.on_new_compilation() if self.on_new_compilation else self.on_navigate("Compilações"),
+            tooltip="Nova compilação", size=22,
+        )
+        projects = []
+        for comp_id, name in self.data.compilations:
+            destination = f"compilacao:{comp_id}"
+            active = self.current == destination
+            dot = ft.Container(
+                width=s(8), height=s(8),
+                border_radius=ft.BorderRadius.all(s(2)),
+                border=ft.Border.all(1.5, c.colors["gold"] if active else c.colors["faint"]),
+                bgcolor=c.colors["gold"] if active else None,
             )
-            for label, icon_name in self.config.core_menus.items()
-        ]
+            projects.append(self._item(destination, None, name, leading=dot))
+        projects.append(self._item("Compilações", "folder-open", "Todas as compilações", len(self.data.compilations)))
+
+        explore = [self._item(dest, ic, label) for dest, ic, label in EXPLORE_ITEMS]
+
         return ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text(
-                        value="Cadernos",
-                        font_family=self.config.font_families["greek"],
-                        size=self.config.font_sizes["cormorant_small"],
-                        color=self.config.colors["muted"],
-                        weight=self.config.font_weights[
-                            "montserrat_semibold"
-                        ],
-                    ),
-                    *menu_items,
+                    ft.Column(main, spacing=s(1), tight=True),
+                    ft.Column([self._group_head("Compilações", add_comp), *projects], spacing=s(1), tight=True),
+                    ft.Column([self._group_head("Explorar"), *explore], spacing=s(1), tight=True),
                 ],
-                spacing=self.config.ui["modal_gap"] - 6,
+                spacing=s(16),
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            padding=self.config.ui["navigation_padding"],
+            padding=ft.Padding.only(left=s(12), right=s(12), top=s(4), bottom=s(12)),
             expand=True,
         )
 
-    def _compose_footnote(self) -> ft.Container:
-        """Cria a citacao exibida no rodape com altura variavel auto-ajustavel."""
-        citation_text = ft.Text(
-            value=self.config.texts["messages"]["placeholder_citation"],
-            size=(
-                self.config.font_sizes["cormorant_small"]
-                * self.scale
-            ),
-            color=self.config.colors["muted"],
-            font_family=self.config.font_families["cormorant"],
-            align=ft.Alignment.CENTER_LEFT,
-            text_align=ft.TextAlign.JUSTIFY,
-            no_wrap=False,
-            weight=self.config.font_weights["cormorant_semibold"],
+    def _compose_footer(self) -> ft.Container:
+        c = self.config
+        status = ft.Row(
+            [
+                ft.Container(width=s(6), height=s(6), border_radius=ft.BorderRadius.all(s(3)), bgcolor=c.colors["ok"]),
+                ui.ui_text(c, "Banco local", size=12, color=c.colors["faint"]),
+            ],
+            spacing=s(8),
+            tight=True,
         )
-
+        theme = ui.icon_button(
+            c, "circle-half-stroke",
+            on_click=lambda _e: self.on_toggle_theme() if self.on_toggle_theme else None,
+            tooltip="Alternar tema", size=26,
+        )
         return ft.Container(
             content=ft.Column(
-                controls=[citation_text],
+                [
+                    self._item("Configurações", "gear", "Configurações"),
+                    ft.Container(
+                        ft.Row([status, theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        height=s(30),
+                        padding=ft.Padding.only(left=s(8), right=s(2)),
+                    ),
+                ],
+                spacing=s(2),
                 tight=True,
             ),
-            padding=self.config.ui["navigation_padding"],
-            border=ft.Border(
-                top=ft.BorderSide(1, self.config.colors["border"])
-            ),
+            padding=ft.Padding.only(left=s(12), right=s(12), top=s(8), bottom=s(12)),
+            border=ft.Border.only(top=ft.BorderSide(1, c.colors["border"])),
         )
 
     def compose(self) -> ft.Container:
         """Monta a barra lateral completa."""
         return ft.Container(
-            width=self.config.ui["sidebar_width"],
-            bgcolor=self.config.colors["surface"],
-            border=ft.Border(
-                right=ft.BorderSide(1, self.config.colors["border"])
-            ),
+            width=s(self.config.ui["sidebar_width"]),
+            bgcolor=self.config.colors["chrome"],
+            border=ft.Border.only(right=ft.BorderSide(1, self.config.colors["border"])),
             content=ft.Column(
                 controls=[
-                    self._compose_branding(),
+                    self._compose_top(),
                     self._compose_navigation(),
-                    self._compose_footnote(),
+                    self._compose_footer(),
                 ],
                 spacing=0,
-                alignment=ft.MainAxisAlignment.START,
                 expand=True,
             ),
         )

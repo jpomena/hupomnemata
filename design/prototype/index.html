@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hupomnēmata · Protótipo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<link rel="stylesheet" href="tokens.css">
+<style>
+/* Hallmark · genre: modern-minimal (enterprise) · surface: desktop app shell · design-system: ../DESIGN.md · designed-as-app
+ * nav: N3 side-rail + ⌘K · footer: none (app) · enrichment: none (typography only) · motion: overlays only
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow-x: clip; }
+body {
+  background: var(--color-canvas); color: var(--color-ink);
+  font-family: var(--font-ui); font-size: var(--text-sm); line-height: 1.45; letter-spacing: var(--track-ui);
+  -webkit-font-smoothing: antialiased; font-variant-numeric: lining-nums;
+}
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; }
+::selection { background: var(--color-mark); }
+.ms { font-size: 14px; line-height: 1; width: 1.25em; text-align: center; display: inline-block; flex: none; }
+.ms.sm { font-size: 12.5px; }
+.tnum { font-variant-numeric: tabular-nums lining-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--color-rule-2); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+kbd { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0; color: var(--color-ink-3); border: var(--rule-w) solid var(--color-rule-2); border-bottom-width: 2px; border-radius: var(--radius-xs); padding: 0 4px; min-width: 18px; height: 18px; display: inline-grid; place-items: center; background: var(--color-canvas); }
+.muted { color: var(--color-ink-2); }
+.faint { color: var(--color-ink-3); }
+
+/* ── app frame ─────────────────────────────────────── */
+.app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); grid-template-rows: var(--titlebar-h) minmax(0, 1fr); height: 100vh; }
+.titlebar { grid-column: 1 / -1; display: grid; grid-template-columns: var(--sidebar-w) auto minmax(0, 1fr) auto; align-items: center; background: var(--color-chrome); border-bottom: var(--rule-w) solid var(--color-rule); }
+.tb-brand { padding: 0 var(--space-md); display: flex; align-items: center; gap: var(--space-xs); border-right: var(--rule-w) solid var(--color-rule); height: 100%; }
+.wordmark { font-family: var(--font-brand); font-size: 1.0625rem; letter-spacing: 0.02em; color: var(--color-ink); white-space: nowrap; }
+.tb-hist { display: flex; gap: 2px; padding: 0 var(--space-xs) 0 var(--space-sm); }
+.crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; font-size: var(--text-sm); color: var(--color-ink-3); white-space: nowrap; overflow: hidden; }
+.crumbs button { border: 0; background: none; color: var(--color-ink-3); padding: 3px 6px; border-radius: var(--radius-xs); }
+.crumbs button:hover { color: var(--color-ink); background: var(--color-hover); }
+.crumbs .cur { color: var(--color-ink); font-weight: 500; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; }
+.crumbs .sep { color: var(--color-ink-3); font-size: 9px; opacity: 0.7; }
+.win { display: flex; height: 100%; }
+.win button { width: 46px; border: 0; background: none; color: var(--color-ink-3); display: grid; place-items: center; }
+.win button:hover { background: var(--color-hover); color: var(--color-ink); }
+.win button.close:hover { background: var(--color-danger); color: var(--color-accent-ink); }
+
+.sidebar { display: flex; flex-direction: column; min-height: 0; background: var(--color-chrome); border-right: var(--rule-w) solid var(--color-rule); }
+.sb-top { display: flex; gap: var(--space-xs); padding: var(--space-sm) var(--space-sm) var(--space-xs); }
+.search-trigger { flex: 1; display: flex; align-items: center; gap: var(--space-xs); height: var(--control-h); padding: 0 6px 0 var(--space-xs); border: var(--rule-w) solid var(--color-rule-2); border-radius: var(--radius-sm); background: var(--color-canvas); color: var(--color-ink-3); text-align: left; }
+.search-trigger:hover { border-color: var(--color-ink-3); color: var(--color-ink-2); }
+.search-trigger .label { flex: 1; white-space: nowrap; }
+.sq-btn { width: 32px; height: 32px; border: var(--rule-w) solid var(--color-rule-2); }
+.nav { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-xs) var(--space-sm) var(--space-md); display: flex; flex-direction: column; gap: var(--space-md); }
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-head { display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 0 2px 0 var(--space-xs); font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-3); }
+.nav-head .icon-btn { width: 22px; height: 22px; }
+.nav-item { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 var(--space-xs); width: 100%; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 500; text-align: left; white-space: nowrap; transition: background var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
+.nav-item .ms { color: var(--color-ink-3); }
+.nav-item .t { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.nav-item .count { font-size: var(--text-xs); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.nav-item:hover { background: var(--color-hover); color: var(--color-ink); }
+.nav-item[aria-current="page"] { background: var(--color-selected); color: var(--color-ink); font-weight: 600; }
+.nav-item[aria-current="page"] .ms { color: var(--color-accent); }
+.proj-dot { width: 18px; display: grid; place-items: center; }
+.proj-dot i { width: 8px; height: 8px; border-radius: 2px; border: 1.5px solid var(--color-ink-3); display: block; }
+.nav-item[aria-current="page"] .proj-dot i { background: var(--color-accent); border-color: var(--color-accent); }
+.sb-foot { border-top: var(--rule-w) solid var(--color-rule); padding: var(--space-xs) var(--space-sm) var(--space-sm); display: flex; flex-direction: column; gap: 2px; }
+.sb-status { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 2px 0 var(--space-xs); font-size: var(--text-xs); color: var(--color-ink-3); }
+.sb-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-ok); display: inline-block; margin-right: 8px; }
+
+.main { min-width: 0; min-height: 0; overflow: auto; background: var(--color-canvas); }
+.main.fill { overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── controls ──────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--control-h); padding: 0 var(--space-sm); border-radius: var(--radius-sm); border: var(--rule-w) solid var(--color-rule-2); background: var(--color-surface); color: var(--color-ink); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; transition: background var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
+.btn .ms { font-size: 13px; margin-left: -2px; }
+.btn:hover { background: var(--color-hover); border-color: var(--color-ink-3); }
+.btn:active { background: var(--color-selected); }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.btn[disabled]:hover { background: var(--color-surface); border-color: var(--color-rule-2); }
+.btn.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); font-weight: 600; }
+.btn.primary:hover { background: var(--color-accent-2); border-color: var(--color-accent-2); }
+.btn.ghost { background: none; border-color: transparent; color: var(--color-ink-2); }
+.btn.ghost:hover { background: var(--color-hover); color: var(--color-ink); }
+.btn.sm { height: var(--control-h-sm); padding: 0 var(--space-xs); font-size: var(--text-xs); }
+.btn.danger { color: var(--color-danger); }
+.btn.danger:hover { background: var(--color-danger-wash); border-color: var(--color-danger); }
+.btn[data-state="loading"] { pointer-events: none; }
+.btn[data-state="loading"] .ms { animation: spin 900ms linear infinite; }
+.btn[data-state="success"] { color: var(--color-ok); }
+.btn.primary[data-state="success"] { color: var(--color-accent-ink); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn kbd { margin-left: 4px; background: transparent; border-color: currentColor; color: inherit; opacity: 0.55; }
+.icon-btn { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-ink-3); flex: none; transition: background var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
+.icon-btn:hover { background: var(--color-hover); color: var(--color-ink); }
+.icon-btn:active { background: var(--color-selected); }
+.icon-btn[disabled] { opacity: 0.35; cursor: default; background: none; }
+.icon-btn[data-state="success"] { color: var(--color-ok); }
+.icon-btn.boxed { border: var(--rule-w) solid var(--color-rule-2); }
+.input, .select, .textarea { height: var(--control-h); width: 100%; padding: 0 10px; background: var(--color-canvas); color: var(--color-ink); border: var(--rule-w) solid var(--color-rule-2); border-radius: var(--radius-sm); font-size: var(--text-sm); transition: border-color var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out); }
+.textarea { height: auto; min-height: 84px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+.input::placeholder, .textarea::placeholder { color: var(--color-ink-3); }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--color-ink-3); }
+.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-wash); }
+.input:disabled, .select:disabled { opacity: 0.5; cursor: not-allowed; }
+.input[aria-invalid="true"] { border-color: var(--color-danger); }
+.input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--color-danger-wash); }
+.select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--color-ink-3) 50%), linear-gradient(135deg, var(--color-ink-3) 50%, transparent 50%); background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+.searchbox { position: relative; display: flex; align-items: center; }
+.searchbox > .ms { position: absolute; left: 9px; color: var(--color-ink-3); pointer-events: none; font-size: 13px; }
+.searchbox .input { padding-left: 32px; }
+.cb { appearance: none; width: 16px; height: 16px; margin: 0; flex: none; border: var(--rule-w) solid var(--color-ink-3); border-radius: var(--radius-xs); background: var(--color-canvas); display: inline-grid; place-items: center; cursor: pointer; transition: background var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out); }
+.cb:hover { border-color: var(--color-ink-2); }
+.cb:checked, .cb:indeterminate { background: var(--color-accent); border-color: var(--color-accent); }
+.cb:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--color-accent-ink); border-bottom: 2px solid var(--color-accent-ink); transform: translateY(-1px) rotate(-45deg); }
+.cb:indeterminate::after { content: ""; width: 8px; height: 2px; background: var(--color-accent-ink); }
+.cb:disabled { opacity: 0.4; cursor: not-allowed; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--text-sm); cursor: pointer; }
+.check .cb { margin-top: 1px; }
+.check small { display: block; color: var(--color-ink-3); font-size: var(--text-xs); margin-top: 1px; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-sm); background: var(--color-chrome); border: var(--rule-w) solid var(--color-rule); }
+.seg button { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-xs); background: none; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 500; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.seg button .n { color: var(--color-ink-3); font-variant-numeric: tabular-nums; font-size: var(--text-xs); }
+.seg button:hover { color: var(--color-ink); }
+.seg button[aria-pressed="true"] { background: var(--color-surface); color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-rule-2); }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); border: var(--rule-w) solid var(--color-rule-2); color: var(--color-ink-2); font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0; white-space: nowrap; background: var(--color-canvas); }
+.badge .ms { font-size: 10.5px; }
+.badge.accent { color: var(--color-accent); border-color: var(--color-accent-wash); background: var(--color-accent-wash); }
+.chip-filter { display: inline-flex; align-items: center; gap: 6px; height: var(--control-h); padding: 0 10px 0 8px; border-radius: var(--radius-sm); border: var(--rule-w) dashed var(--color-rule-2); background: none; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+.chip-filter:hover { border-color: var(--color-ink-3); color: var(--color-ink); }
+.chip-filter.on { border-style: solid; background: var(--color-surface); color: var(--color-ink); padding-right: 4px; }
+.chip-filter.on b { font-weight: 600; color: var(--color-accent); }
+.chip-filter .x { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--radius-xs); border: 0; background: none; color: var(--color-ink-3); }
+.chip-filter .x:hover { background: var(--color-hover); color: var(--color-ink); }
+.link { border: 0; background: none; padding: 0; color: var(--color-ink-2); font-size: inherit; font-weight: 500; display: inline-flex; align-items: center; gap: 2px; }
+.link:hover { color: var(--color-accent); }
+.link .ms { font-size: 12.5px; }
+
+/* ── page scaffolding (igual em todas as telas) ───── */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-lg); padding: var(--space-xl) var(--space-xl) var(--space-md); }
+.h1 { font-family: var(--font-display); font-weight: 600; font-size: var(--text-h1); line-height: 1.1; letter-spacing: 0; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.desc { margin: 4px 0 0; color: var(--color-ink-2); font-size: var(--text-sm); }
+.head-meta { display: flex; gap: var(--space-xs); margin-top: var(--space-sm); flex-wrap: wrap; }
+.actions { display: flex; gap: var(--space-xs); align-items: center; flex: none; }
+.toolbar { display: flex; align-items: center; gap: var(--space-xs); padding: 0 var(--space-xl) var(--space-sm); min-height: 44px; }
+.toolbar .spacer { flex: 1; }
+.toolbar .count { color: var(--color-ink-3); font-size: var(--text-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bulkbar { display: flex; align-items: center; gap: var(--space-xs); padding: 0 var(--space-xs) 0 var(--space-sm); height: 40px; margin: 2px var(--space-xl) var(--space-sm); border-radius: var(--radius-md); background: var(--color-surface); border: var(--rule-w) solid var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-wash); }
+.bulkbar .n { font-weight: 600; margin-right: var(--space-xs); white-space: nowrap; }
+.tabs { display: flex; gap: var(--space-lg); padding: 0 var(--space-xl); border-bottom: var(--rule-w) solid var(--color-rule); flex: none; }
+.tab { position: relative; height: 40px; border: 0; background: none; padding: 0; color: var(--color-ink-3); font-size: var(--text-sm); font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tab .n { font-size: var(--text-xs); color: var(--color-ink-3); font-variant-numeric: tabular-nums; background: var(--color-hover); border-radius: var(--radius-xs); padding: 0 5px; }
+.tab:hover { color: var(--color-ink); }
+.tab[aria-selected="true"] { color: var(--color-ink); font-weight: 600; }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--color-accent); }
+.body-pad { padding: 0 var(--space-xl) var(--space-2xl); }
+
+.card { background: var(--color-surface); border: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-md); min-width: 0; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); min-height: 44px; padding: 0 var(--space-sm) 0 var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); }
+.card-title { font-size: var(--text-sm); font-weight: 600; margin: 0; display: flex; gap: var(--space-xs); align-items: center; }
+.card-body { padding: var(--space-md); }
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-xs); padding: var(--space-lg); border: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink-2); }
+.empty-state .ms { color: var(--color-ink-3); font-size: 18px; }
+.empty-state strong { color: var(--color-ink); font-weight: 600; }
+
+/* ── início ────────────────────────────────────────── */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 var(--space-xl) var(--space-lg); overflow: hidden; }
+.kpi { padding: var(--space-md); border: 0; border-right: var(--rule-w) solid var(--color-rule); display: flex; flex-direction: column; gap: 2px; text-align: left; background: none; color: inherit; transition: background var(--dur-micro) var(--ease-out); }
+.kpi:last-child { border-right: 0; }
+.kpi:hover { background: var(--color-hover); }
+.kpi .l { font-size: var(--text-xs); color: var(--color-ink-2); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.kpi .l .ms { font-size: 12px; color: var(--color-ink-3); }
+.kpi .v { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.25; margin-top: 4px; }
+.kpi .s { font-size: var(--text-xs); color: var(--color-ink-3); }
+.home-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: var(--space-lg); padding: 0 var(--space-xl) var(--space-2xl); align-items: start; }
+.stack { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--space-sm); padding: 10px var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); align-items: start; }
+.feed li:last-child { border-bottom: 0; }
+.feed li.feed-day { display: block; padding: 7px var(--space-md) 5px; font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-3); background: var(--color-canvas); }
+.feed .ico { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--color-hover); display: grid; place-items: center; color: var(--color-ink-2); }
+.feed .ico .ms { font-size: 12.5px; }
+.feed .what { font-size: var(--text-sm); color: var(--color-ink-2); }
+.feed .what b { color: var(--color-ink); font-weight: 600; }
+.feed .snip { font-size: var(--text-xs); color: var(--color-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.feed .snip.serif { font-family: var(--font-display); font-size: 1rem; color: var(--color-ink-2); letter-spacing: 0; }
+.feed .when { font-size: var(--text-xs); color: var(--color-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; padding-top: 2px; }
+.bars { list-style: none; margin: 0; padding: var(--space-xs) 0; }
+.bars li { display: grid; grid-template-columns: minmax(0, 1fr) 90px 28px; gap: var(--space-sm); align-items: center; padding: 5px var(--space-md); }
+.bars li button { border: 0; background: none; padding: 0; text-align: left; color: var(--color-ink-2); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bars li button:hover { color: var(--color-ink); text-decoration: underline; text-underline-offset: 3px; }
+.bar { height: 6px; border-radius: 3px; background: var(--color-hover); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--color-ink-3); border-radius: 3px; }
+.bars .v { text-align: right; font-size: var(--text-xs); color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.shortcuts { list-style: none; margin: 0; padding: var(--space-xs); }
+.shortcuts button { width: 100%; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 var(--space-xs); border: 0; background: none; border-radius: var(--radius-sm); color: var(--color-ink); font-size: var(--text-sm); font-weight: 500; text-align: left; }
+.shortcuts button .ms { color: var(--color-ink-3); }
+.shortcuts button .t { flex: 1; white-space: nowrap; }
+.shortcuts button:hover { background: var(--color-hover); }
+.shortcuts button[aria-disabled="true"] { color: var(--color-ink-3); cursor: default; }
+.shortcuts button[aria-disabled="true"]:hover { background: none; }
+.epigraph { margin: 0; padding: 0 var(--space-xs); }
+.epigraph p { font-family: var(--font-display); font-style: italic; font-size: 1rem; line-height: 1.5; color: var(--color-ink-3); margin: 0 0 6px; letter-spacing: 0; }
+.epigraph cite { font-style: normal; font-size: var(--text-xs); color: var(--color-ink-3); }
+
+.dtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.dtable th { text-align: left; font-size: var(--text-xs); font-weight: 500; color: var(--color-ink-3); height: 34px; padding: 0 var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); white-space: nowrap; }
+.dtable td { padding: 10px var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); vertical-align: middle; }
+.dtable tr:last-child td { border-bottom: 0; }
+.dtable .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dtable tbody tr { cursor: pointer; }
+.dtable tbody tr:hover td { background: var(--color-hover); }
+.dtable .name { font-weight: 600; color: var(--color-ink); }
+.dtable .sub { color: var(--color-ink-3); font-size: var(--text-xs); margin-top: 1px; }
+
+/* ── acervo: tabela + painel ──────────────────────── */
+.split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--inspector-w); border-top: var(--rule-w) solid var(--color-rule); }
+.split.no-insp { grid-template-columns: minmax(0, 1fr); }
+.grid-wrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; container-type: inline-size; }
+.grid-scroll { flex: 1; overflow: auto; }
+.g-row { display: grid; grid-template-columns: 64px minmax(0, 2.4fr) minmax(0, 1.2fr) 150px 64px 52px 104px; align-items: center; min-height: var(--row-h); border-bottom: var(--rule-w) solid var(--color-rule); padding-right: var(--space-md); }
+.g-row > * { padding: 0 var(--space-xs); min-width: 0; }
+.g-row > :first-child { padding-left: var(--space-xl); padding-right: 0; display: flex; }
+.g-head { position: sticky; top: 0; z-index: var(--z-raised); background: var(--color-canvas); min-height: 34px; }
+.g-head button { border: 0; background: none; padding: 4px 0; display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-xs); font-weight: 500; color: var(--color-ink-3); white-space: nowrap; }
+.g-head button:hover { color: var(--color-ink); }
+.g-head button[aria-sort="ascending"], .g-head button[aria-sort="descending"] { color: var(--color-ink); font-weight: 600; }
+.g-head button .ms { font-size: 12px; }
+.g-head .r, .g-row .r { text-align: right; justify-content: flex-end; display: flex; }
+.g-body .g-row { cursor: default; transition: background var(--dur-micro) var(--ease-out); }
+.g-body .g-row:hover { background: var(--color-hover); }
+.g-body .g-row[aria-selected="true"] { background: var(--color-selected); }
+.g-body .g-row.checked { background: var(--color-accent-wash); }
+.g-body .g-row:focus-visible { outline-offset: -2px; }
+.c-title { display: flex; align-items: baseline; gap: var(--space-xs); overflow: hidden; white-space: nowrap; }
+.c-title .t { font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.c-title .st { color: var(--color-ink-3); overflow: hidden; text-overflow: ellipsis; flex: 1 1 0; min-width: 0; }
+.g-row.child .c-title { padding-left: 28px; position: relative; }
+.g-row.child .c-title::before { content: ""; position: absolute; left: 12px; top: -10px; width: 9px; height: 18px; border-left: 1px solid var(--color-rule-2); border-bottom: 1px solid var(--color-rule-2); border-bottom-left-radius: 3px; }
+.c-text { color: var(--color-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-num { color: var(--color-ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c-zero { color: var(--color-ink-3); }
+.grid-foot { display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 var(--space-xl); border-top: var(--rule-w) solid var(--color-rule); color: var(--color-ink-3); font-size: var(--text-xs); gap: var(--space-md); flex: none; }
+.grid-foot > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid-foot .keys { display: flex; gap: var(--space-sm); align-items: center; white-space: nowrap; }
+.grid-foot .keys span { display: inline-flex; gap: 3px; align-items: center; }
+@container (max-width: 860px) { .g-row { grid-template-columns: 64px minmax(0, 2.4fr) 140px 64px 52px; } .c-author, .c-added { display: none !important; } .grid-foot .keys span:nth-child(n+2) { display: none; } }
+@container (max-width: 600px) { .g-row { grid-template-columns: 64px minmax(0, 1fr) 64px; } .c-type, .c-frag { display: none !important; } }
+
+.inspector { border-left: var(--rule-w) solid var(--color-rule); background: var(--color-surface); min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.insp-head { padding: var(--space-md) var(--space-md) 0 var(--space-lg); }
+.insp-top { display: flex; align-items: center; gap: 2px; margin-bottom: var(--space-sm); }
+.insp-top .spacer { flex: 1; }
+.insp-title { font-family: var(--font-display); font-weight: 600; font-size: var(--text-h2); line-height: 1.15; letter-spacing: 0; margin: 0; overflow-wrap: anywhere; padding-right: var(--space-xs); }
+.insp-sub { margin: 4px 0 0; color: var(--color-ink-2); font-size: var(--text-sm); padding-right: var(--space-xs); }
+.insp-by { margin: 6px 0 0; font-size: var(--text-sm); color: var(--color-ink-2); }
+.insp-actions { display: flex; gap: var(--space-xs); margin: var(--space-md) 0 0; }
+.insp-tabs { display: flex; gap: var(--space-lg); padding: 0 var(--space-lg); border-bottom: var(--rule-w) solid var(--color-rule); margin-top: var(--space-sm); }
+.insp-body { flex: 1; overflow: auto; }
+.insp-sec { padding: var(--space-md) var(--space-lg); border-bottom: var(--rule-w) solid var(--color-rule); display: flex; flex-direction: column; gap: var(--space-xs); }
+.insp-sec:last-child { border-bottom: 0; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs); min-height: 28px; }
+.sec-title { font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-2); margin: 0; }
+.ref-box { background: var(--color-canvas); border: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-sm); padding: 10px 12px; font-size: var(--text-sm); line-height: 1.6; color: var(--color-ink); }
+.ref-box b { font-weight: 700; }
+.props { display: grid; grid-template-columns: 104px minmax(0, 1fr); margin: 0; font-size: var(--text-sm); }
+.props dt { color: var(--color-ink-3); padding: 5px 0; }
+.props dd { margin: 0; padding: 5px 0; color: var(--color-ink); min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.props dd .link { color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-rule-2); text-underline-offset: 3px; text-align: left; }
+.props dd .link:hover { color: var(--color-accent); }
+.prose { font-family: var(--font-display); font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); margin: 0; letter-spacing: 0; }
+.mini-frag { padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg); border-bottom: var(--rule-w) solid var(--color-rule); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-xs); }
+.mini-frag p { margin: 4px 0 0; font-family: var(--font-display); font-size: 1rem; line-height: 1.45; letter-spacing: 0; }
+.clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: var(--text-xs); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.meta .sep::before { content: "·"; }
+.meta b { font-weight: 600; color: var(--color-ink-2); }
+
+/* ── fragmentos ────────────────────────────────────── */
+.flist { padding: 0 var(--space-xl) var(--space-2xl); }
+.fgroup { border: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); margin-bottom: var(--space-sm); }
+.fg-head { display: flex; align-items: center; gap: var(--space-xs); height: 44px; padding: 0 var(--space-xs); background: var(--color-surface); border-radius: var(--radius-md); }
+.fgroup:not(.collapsed) .fg-head { border-bottom: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.fg-head .chev { transition: transform var(--dur-short) var(--ease-out); }
+.fgroup.collapsed .fg-head .chev { transform: rotate(-90deg); }
+.fg-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fg-by { color: var(--color-ink-3); font-size: var(--text-xs); white-space: nowrap; }
+.fg-head .spacer { flex: 1; }
+.frow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: var(--space-sm); padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); transition: background var(--dur-micro) var(--ease-out); }
+.frow:last-child { border-bottom: 0; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.frow:hover, .frow:focus-within { background: var(--color-hover); }
+.frow > .ms { color: var(--color-ink-3); margin-top: 4px; }
+.frow .quote { font-family: var(--font-display); font-size: var(--text-read); line-height: 1.5; margin: 0 0 6px; max-width: 72ch; white-space: pre-line; letter-spacing: 0; }
+.frow .comment { font-size: var(--text-sm); line-height: 1.6; color: var(--color-ink-2); margin: 0 0 6px; max-width: 80ch; }
+.frow .tools { display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-micro) var(--ease-out); align-self: start; }
+.frow:hover .tools, .frow:focus-within .tools { opacity: 1; }
+@media (hover: none) { .frow .tools { opacity: 1; } }
+
+/* ── compilação ────────────────────────────────────── */
+.caderno { flex: 1; min-height: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr) 320px; }
+.outline { border-right: var(--rule-w) solid var(--color-rule); background: var(--color-chrome); overflow: auto; padding: var(--space-md) var(--space-sm); display: flex; flex-direction: column; gap: var(--space-md); }
+.ol-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.ol-item { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; align-items: center; height: 30px; padding: 0 var(--space-xs); border: 0; background: none; border-radius: var(--radius-sm); text-align: left; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 500; }
+.ol-item .i { color: var(--color-ink-3); font-variant-numeric: tabular-nums; font-size: var(--text-xs); }
+.ol-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-item .n { font-size: var(--text-xs); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.ol-item:hover { background: var(--color-hover); color: var(--color-ink); }
+.ol-item[aria-current="true"] { background: var(--color-selected); color: var(--color-ink); font-weight: 600; }
+.ol-item[aria-current="true"] .i { color: var(--color-accent); }
+.ol-note { font-size: var(--text-xs); color: var(--color-ink-3); padding: 0 var(--space-xs); margin: 0; line-height: 1.5; }
+.writing { overflow: auto; padding: var(--space-xl) var(--space-xl) var(--space-3xl); }
+.writing-inner { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-2xl); }
+.idea { scroll-margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); }
+.idea-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); }
+.idea-title { font-family: var(--font-display); font-size: var(--text-h2); font-weight: 600; line-height: 1.15; margin: 0; letter-spacing: 0; display: flex; gap: 10px; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+.idea-title .i { font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-3); font-variant-numeric: tabular-nums; letter-spacing: var(--track-ui); }
+.idea-central { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: var(--space-sm); padding: 10px 0; margin: 0; border-top: var(--rule-w) solid var(--color-rule); border-bottom: var(--rule-w) solid var(--color-rule); font-size: var(--text-sm); }
+.idea-central dt { color: var(--color-ink-3); }
+.idea-central dd { margin: 0; color: var(--color-ink); }
+.fblock { border: var(--rule-w) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); }
+.fb-head { display: flex; align-items: center; gap: var(--space-xs); height: 40px; padding: 0 6px 0 var(--space-xs); border-bottom: var(--rule-w) solid var(--color-rule); }
+.fb-head .grip { color: var(--color-ink-3); cursor: grab; }
+.fb-head .w { font-size: var(--text-xs); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb-head .spacer { flex: 1; }
+.fb-body { padding: var(--space-sm) var(--space-md); }
+.fb-body .quote { font-family: var(--font-display); font-size: var(--text-read); line-height: 1.5; margin: 0 0 8px; white-space: pre-line; letter-spacing: 0; }
+.fb-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs); padding: 4px 6px 4px var(--space-md); border-top: var(--rule-w) solid var(--color-rule); }
+.rail { border-left: var(--rule-w) solid var(--color-rule); padding: var(--space-md); overflow: auto; display: flex; flex-direction: column; gap: var(--space-lg); background: var(--color-surface); }
+.ref-list { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); counter-reset: ref; }
+.ref-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; font-size: var(--text-xs); line-height: 1.6; color: var(--color-ink-2); }
+.ref-list li::before { counter-increment: ref; content: counter(ref) "."; color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.ref-list b { color: var(--color-ink); }
+.plain-list { list-style: none; margin: var(--space-xs) 0 0; padding: 0; }
+.plain-list button { width: 100%; display: flex; justify-content: space-between; gap: var(--space-sm); padding: 7px 0; border: 0; border-bottom: var(--rule-w) solid var(--color-rule); background: none; text-align: left; font-size: var(--text-sm); color: var(--color-ink); }
+.plain-list button:hover .t { color: var(--color-accent); }
+.plain-list .t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plain-list .n { color: var(--color-ink-3); font-size: var(--text-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pw-frag { display: grid; grid-template-columns: 28px minmax(0, 1fr) 200px; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); align-items: start; }
+.pw-frag:last-child { border-bottom: 0; }
+.pw-frag .quote { font-family: var(--font-display); font-size: 1.0625rem; line-height: 1.45; margin: 0 0 4px; letter-spacing: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label { font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-2); }
+.field .req { color: var(--color-accent); }
+.field .help { font-size: var(--text-xs); color: var(--color-ink-3); }
+.field .err { font-size: var(--text-xs); color: var(--color-danger); display: flex; gap: 4px; align-items: center; }
+.danger-zone { border-color: var(--color-danger-wash); }
+.danger-zone .card-head { border-bottom-color: var(--color-danger-wash); }
+
+/* ── overlays ──────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; background: var(--color-scrim); z-index: var(--z-modal); display: grid; place-items: center; padding: var(--space-lg); animation: fade var(--dur-short) var(--ease-out); }
+@keyframes fade { from { opacity: 0; } }
+.dialog { width: min(1040px, 100%); height: min(740px, 100%); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; animation: pop var(--dur-long) var(--ease-out); }
+@keyframes pop { from { transform: scale(0.98); opacity: 0; } }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 var(--space-sm) 0 var(--space-lg); border-bottom: var(--rule-w) solid var(--color-rule); }
+.dialog-head h2 { font-size: var(--text-md); font-weight: 600; margin: 0; }
+.dialog-body { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 0; }
+.types { border-right: var(--rule-w) solid var(--color-rule); padding: var(--space-sm); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: var(--space-sm); background: var(--color-chrome); }
+.type-group { display: flex; flex-direction: column; gap: 1px; }
+.type-item { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 var(--space-xs); border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 500; text-align: left; white-space: nowrap; min-width: 0; }
+.type-item span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.type-item .ms { color: var(--color-ink-3); }
+.type-item:hover { background: var(--color-hover); color: var(--color-ink); }
+.type-item[aria-pressed="true"] { background: var(--color-selected); color: var(--color-ink); font-weight: 600; }
+.type-item[aria-pressed="true"] .ms { color: var(--color-accent); }
+.form { overflow: auto; padding: var(--space-lg) var(--space-xl) var(--space-xl); display: flex; flex-direction: column; gap: var(--space-lg); }
+.form-intro { display: flex; align-items: center; gap: var(--space-sm); }
+.form-intro .ico { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--color-hover); display: grid; place-items: center; color: var(--color-accent); }
+.form-intro h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.form-intro p { margin: 1px 0 0; color: var(--color-ink-3); font-size: var(--text-xs); }
+.fset { border: 0; margin: 0; padding: var(--space-lg) 0 0; border-top: var(--rule-w) solid var(--color-rule); display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-lg); min-width: 0; }
+.fset legend { float: left; padding: 0; font-size: var(--text-sm); font-weight: 600; }
+.fset legend small { display: block; font-weight: 400; color: var(--color-ink-3); font-size: var(--text-xs); margin-top: 3px; line-height: 1.45; }
+.fgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+.fgrid .full { grid-column: 1 / -1; }
+.fgrid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dialog-foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-lg); align-items: center; padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg); border-top: var(--rule-w) solid var(--color-rule); background: var(--color-chrome); }
+.preview-label { font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-3); margin-bottom: 2px; }
+.preview-text { font-size: var(--text-sm); line-height: 1.55; color: var(--color-ink); min-height: 1.55em; }
+.preview-text.placeholder { color: var(--color-ink-3); }
+
+.palette { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--color-scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; animation: fade var(--dur-short) var(--ease-out); }
+.palette-box { width: min(620px, calc(100% - 32px)); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); overflow: hidden; animation: pop var(--dur-short) var(--ease-out); }
+.palette-input { display: flex; align-items: center; gap: var(--space-sm); padding: 0 var(--space-md); border-bottom: var(--rule-w) solid var(--color-rule); }
+.palette-input .ms { color: var(--color-ink-3); }
+.palette-input input { flex: 1; height: 50px; border: 0; background: none; outline: none; font-size: var(--text-md); }
+.palette-input input::placeholder { color: var(--color-ink-3); }
+.palette-results { max-height: 400px; overflow: auto; padding: 6px; }
+.p-group { padding: 8px 8px 4px; font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-3); }
+.p-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: none; text-align: left; color: var(--color-ink); font-size: var(--text-sm); }
+.p-item .ms { color: var(--color-ink-3); }
+.p-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.p-item .s { color: var(--color-ink-3); font-size: var(--text-xs); white-space: nowrap; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.p-item[aria-selected="true"] { background: var(--color-selected); }
+.p-item[aria-selected="true"] .ms { color: var(--color-accent); }
+.palette-foot { display: flex; gap: var(--space-md); padding: 8px var(--space-md); border-top: var(--rule-w) solid var(--color-rule); color: var(--color-ink-3); font-size: var(--text-xs); background: var(--color-chrome); }
+.palette-foot span { display: inline-flex; gap: 4px; align-items: center; }
+
+.menu { position: fixed; z-index: var(--z-dropdown); min-width: 220px; max-width: 300px; background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-menu); padding: 4px; animation: fade var(--dur-micro) var(--ease-out); }
+.menu-label { padding: 6px 8px 4px; font-size: var(--text-xs); font-weight: 600; color: var(--color-ink-3); }
+.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-xs); background: none; text-align: left; color: var(--color-ink); font-size: var(--text-sm); }
+.menu-item .ms { color: var(--color-ink-3); font-size: 13px; }
+.menu-item .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-item .n { color: var(--color-ink-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--color-hover); outline: none; }
+.menu-item[aria-disabled="true"] { color: var(--color-ink-3); cursor: default; }
+.menu-item[aria-disabled="true"]:hover { background: none; }
+.menu-item.danger, .menu-item.danger .ms { color: var(--color-danger); }
+.menu-sep { height: 1px; background: var(--color-rule); margin: 4px -4px; }
+
+.toast { position: fixed; right: var(--space-lg); bottom: var(--space-lg); z-index: var(--z-toast); display: flex; align-items: center; gap: var(--space-sm); min-height: 40px; padding: 0 6px 0 var(--space-md); background: var(--color-toast); color: var(--color-toast-ink); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; box-shadow: var(--shadow-pop); animation: toast-in var(--dur-short) var(--ease-out); }
+.toast .ms { font-size: 13px; }
+.toast button { border: 0; background: none; color: inherit; font-weight: 700; padding: 6px 8px; border-radius: var(--radius-xs); display: inline-grid; place-items: center; }
+.toast button:hover { background: var(--color-scrim); }
+@keyframes toast-in { from { transform: translateY(6px); opacity: 0; } }
+
+@media (max-width: 1280px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .caderno { grid-template-columns: 220px minmax(0, 1fr); }
+  .rail { display: none; }
+  :root { --inspector-w: 340px; }
+}
+@media (max-width: 960px) {
+  :root { --sidebar-w: 56px; }
+  .wordmark { font-size: 0; }
+  .wordmark::first-letter { font-size: 1.0625rem; }
+  .nav-item .t, .nav-item .count, .nav-head, .search-trigger .label, .search-trigger kbd, .sb-status > span { display: none; }
+  .sb-top { flex-direction: column; }
+  .search-trigger { flex: none; width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(2) { border-right: 0; }
+  .kpi:nth-child(-n+2) { border-bottom: var(--rule-w) solid var(--color-rule); }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .inspector { position: fixed; right: 0; top: var(--titlebar-h); bottom: 0; width: min(380px, 100%); z-index: var(--z-sticky); box-shadow: var(--shadow-pop); }
+  .caderno { grid-template-columns: minmax(0, 1fr); }
+  .outline { display: none; }
+  .page-head { flex-direction: column; align-items: flex-start; }
+  .toolbar { flex-wrap: wrap; padding-top: var(--space-xs); }
+  .fset { grid-template-columns: minmax(0, 1fr); }
+  .dialog-body { grid-template-columns: minmax(0, 1fr); }
+  .types { display: none; }
+  .pw-frag { grid-template-columns: 28px minmax(0, 1fr); }
+  .pw-frag .field { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 120ms !important; transition-duration: 120ms !important; }
+  .dialog, .palette-box, .toast { animation-name: fade !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar">
+    <div class="tb-brand"><span class="wordmark" aria-label="Hupomnēmata">hupomnemata</span></div>
+    <div class="tb-hist">
+      <button class="icon-btn" data-action="back" aria-label="Voltar" title="Voltar (⌘[)"><i class="fa-solid fa-arrow-left ms" aria-hidden="true"></i></button>
+      <button class="icon-btn" data-action="fwd" aria-label="Avançar" title="Avançar (⌘])"><i class="fa-solid fa-arrow-right ms" aria-hidden="true"></i></button>
+    </div>
+    <nav class="crumbs" id="crumbs" aria-label="Caminho"></nav>
+    <div class="win" aria-hidden="true">
+      <button tabindex="-1"><i class="fa-solid fa-minus ms sm" aria-hidden="true"></i></button>
+      <button tabindex="-1"><i class="fa-regular fa-square ms sm" aria-hidden="true"></i></button>
+      <button tabindex="-1" class="close"><i class="fa-solid fa-xmark ms sm" aria-hidden="true"></i></button>
+    </div>
+  </header>
+  <aside class="sidebar" aria-label="Navegação principal">
+    <div class="sb-top">
+      <button class="search-trigger" data-action="palette"><i class="fa-solid fa-magnifying-glass ms sm" aria-hidden="true"></i><span class="label">Buscar</span><kbd>⌘K</kbd></button>
+      <button class="icon-btn sq-btn" data-action="new-work" aria-label="Nova obra" title="Nova obra (⌘N)"><i class="fa-solid fa-plus ms sm" aria-hidden="true"></i></button>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sb-foot">
+      <button class="nav-item" data-go="config" id="nav-config"><i class="fa-solid fa-gear ms" aria-hidden="true"></i><span class="t">Configurações</span></button>
+      <div class="sb-status"><span><span class="dot"></span>Banco local</span><button class="icon-btn" data-action="toggle-theme" id="theme-btn" aria-label="Alternar tema"></button></div>
+    </div>
+  </aside>
+  <main class="main" id="view" tabindex="-1"></main>
+</div>
+<div id="overlay"></div>
+<div id="menu-root"></div>
+<div id="toast-root" aria-live="polite"></div>
+
+<script src="data.js"></script>
+<script>
+(() => {
+const D = window.HUP_DATA;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FA = {"home": "fa-solid fa-house", "library_books": "fa-solid fa-book", "format_quote": "fa-solid fa-quote-left", "add": "fa-solid fa-plus", "folder_open": "fa-regular fa-folder-open", "hub": "fa-solid fa-diagram-project", "neurology": "fa-solid fa-brain", "settings": "fa-solid fa-gear", "search": "fa-solid fa-magnifying-glass", "light_mode": "fa-regular fa-sun", "dark_mode": "fa-regular fa-moon", "arrow_back": "fa-solid fa-arrow-left", "arrow_forward": "fa-solid fa-arrow-right", "chevron_right": "fa-solid fa-chevron-right", "remove": "fa-solid fa-minus", "crop_square": "fa-regular fa-square", "close": "fa-solid fa-xmark", "edit_note": "fa-regular fa-pen-to-square", "menu_book": "fa-solid fa-book-open", "school": "fa-solid fa-graduation-cap", "mail": "fa-regular fa-envelope", "article": "fa-regular fa-file-lines", "auto_stories": "fa-solid fa-book-open-reader", "newspaper": "fa-regular fa-newspaper", "event_note": "fa-regular fa-calendar-days", "gavel": "fa-solid fa-gavel", "account_balance": "fa-solid fa-building-columns", "lightbulb": "fa-regular fa-lightbulb", "description": "fa-regular fa-file-lines", "movie": "fa-solid fa-film", "music_note": "fa-solid fa-music", "queue_music": "fa-solid fa-music", "image": "fa-regular fa-image", "map": "fa-regular fa-map", "deployed_code": "fa-solid fa-cube", "chat_bubble": "fa-regular fa-comment", "add_notes": "fa-solid fa-file-circle-plus", "upload_file": "fa-solid fa-file-import", "ios_share": "fa-solid fa-file-export", "content_copy": "fa-regular fa-copy", "bookmark_add": "fa-regular fa-bookmark", "delete": "fa-regular fa-trash-can", "keyboard_arrow_up": "fa-solid fa-chevron-up", "keyboard_arrow_down": "fa-solid fa-chevron-down", "more_horiz": "fa-solid fa-ellipsis", "open_in_new": "fa-solid fa-arrow-up-right-from-square", "expand_more": "fa-solid fa-chevron-down", "unfold_more": "fa-solid fa-angles-down", "unfold_less": "fa-solid fa-angles-up", "search_off": "fa-solid fa-magnifying-glass", "inbox": "fa-solid fa-inbox", "drag_indicator": "fa-solid fa-grip-vertical", "move_to_inbox": "fa-solid fa-inbox", "architecture": "fa-solid fa-compass-drafting", "check": "fa-solid fa-check", "check_circle": "fa-regular fa-circle-check", "info": "fa-solid fa-circle-info", "error": "fa-solid fa-circle-exclamation", "progress_activity": "fa-solid fa-spinner", "arrow_upward": "fa-solid fa-arrow-up", "arrow_downward": "fa-solid fa-arrow-down", "folder": "fa-regular fa-folder", "contrast": "fa-solid fa-circle-half-stroke", "library_add": "fa-regular fa-clone", "visibility": "fa-regular fa-eye", "edit": "fa-solid fa-pen"};
+const ms = (n, cls = '') => `<i class="${FA[n] || 'fa-solid fa-circle'} ms ${cls}" aria-hidden="true" data-i="${n}"></i>`;
+const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+const MON = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const MONL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const parseD = (s) => s ? new Date(s.replace(' ', 'T')) : null;
+const fmtDate = (s) => { const d = parseD(s); return d ? `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}` : ''; };
+const fmtDay = (s) => { const d = parseD(s); return d ? `${d.getDate()} de ${MONL[d.getMonth()]}` : ''; };
+const fmtTime = (s) => { const d = parseD(s); return d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : ''; };
+
+/* ── dados ─────────────────────────────────────────── */
+let works = D.works;
+let byId = Object.fromEntries(works.map(w => [w.id, w]));
+const frags = D.fragments;
+const fragsByWork = {};
+frags.forEach(f => (fragsByWork[f.bib_res_id] ||= []).push(f));
+Object.values(fragsByWork).forEach(a => a.sort((x, y) => x.id - y.id));
+const comps = D.compilations;
+const compsOfWork = (id) => comps.filter(c => c.works.includes(id));
+const compsOfFrag = (id) => comps.filter(c => c.members.some(m => m.fragment_id === id));
+const kindLabel = (t) => t === 'quote' ? 'Citação' : 'Comentário';
+const kindIcon = (t) => t === 'quote' ? 'format_quote' : 'chat_bubble';
+const qt = (s) => /^[“"«]/.test(String(s).trim()) ? esc(s) : `“${esc(s)}”`;
+const shortCite = (f) => `(${f.citation_author}, ${f.display_year}${f.location_value ? ', ' + f.location_value : ''})`;
+const refHtml = (w) => w.ref.map(([t, s]) => s === 'bold' ? `<b>${esc(t)}</b>` : s === 'italic' ? `<i>${esc(t)}</i>` : esc(t)).join('');
+const refPlain = (w) => w.ref.map(([t]) => t).join('').trim();
+const authorsLine = (w) => w.authors.length ? w.authors.join(', ') : 'Sem autoria';
+const yearNum = (y) => { const m = String(y).match(/\d+/); const n = m ? +m[0] : 99999; return /a\.C\./.test(y) ? -n : n; };
+const TYPE_ICON = {
+  'Livros em geral': 'menu_book', 'Trabalho acadêmico': 'school', 'Correspondência': 'mail',
+  'Artigo de revista': 'article', 'Revista': 'auto_stories', 'Coleção periódica': 'library_books', 'Artigo de jornal': 'newspaper',
+  'Anais em volume único': 'event_note', 'Anais em periódico': 'event_note',
+  'Legislação': 'gavel', 'Jurisprudência': 'account_balance', 'Patente': 'lightbulb',
+  'Documento digital': 'description', 'Audiovisual': 'movie', 'Áudio': 'music_note', 'Partitura': 'queue_music',
+  'Documento visual': 'image', 'Cartográfico': 'map', 'Tridimensional': 'deployed_code'
+};
+const TYPE_GROUPS = [
+  ['Textos', ['Livros em geral', 'Trabalho acadêmico', 'Correspondência']],
+  ['Periódicos', ['Artigo de revista', 'Revista', 'Coleção periódica', 'Artigo de jornal']],
+  ['Eventos', ['Anais em volume único', 'Anais em periódico']],
+  ['Jurídico', ['Legislação', 'Jurisprudência', 'Patente']],
+  ['Mídia e objetos', ['Audiovisual', 'Áudio', 'Partitura', 'Documento visual', 'Cartográfico', 'Tridimensional']],
+  ['Digital', ['Documento digital']],
+];
+const TYPE_DESC = { 'Livros em geral': 'Livro, enciclopédia, dicionário ou catálogo' };
+
+/* ── estado ────────────────────────────────────────── */
+const S = {
+  view: 'inicio', type: null, compFilter: null, comp: 1, q: '', sortKey: 'created', sortDir: 'desc', sel: null, itab: 'geral', checked: new Set(),
+  fKind: 'all', fq: '', collapsed: new Set(), tab: 'caderno', idea: null,
+  theme: 'dark', palette: null, form: null, menu: null,
+};
+try { const t = localStorage.getItem('hup-theme'); if (t) S.theme = t; } catch (e) {}
+const hist = { stack: [], i: -1 };
+const snap = () => ({ view: S.view, comp: S.comp, tab: S.tab, sel: S.sel, type: S.type });
+function go(view, extra = {}, push = true) {
+  Object.assign(S, { view }, extra);
+  if (push) { hist.stack = hist.stack.slice(0, hist.i + 1); hist.stack.push(snap()); hist.i = hist.stack.length - 1; }
+  S.menu = null; render(); $('#view').scrollTop = 0;
+}
+function travel(d) { const j = hist.i + d; if (j < 0 || j >= hist.stack.length) return; hist.i = j; go(hist.stack[j].view, { ...hist.stack[j] }, false); }
+
+/* ── shell ─────────────────────────────────────────── */
+function renderShell() {
+  const item = (v, icon, label, count) => `<button class="nav-item" data-go="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${ms(icon)}<span class="t">${label}</span>${count != null ? `<span class="count">${count}</span>` : ''}</button>`;
+  $('#nav').innerHTML = `
+    <div class="nav-group">
+      ${item('inicio', 'home', 'Início')}
+      ${item('acervo', 'library_books', 'Acervo', works.length)}
+      ${item('fragmentos', 'format_quote', 'Fragmentos', frags.length)}
+    </div>
+    <div class="nav-group">
+      <div class="nav-head"><span>Compilações</span><button class="icon-btn" aria-label="Nova compilação" title="Nova compilação" data-action="toast" data-msg="Nova compilação">${ms('add', 'sm')}</button></div>
+      ${comps.map(c => `<button class="nav-item" data-go="compilacao" data-comp="${c.id}" ${S.view === 'compilacao' && S.comp === c.id ? 'aria-current="page"' : ''}><span class="proj-dot"><i></i></span><span class="t">${esc(c.name)}</span></button>`).join('')}
+      ${item('compilacoes', 'folder_open', 'Todas as compilações', comps.length)}
+    </div>
+    <div class="nav-group">
+      <div class="nav-head"><span>Explorar</span></div>
+      ${item('estruturas', 'hub', 'Estruturas de Saber')}
+      ${item('nous', 'neurology', 'Nous')}
+    </div>`;
+  const cfg = $('#nav-config');
+  if (S.view === 'config') cfg.setAttribute('aria-current', 'page'); else cfg.removeAttribute('aria-current');
+  $('#theme-btn').innerHTML = ms('contrast', 'sm');
+  $('#theme-btn').title = S.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro';
+  $('[data-action="back"]').disabled = hist.i <= 0;
+  $('[data-action="fwd"]').disabled = hist.i >= hist.stack.length - 1;
+}
+function crumbs(parts) {
+  $('#crumbs').innerHTML = parts.map((p, i) => i === parts.length - 1
+    ? `<span class="cur" aria-current="page">${esc(p[0])}</span>`
+    : `<button data-go="${p[1]}">${esc(p[0])}</button>${ms('chevron_right', 'sep')}`).join('');
+}
+const pageHead = ({ title, desc, meta = '', actions = '' }) => `<header class="page-head"><div style="min-width:0"><h1 class="h1">${esc(title)}</h1>${desc ? `<p class="desc">${desc}</p>` : ''}${meta ? `<div class="head-meta">${meta}</div>` : ''}</div><div class="actions">${actions}</div></header>`;
+
+/* ── início ────────────────────────────────────────── */
+function viewInicio() {
+  crumbs([['Início']]);
+  const quotes = frags.filter(f => f.fragment_type === 'quote').length;
+  const types = Object.entries(works.reduce((m, w) => (m[w.type] = (m[w.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  const noFrag = works.filter(w => !(fragsByWork[w.id] || []).length).length;
+  const linked = new Set(comps.flatMap(c => c.works)).size;
+  const kpi = (icon, l, v, s, attrs) => `<button class="kpi" ${attrs}><span class="l">${ms(icon)}${l}</span><span class="v">${v}</span><span class="s">${s}</span></button>`;
+  const events = [
+    ...works.map(w => ({ at: w.created, icon: TYPE_ICON[w.type] || 'description', html: `Obra cadastrada: <b>${esc(w.title)}</b>`, snip: authorsLine(w) })),
+    ...frags.map(f => ({ at: f.created, icon: kindIcon(f.fragment_type), html: `${kindLabel(f.fragment_type)} em <b>${esc(f.work_title)}</b>`, snip: f.excerpt, serif: f.fragment_type === 'quote' })),
+  ].filter(e => e.at).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
+  let lastDay = '';
+  const feed = events.map(e => { const day = fmtDay(e.at); const head = day !== lastDay ? `<li class="feed-day">${day}</li>` : ''; lastDay = day; return head + `<li><span class="ico">${ms(e.icon)}</span><div style="min-width:0"><div class="what">${e.html}</div><div class="snip ${e.serif ? 'serif' : ''}">${esc(e.snip)}</div></div><span class="when">${fmtTime(e.at)}</span></li>`; }).join('');
+  const max = types[0][1];
+  return `${pageHead({ title: 'Gabinete de Leitura', desc: 'Seu repositório pessoal de bibliografia e escrita.', actions: `<button class="btn" data-action="new-fragment">${ms('format_quote')}Novo fragmento</button><button class="btn primary" data-action="new-work">${ms('add')}Nova obra</button>` })}
+    <div class="card kpis">
+      ${kpi('library_books', 'Obras', works.length, `em ${plural(types.length, 'tipo documental', 'tipos documentais')}`, 'data-go="acervo"')}
+      ${kpi('format_quote', 'Fragmentos', frags.length, `${quotes} citações · ${frags.length - quotes} comentários`, 'data-go="fragmentos"')}
+      ${kpi('folder_open', 'Compilações', comps.length, plural(linked, 'obra vinculada', 'obras vinculadas'), 'data-go="compilacoes"')}
+      ${kpi('edit_note', 'Obras sem fragmentos', noFrag, 'ainda não fichadas', 'data-go="acervo" data-sortkey="frag" data-sortdir="asc"')}
+    </div>
+    <div class="home-grid">
+      <div class="stack">
+        <section class="card">
+          <div class="card-head"><h2 class="card-title">Compilações em andamento</h2><button class="link" data-go="compilacoes">Ver todas${ms('chevron_right')}</button></div>
+          <table class="dtable"><thead><tr><th>Projeto</th><th class="r">Obras</th><th class="r">Fragmentos</th><th class="r">Ideias</th><th class="r">Atualizada</th><th style="width:1%"></th></tr></thead>
+          <tbody>${comps.map(c => `<tr data-go="compilacao" data-comp="${c.id}" data-tab="caderno" tabindex="0"><td><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.description)}</div></td><td class="r">${c.works.length}</td><td class="r">${c.members.length}</td><td class="r">${c.sections.length}</td><td class="r faint">${fmtDate(c.updated)}</td><td><button class="btn sm" data-go="compilacao" data-comp="${c.id}" data-tab="caderno">Abrir caderno</button></td></tr>`).join('')}</tbody></table>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2 class="card-title">Atividade recente</h2><span class="faint" style="font-size:var(--text-xs)">Últimos ${events.length} registros</span></div>
+          <ul class="feed">${feed}</ul>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="card">
+          <div class="card-head"><h2 class="card-title">Acervo por tipo</h2><button class="link" data-go="acervo">Abrir acervo${ms('chevron_right')}</button></div>
+          <ul class="bars">${types.map(([t, n]) => `<li><button data-go="acervo" data-type="${esc(t)}">${esc(t)}</button><span class="bar" aria-hidden="true"><i style="width:${Math.max(4, n / max * 100)}%"></i></span><span class="v">${n}</span></li>`).join('')}</ul>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2 class="card-title">Atalhos</h2></div>
+          <ul class="shortcuts">
+            <li><button data-action="new-work">${ms('add_notes')}<span class="t">Inserir nova obra</span><kbd>⌘N</kbd></button></li>
+            <li><button data-action="new-fragment">${ms('format_quote')}<span class="t">Registrar fragmento</span><kbd>⌘⇧F</kbd></button></li>
+            <li><button data-action="palette">${ms('search')}<span class="t">Buscar no gabinete</span><kbd>⌘K</kbd></button></li>
+            <li><button aria-disabled="true" title="Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF">${ms('upload_file')}<span class="t">Importar metadados</span><span class="badge">Planejado</span></button></li>
+            <li><button aria-disabled="true" title="Exportar referências e dados">${ms('ios_share')}<span class="t">Exportar referências</span><span class="badge">Planejado</span></button></li>
+          </ul>
+        </section>
+        <figure class="epigraph">
+          <p>“Reunir o que se pôde ouvir ou ler, e isso com uma finalidade que nada mais é que a constituição de si.”</p>
+          <figcaption><cite>Michel Foucault, A escrita de si</cite></figcaption>
+        </figure>
+      </div>
+    </div>`;
+}
+
+/* ── acervo ────────────────────────────────────────── */
+function visibleWorks() {
+  const q = S.q.trim().toLowerCase();
+  let list = works.filter(w => (!S.type || w.type === S.type) && (!S.compFilter || compsOfWork(w.id).some(c => c.id === S.compFilter)) && (!q || [w.title, w.subtitle, w.year, ...w.authors].join(' ').toLowerCase().includes(q)));
+  const dir = S.sortDir === 'asc' ? 1 : -1;
+  const key = { title: w => w.title.toLocaleLowerCase('pt'), author: w => authorsLine(w).toLocaleLowerCase('pt'), type: w => w.type, year: w => yearNum(w.year), frag: w => (fragsByWork[w.id] || []).length, created: w => w.created || '' }[S.sortKey];
+  list.sort((a, b) => { const x = key(a), y = key(b); return x < y ? -dir : x > y ? dir : (b.id - a.id); });
+  const nest = !S.type && !S.compFilter && !q && S.sortKey === 'created';
+  if (nest) {
+    const isKid = (w) => w.parent && byId[w.parent];
+    const tops = list.filter(w => !isKid(w));
+    list = tops.flatMap(w => [w, ...list.filter(k => k.parent === w.id)]);
+  }
+  return { list, nest };
+}
+function viewAcervo() {
+  crumbs([['Acervo']]);
+  const { list, nest } = visibleWorks();
+  if (S.sel && !byId[S.sel]) S.sel = null;
+  const typesN = new Set(works.map(w => w.type)).size;
+  const th = (key, label, cls = '') => { const on = S.sortKey === key; return `<span class="${cls}"><button data-sort="${key}" aria-sort="${on ? (S.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}">${label}${on ? ms(S.sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : ''}</button></span>`; };
+  const visIds = list.map(w => w.id);
+  const nChecked = visIds.filter(id => S.checked.has(id)).length;
+  const allState = nChecked === 0 ? '' : nChecked === visIds.length ? 'checked' : 'data-indeterminate="1"';
+  const toolbar = S.checked.size ? `<div class="bulkbar" role="toolbar" aria-label="Ações em lote">
+      <span class="n">${plural(S.checked.size, 'obra selecionada', 'obras selecionadas')}</span>
+      <button class="btn sm" data-action="bulk-copy">${ms('content_copy')}<span>Copiar referências</span></button>
+      <button class="btn sm" data-action="toast" data-msg="Escolha a compilação de destino">${ms('bookmark_add')}Adicionar à compilação</button>
+      <button class="btn sm danger" data-action="bulk-delete">${ms('delete')}Excluir</button>
+      <span style="flex:1"></span><button class="btn sm ghost" data-action="clear-checked">Limpar seleção<kbd>esc</kbd></button>
+    </div>` : `<div class="toolbar" role="toolbar" aria-label="Filtros">
+      <label class="searchbox" style="width:280px">${ms('search')}<span class="sr">Buscar obra</span><input class="input" id="q" placeholder="Buscar por título, autor ou ano" value="${esc(S.q)}" autocomplete="off"></label>
+      ${S.type ? `<span class="chip-filter on">Tipo: <b>${esc(S.type)}</b><button class="x" data-action="clear-type" aria-label="Remover filtro de tipo">${ms('close', 'sm')}</button></span>` : `<button class="chip-filter" data-menu="type" aria-haspopup="menu">${ms('add', 'sm')}Tipo</button>`}
+      ${S.compFilter ? `<span class="chip-filter on">Compilação: <b>${esc(comps.find(c => c.id === S.compFilter).name)}</b><button class="x" data-action="clear-comp" aria-label="Remover filtro de compilação">${ms('close', 'sm')}</button></span>` : `<button class="chip-filter" data-menu="compfilter" aria-haspopup="menu">${ms('add', 'sm')}Compilação</button>`}
+      <span class="spacer"></span><span class="count">${list.length === works.length ? plural(works.length, 'obra', 'obras') : `${list.length} de ${works.length} obras`}</span>
+    </div>`;
+  return `${pageHead({ title: 'Acervo', desc: `${plural(works.length, 'obra catalogada', 'obras catalogadas')} em ${typesN} tipos documentais.`, actions: `<button class="btn" disabled title="Planejado: BibTeX, ISBN, ISSN, DOI ou PDF">${ms('upload_file')}Importar</button><button class="btn primary" data-action="new-work">${ms('add')}Nova obra</button>` })}
+    ${toolbar}
+    <div class="split ${S.sel ? '' : 'no-insp'}">
+      <div class="grid-wrap">
+        <div class="grid-scroll" id="grid-scroll">
+          <div class="g-row g-head" role="row">
+            <span><input type="checkbox" class="cb" data-action="check-all" aria-label="Selecionar todas" ${allState}></span>
+            ${th('title', 'Título')}${th('author', 'Autoria', 'c-author')}${th('type', 'Tipo', 'c-type')}${th('year', 'Ano', 'r')}${th('frag', 'Frag.', 'r c-frag')}${th('created', 'Adicionada', 'r c-added')}
+          </div>
+          <div class="g-body" role="grid" aria-label="Obras do acervo" aria-rowcount="${list.length}">
+            ${list.length ? list.map(w => workRow(w, nest && w.parent && byId[w.parent])).join('') : `<div style="padding:var(--space-xl)"><div class="empty-state">${ms('search_off')}<strong>Nenhuma obra encontrada</strong><span>Nada corresponde a “${esc(S.q)}”${S.type ? ` em ${esc(S.type)}` : ''}. Busque pelo sobrenome do autor ou pelo ano.</span><button class="btn sm" data-action="clear-filters">Limpar filtros</button></div></div>`}
+          </div>
+        </div>
+        <div class="grid-foot"><span>${S.sel && byId[S.sel] ? `Aberta: ${esc(byId[S.sel].title)}` : 'Clique numa obra para ver os detalhes'}</span><span class="keys"><span><kbd>↑</kbd><kbd>↓</kbd> navegar</span><span><kbd>espaço</kbd> marcar</span><span><kbd>⌘C</kbd> copiar referência</span></span></div>
+      </div>
+      ${S.sel ? inspector(byId[S.sel]) : ''}
+    </div>`;
+}
+function workRow(w, isChild) {
+  const n = (fragsByWork[w.id] || []).length;
+  const ck = S.checked.has(w.id);
+  return `<div class="g-row ${isChild ? 'child' : ''} ${ck ? 'checked' : ''}" role="row" tabindex="0" data-row="${w.id}" aria-selected="${S.sel === w.id}">
+    <span><input type="checkbox" class="cb" data-check="${w.id}" ${ck ? 'checked' : ''} aria-label="Marcar ${esc(w.title)}" tabindex="-1"></span>
+    <span class="c-title"><span class="t">${esc(w.title)}</span>${w.subtitle ? `<span class="st">${esc(w.subtitle)}</span>` : ''}</span>
+    <span class="c-text c-author">${esc(authorsLine(w))}</span>
+    <span class="c-text c-type">${esc(w.type)}</span>
+    <span class="c-num r">${esc(w.year)}</span>
+    <span class="c-num r c-frag ${n ? '' : 'c-zero'}">${n}</span>
+    <span class="c-num r c-added faint">${fmtDate(w.created)}</span>
+  </div>`;
+}
+function inspector(w) {
+  if (!w) return '';
+  const fs = fragsByWork[w.id] || [];
+  const parent = w.parent && byId[w.parent];
+  const kids = works.filter(k => k.parent === w.id);
+  const cs = compsOfWork(w.id);
+  const prop = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  const tab = (k, l, n) => `<button class="tab" role="tab" data-itab="${k}" aria-selected="${S.itab === k}">${l}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
+  const body = S.itab === 'fragmentos'
+    ? (fs.length ? fs.map(f => `<div class="mini-frag"><div style="min-width:0"><div class="meta"><b>${kindLabel(f.fragment_type)}</b>${f.location_value ? `<span class="sep"></span><span>${esc(f.location_value)}</span>` : ''}</div><p class="clamp-3">${f.fragment_type === 'quote' ? qt(f.excerpt) : esc(f.excerpt)}</p></div><button class="icon-btn" data-action="copy-frag" data-id="${f.id}" aria-label="Copiar com citação" title="Copiar com citação">${ms('content_copy', 'sm')}</button></div>`).join('') + `<div style="padding:var(--space-md) var(--space-lg)"><button class="btn sm" data-action="new-fragment">${ms('add')}Novo fragmento</button></div>`
+      : `<div style="padding:var(--space-lg)"><div class="empty-state">${ms('format_quote')}<strong>Nenhum fragmento</strong><span>Registre uma citação ou um comentário desta obra.</span><button class="btn sm" data-action="new-fragment">${ms('add')}Novo fragmento</button></div></div>`)
+    : `<section class="insp-sec">
+        <div class="sec-head"><h3 class="sec-title">Referência ABNT</h3><button class="btn sm" data-action="copy-ref" data-id="${w.id}">${ms('content_copy')}<span>Copiar</span></button></div>
+        <div class="ref-box">${w.ref.length ? refHtml(w) : '<span class="faint">Este tipo ainda não tem formatador.</span>'}</div>
+      </section>
+      <section class="insp-sec">
+        <h3 class="sec-title">Propriedades</h3>
+        <dl class="props">
+          ${prop('Tipo', esc(w.type))}${prop('Autoria', esc(authorsLine(w)))}${prop('Ano', esc(w.year))}${prop('Local', esc(w.place))}${prop('Editora', esc(w.publisher))}${prop('Páginas', esc(w.pages))}
+          ${parent ? prop('Parte de', `<button class="link" data-row-go="${parent.id}">${esc(parent.title)}</button>`) : ''}
+          ${kids.length ? prop('Partes', kids.map(k => `<button class="link" data-row-go="${k.id}">${esc(k.title)}</button>`).join('<br>')) : ''}
+          ${prop('Compilações', cs.length ? cs.map(c => `<button class="link" data-go="compilacao" data-comp="${c.id}" data-tab="obras">${esc(c.name)}</button>`).join('<br>') : '<span class="faint">Nenhuma</span>')}
+          ${prop('Adicionada', fmtDate(w.created))}
+        </dl>
+      </section>
+      ${w.desc ? `<section class="insp-sec"><div class="sec-head"><h3 class="sec-title">Síntese</h3><span class="badge">${ms('neurology')}Nous</span></div><p class="prose">${esc(w.desc).replace(/\*([^*]+)\*/g, '<i>$1</i>')}</p></section>` : ''}`;
+  return `<aside class="inspector" aria-label="Detalhes da obra">
+    <div class="insp-head">
+      <div class="insp-top"><span class="badge">${ms(TYPE_ICON[w.type] || 'description')}${esc(w.type)}</span><span class="spacer"></span>
+        <button class="icon-btn" data-action="insp-prev" aria-label="Obra anterior" title="Anterior">${ms('keyboard_arrow_up')}</button>
+        <button class="icon-btn" data-action="insp-next" aria-label="Próxima obra" title="Próxima">${ms('keyboard_arrow_down')}</button>
+        <button class="icon-btn" data-action="close-insp" aria-label="Fechar painel" title="Fechar (esc)">${ms('close')}</button></div>
+      <h2 class="insp-title">${esc(w.title)}</h2>
+      ${w.subtitle ? `<p class="insp-sub">${esc(w.subtitle)}</p>` : ''}
+      <p class="insp-by">${esc(authorsLine(w))} · <span class="tnum">${esc(w.year)}</span></p>
+      <div class="insp-actions">
+        <button class="btn sm" data-action="toast" data-msg="Abre o formulário de obra já preenchido">${ms('edit')}Editar</button>
+        <button class="btn sm" data-action="new-fragment">${ms('format_quote')}Fragmento</button>
+        <button class="icon-btn boxed" data-menu="work-more" data-id="${w.id}" aria-haspopup="menu" aria-label="Mais ações" title="Mais ações">${ms('more_horiz')}</button>
+      </div>
+    </div>
+    <div class="insp-tabs" role="tablist">${tab('geral', 'Visão geral')}${tab('fragmentos', 'Fragmentos', fs.length)}</div>
+    <div class="insp-body">${body}</div>
+  </aside>`;
+}
+
+/* ── fragmentos ────────────────────────────────────── */
+function fragOrder() {
+  const q = S.fq.trim().toLowerCase();
+  const list = frags.filter(f => (S.fKind === 'all' || f.fragment_type === S.fKind) && (!q || (f.excerpt + ' ' + f.work_title + ' ' + f.citation_author).toLowerCase().includes(q)));
+  return { list, order: [...new Set(list.map(f => f.bib_res_id))].filter(id => byId[id]).sort((a, b) => b - a) };
+}
+function viewFragmentos() {
+  crumbs([['Fragmentos']]);
+  const { list, order } = fragOrder();
+  const nQ = frags.filter(f => f.fragment_type === 'quote').length;
+  const nWorks = new Set(frags.map(f => f.bib_res_id)).size;
+  const seg = (k, l, n) => `<button data-fkind="${k}" aria-pressed="${S.fKind === k}">${l}<span class="n">${n}</span></button>`;
+  const allCollapsed = order.length && order.every(id => S.collapsed.has(id));
+  return `${pageHead({ title: 'Fragmentos', desc: `${frags.length} citações e comentários de ${nWorks} obras do acervo.`, actions: `<button class="btn primary" data-action="new-fragment">${ms('add')}Novo fragmento</button>` })}
+    <div class="toolbar" role="toolbar">
+      <div class="seg" role="group" aria-label="Tipo">${seg('all', 'Todos', frags.length)}${seg('quote', 'Citações', nQ)}${seg('comment', 'Comentários', frags.length - nQ)}</div>
+      <label class="searchbox" style="width:300px">${ms('search')}<span class="sr">Filtrar</span><input class="input" id="fq" placeholder="Filtrar por texto, obra ou autor" value="${esc(S.fq)}" autocomplete="off"></label>
+      <span class="spacer"></span>
+      <span class="count">${list.length === frags.length ? plural(order.length, 'obra', 'obras') : `${list.length} de ${frags.length} em ${plural(order.length, 'obra', 'obras')}`}</span>
+      <button class="btn sm ghost" data-action="${allCollapsed ? 'expand-all' : 'collapse-all'}">${ms(allCollapsed ? 'unfold_more' : 'unfold_less')}${allCollapsed ? 'Expandir tudo' : 'Recolher tudo'}</button>
+    </div>
+    <div class="flist">
+      ${order.length ? order.map(id => { const w = byId[id]; const items = list.filter(f => f.bib_res_id === id); const col = S.collapsed.has(id); return `<section class="fgroup ${col ? 'collapsed' : ''}">
+        <div class="fg-head">
+          <button class="icon-btn" data-collapse="${id}" aria-expanded="${!col}" aria-label="${col ? 'Expandir' : 'Recolher'} ${esc(w.title)}">${ms('expand_more', 'chev')}</button>
+          <span class="fg-title">${esc(w.title)}</span><span class="fg-by">${esc(authorsLine(w))} · ${esc(w.year)}</span>
+          <span class="spacer"></span><span class="badge tnum">${items.length}</span>
+          <button class="icon-btn" data-go="acervo" data-sel="${id}" aria-label="Abrir obra no acervo" title="Abrir obra no acervo">${ms('open_in_new', 'sm')}</button>
+        </div>
+        ${col ? '' : items.map(fragRow).join('')}
+      </section>`; }).join('') : `<div class="empty-state">${ms('search_off')}<strong>Nenhum fragmento encontrado</strong><span>Nada corresponde a “${esc(S.fq)}”.</span><button class="btn sm" data-action="clear-fq">Limpar filtro</button></div>`}
+    </div>`;
+}
+function fragRow(f) {
+  const isQ = f.fragment_type === 'quote';
+  const cs = compsOfFrag(f.id);
+  return `<article class="frow">
+    ${ms(kindIcon(f.fragment_type), 'sm')}
+    <div style="min-width:0">
+      ${isQ ? `<p class="quote">${qt(f.excerpt)}</p>` : `<p class="comment">${esc(f.excerpt)}</p>`}
+      <div class="meta"><b>${kindLabel(f.fragment_type)}</b>${f.location_value ? `<span class="sep"></span><span>${esc(f.location_value)}</span>` : ''}<span class="sep"></span><span>${fmtDate(f.created)}</span>${cs.map(c => `<span class="badge accent">${ms('folder')}${esc(c.name)}</span>`).join('')}</div>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" data-action="copy-frag" data-id="${f.id}" aria-label="Copiar com citação" title="Copiar com citação">${ms('content_copy', 'sm')}</button>
+      <button class="icon-btn" data-action="toast" data-msg="Escolha a compilação de destino" aria-label="Adicionar à compilação" title="Adicionar à compilação">${ms('bookmark_add', 'sm')}</button>
+      <button class="icon-btn" data-action="toast" data-msg="Editar fragmento" aria-label="Editar" title="Editar">${ms('edit', 'sm')}</button>
+    </div>
+  </article>`;
+}
+
+/* ── compilação ────────────────────────────────────── */
+function viewCompilacao() {
+  const c = comps.find(x => x.id === S.comp);
+  crumbs([['Compilações', 'compilacoes'], [c.name]]);
+  const tab = (k, l, n) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${l}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
+  const meta = `<span class="badge">${plural(c.works.length, 'obra', 'obras')}</span><span class="badge">${plural(c.members.length, 'fragmento', 'fragmentos')}</span><span class="badge">${plural(c.sections.length, 'ideia', 'ideias')}</span><span class="badge">Atualizada em ${fmtDate(c.updated)}</span>`;
+  const body = S.tab === 'caderno' ? caderno(c) : `<div style="overflow:auto;flex:1;padding-top:var(--space-lg)">${S.tab === 'obras' ? projObras(c) : projVisao(c)}</div>`;
+  return `${pageHead({ title: c.name, desc: esc(c.description), meta, actions: `<button class="btn" data-action="copy-skeleton">${ms('content_copy')}<span>Copiar esqueleto</span></button><button class="icon-btn boxed" style="width:32px;height:32px" data-menu="comp-more" aria-haspopup="menu" aria-label="Mais ações" title="Mais ações">${ms('more_horiz')}</button>` })}
+    <div class="tabs" role="tablist">${tab('visao', 'Visão geral')}${tab('obras', 'Obras e fragmentos', c.works.length)}${tab('caderno', 'Caderno de trabalho', c.sections.length)}</div>
+    ${body}`;
+}
+function caderno(c) {
+  const fr = (id) => frags.find(f => f.id === id);
+  const inSec = (sid) => c.members.filter(m => m.section_id === sid).sort((a, b) => a.pos - b.pos);
+  const pending = c.members.filter(m => !m.section_id);
+  const used = [...new Set(c.members.map(m => fr(m.fragment_id).bib_res_id))].map(id => byId[id]).filter(Boolean);
+  if (S.idea == null) S.idea = c.sections[0]?.id;
+  return `<div class="caderno">
+    <nav class="outline" aria-label="Roteiro">
+      <div>
+        <div class="nav-head"><span>Roteiro</span><button class="icon-btn" aria-label="Nova ideia" title="Nova ideia" data-action="toast" data-msg="Nova ideia adicionada ao fim do roteiro">${ms('add', 'sm')}</button></div>
+        <ol class="ol-list">${c.sections.map((s, i) => `<li><button class="ol-item" data-idea="${s.id}" aria-current="${S.idea === s.id}"><span class="i">${i + 1}</span><span class="t">${esc(s.title)}</span><span class="n">${inSec(s.id).length}</span></button></li>`).join('')}</ol>
+      </div>
+      <div>
+        <div class="nav-head"><span>Fila</span></div>
+        <ol class="ol-list"><li><button class="ol-item">${ms('inbox', 'sm')}<span class="t">A organizar</span><span class="n">${pending.length}</span></button></li></ol>
+      </div>
+      <p class="ol-note">Arraste para reordenar. Remover uma ideia devolve os fragmentos dela para “A organizar”.</p>
+    </nav>
+    <div class="writing" id="writing"><div class="writing-inner">
+      ${c.sections.map((s, i) => `<section class="idea" id="idea-${s.id}" aria-labelledby="it-${s.id}">
+        <div class="idea-head"><h2 class="idea-title" id="it-${s.id}"><span class="i">${i + 1}</span>${esc(s.title)}</h2>
+          <div class="actions"><button class="icon-btn" aria-label="Editar ideia" title="Editar ideia" data-action="toast" data-msg="Editar ideia">${ms('edit', 'sm')}</button><button class="icon-btn" aria-label="Mais ações" title="Mover, renomear ou remover" data-action="toast" data-msg="Mover, renomear ou remover ideia">${ms('more_horiz', 'sm')}</button></div></div>
+        ${s.central_idea ? `<dl class="idea-central"><dt>Ideia central</dt><dd>${esc(s.central_idea)}</dd></dl>` : ''}
+        ${inSec(s.id).length ? inSec(s.id).map(m => { const f = fr(m.fragment_id); return `<article class="fblock">
+          <div class="fb-head">${ms('drag_indicator', 'sm grip')}<span class="w">${esc(f.work_title)}</span><span class="badge">${kindLabel(f.fragment_type)}</span><span class="spacer"></span>
+            <button class="icon-btn" data-action="copy-frag" data-id="${f.id}" aria-label="Copiar com citação" title="Copiar com citação">${ms('content_copy', 'sm')}</button>
+            <button class="icon-btn" aria-label="Mais ações" title="Mover para outra ideia ou remover" data-action="toast" data-msg="Mover para outra ideia ou devolver para A organizar">${ms('more_horiz', 'sm')}</button></div>
+          <div class="fb-body"><p class="quote">${qt(f.excerpt)}</p><div class="meta">${esc(shortCite(f))}</div></div>
+          <div class="fb-foot"><span class="faint" style="font-size:var(--text-xs)">${m.note ? esc(m.note) : 'Sem nota de articulação'}</span><button class="btn sm ghost" data-action="toast" data-msg="Nota de articulação: o texto que liga este fragmento à ideia">${ms('add_notes')}Adicionar nota</button></div>
+        </article>`; }).join('') : `<div class="empty-state">${ms('move_to_inbox')}<strong>Nenhum fragmento nesta ideia</strong><span>Marque fragmentos em Obras e fragmentos e escolha esta ideia como destino.</span><button class="btn sm" data-tab="obras">Escolher fragmentos</button></div>`}
+      </section>`).join('')}
+    </div></div>
+    <aside class="rail" aria-label="Referências do caderno">
+      <button class="btn primary" data-action="copy-skeleton" style="width:100%">${ms('content_copy')}<span>Copiar esqueleto com referências</span></button>
+      <section><div class="sec-head"><h3 class="sec-title">Referências</h3><span class="faint tnum" style="font-size:var(--text-xs)">${used.length}</span></div>
+        <ol class="ref-list">${used.map(w => `<li><span>${refHtml(w)}</span></li>`).join('')}</ol></section>
+      <section><div class="sec-head"><h3 class="sec-title">Obras do projeto</h3><span class="faint tnum" style="font-size:var(--text-xs)">${c.works.length}</span></div>
+        <ul class="plain-list">${c.works.filter(id => byId[id]).map(id => `<li><button data-go="acervo" data-sel="${id}"><span class="t">${esc(byId[id].title)}</span><span class="n">${plural((fragsByWork[id] || []).length, 'fragmento', 'fragmentos')}</span></button></li>`).join('')}</ul></section>
+    </aside>
+  </div>`;
+}
+function projObras(c) {
+  const opts = (sel) => `<option value="">A organizar</option>` + c.sections.map(s => `<option ${s.id === sel ? 'selected' : ''}>${esc(s.title)}</option>`).join('');
+  return `<div class="body-pad" style="max-width:1040px;display:flex;flex-direction:column;gap:var(--space-sm)">
+    <div style="display:flex;gap:var(--space-xs)"><label class="searchbox" style="flex:1">${ms('search')}<span class="sr">Adicionar obra</span><input class="input" placeholder="Adicionar obra do acervo a este projeto"></label><button class="btn" data-action="new-work">${ms('add')}Criar obra</button></div>
+    ${c.works.filter(id => byId[id]).map(id => { const w = byId[id]; const fs = fragsByWork[id] || []; return `<section class="card">
+      <div class="card-head"><div style="min-width:0;padding:8px 0"><div style="font-weight:600">${esc(w.title)}</div><div class="meta">${esc(authorsLine(w))}<span class="sep"></span>${plural(fs.length, 'fragmento', 'fragmentos')}</div></div>
+        <div class="actions"><button class="btn sm" data-action="new-fragment">${ms('add')}Fragmento</button><button class="icon-btn" aria-label="Mais ações" title="Mais ações" data-action="toast" data-msg="Reordenar, editar ou remover do projeto">${ms('more_horiz')}</button></div></div>
+      ${fs.length ? fs.map(f => { const m = c.members.find(m => m.fragment_id === f.id); return `<div class="pw-frag">
+        <input type="checkbox" class="cb" ${m ? 'checked' : ''} aria-label="Incluir no caderno" style="margin-top:4px">
+        <div style="min-width:0"><p class="quote clamp-3">${qt(f.excerpt)}</p><div class="meta">${esc(shortCite(f))}</div></div>
+        <div class="field"><label>Destino no caderno</label><select class="select" ${m ? '' : 'disabled'}>${opts(m && m.section_id)}</select></div>
+      </div>`; }).join('') : `<div class="card-body faint">Nenhum fragmento desta obra ainda.</div>`}
+    </section>`; }).join('')}
+  </div>`;
+}
+function projVisao(c) {
+  return `<div class="home-grid">
+    <section class="card"><div class="card-head"><h2 class="card-title">Roteiro</h2><button class="link" data-tab="caderno">Abrir caderno${ms('chevron_right')}</button></div>
+      <table class="dtable"><thead><tr><th style="width:40px">#</th><th>Ideia</th><th>Ideia central</th><th class="r">Fragmentos</th></tr></thead>
+      <tbody>${c.sections.map((s, i) => `<tr data-idea-go="${s.id}" tabindex="0"><td class="faint tnum">${i + 1}</td><td class="name">${esc(s.title)}</td><td class="muted">${esc(s.central_idea || '')}</td><td class="r">${c.members.filter(m => m.section_id === s.id).length}</td></tr>`).join('')}</tbody></table></section>
+    <div class="stack">
+      <section class="card"><div class="card-head"><h2 class="card-title">Detalhes</h2><button class="btn sm ghost" data-action="toast" data-msg="Editar nome e descrição">${ms('edit')}Editar</button></div>
+        <div class="card-body"><dl class="props"><dt>Nome</dt><dd>${esc(c.name)}</dd><dt>Descrição</dt><dd>${esc(c.description)}</dd><dt>Criada</dt><dd>${fmtDate(c.created)}</dd><dt>Atualizada</dt><dd>${fmtDate(c.updated)}</dd></dl></div></section>
+      <section class="card danger-zone"><div class="card-head"><h2 class="card-title">Excluir compilação</h2></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-sm);align-items:flex-start"><span class="muted">Remove só os vínculos deste projeto. Obras e fragmentos continuam no Acervo.</span><button class="btn sm danger" data-action="toast" data-msg="Compilação excluída" data-undo="1">${ms('delete')}Excluir compilação</button></div></section>
+    </div>
+  </div>`;
+}
+function viewCompilacoes() {
+  crumbs([['Compilações']]);
+  return `${pageHead({ title: 'Compilações', desc: 'Projetos de escrita, com as obras e os fragmentos de cada um.', actions: `<button class="btn primary" data-action="toast" data-msg="Nova compilação">${ms('add')}Nova compilação</button>` })}
+    <div class="body-pad"><section class="card"><table class="dtable"><thead><tr><th>Projeto</th><th class="r">Obras</th><th class="r">Fragmentos</th><th class="r">Ideias</th><th class="r">Criada</th><th class="r">Atualizada</th></tr></thead>
+    <tbody>${comps.map(c => `<tr data-go="compilacao" data-comp="${c.id}" data-tab="visao" tabindex="0"><td><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.description)}</div></td><td class="r">${c.works.length}</td><td class="r">${c.members.length}</td><td class="r">${c.sections.length}</td><td class="r faint">${fmtDate(c.created)}</td><td class="r faint">${fmtDate(c.updated)}</td></tr>`).join('')}</tbody></table></section></div>`;
+}
+function viewPlaceholder(title, sub) {
+  crumbs([[title]]);
+  return `${pageHead({ title, desc: sub })}<div class="body-pad"><div class="empty-state" style="max-width:560px">${ms('architecture')}<strong>Fora do escopo desta rodada</strong><span>A tela herda a barra lateral, o cabeçalho e os tokens. O conteúdo ainda não foi redesenhado.</span></div></div>`;
+}
+
+/* ── nova obra ─────────────────────────────────────── */
+function openNewWork() { S.form = { type: 'Livros em geral', title: '', subtitle: '', author: '', place: '', publisher: '', year: '', edition: '', pages: '', keep: false, tried: false }; S.palette = null; S.menu = null; renderMenu(); renderOverlay(); setTimeout(() => $('#f-title')?.focus(), 30); }
+function abntPreview(f) {
+  if (!f.title.trim()) return null;
+  const a = f.author.trim(); let out = '';
+  if (a) {
+    const parts = a.split(/\s+/); const last = parts.pop().toUpperCase();
+    out += `${esc(last)}${parts.length ? ', ' + esc(parts.map(p => p[0].toUpperCase() + '.').join(' ')) : ''} `;
+    const t = f.keep ? f.title.trim() : f.title.trim().charAt(0).toUpperCase() + f.title.trim().slice(1).toLowerCase();
+    out += `<b>${esc(t)}</b>`;
+  } else { const w = f.title.trim().split(/\s+/); out += `${esc(w[0].toUpperCase())}${w.length > 1 ? ' ' + esc(w.slice(1).join(' ')) : ''}`; }
+  if (f.subtitle.trim()) out += `: ${esc(f.subtitle.trim())}`;
+  out += '.';
+  if (f.edition.trim()) out += ` ${esc(f.edition.trim())}. ed.`;
+  out += ` ${esc(f.place.trim() || '[S. l.]')}: ${esc(f.publisher.trim() || '[s. n.]')}, ${esc(f.year.trim() || '[s. d.]')}.`;
+  if (f.pages.trim()) out += ` ${esc(f.pages.trim())} p.`;
+  return out;
+}
+function renderNewWork() {
+  const f = S.form; const prev = abntPreview(f);
+  const errT = f.tried && !f.title.trim(), errY = f.tried && !f.year.trim();
+  const field = (id, label, o = {}) => `<div class="field ${o.full ? 'full' : ''}"><label for="f-${id}">${label}${o.req ? ' <span class="req" aria-hidden="true">*</span>' : ''}</label><input class="input" id="f-${id}" data-f="${id}" value="${esc(f[id] ?? '')}" placeholder="${o.ph || ''}" ${o.req ? 'aria-required="true"' : ''} ${o.err ? `aria-invalid="true" aria-describedby="e-${id}"` : ''} autocomplete="off">${o.err ? `<span class="err" id="e-${id}">${ms('error', 'sm')}${o.err}</span>` : o.help ? `<span class="help">${o.help}</span>` : ''}</div>`;
+  return `<div class="scrim" data-action="close-overlay-bg"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="nw-title">
+    <div class="dialog-head"><h2 id="nw-title">Nova obra</h2><button class="icon-btn" data-action="close-overlay" aria-label="Fechar" title="Fechar (esc)">${ms('close')}</button></div>
+    <div class="dialog-body">
+      <div class="types" aria-label="Tipo documental">
+        <label class="searchbox">${ms('search')}<span class="sr">Buscar tipo</span><input class="input" placeholder="Buscar tipo" style="height:30px"></label>
+        ${TYPE_GROUPS.map(([g, ts]) => `<div class="type-group"><div class="nav-head">${g}</div>${ts.map(t => `<button class="type-item" data-ftype="${esc(t)}" aria-pressed="${f.type === t}">${ms(TYPE_ICON[t], 'sm')}<span>${esc(t)}</span></button>`).join('')}</div>`).join('')}
+      </div>
+      <div class="form">
+        <div class="form-intro"><span class="ico">${ms(TYPE_ICON[f.type])}</span><div><h3>${esc(f.type)}</h3><p>${esc(TYPE_DESC[f.type] || 'Campos ajustados a este tipo documental')}</p></div></div>
+        <fieldset class="fset"><legend>Identificação<small>Como a obra aparece na referência.</small></legend><div class="fgrid">
+          ${field('title', 'Título', { req: true, full: true, err: errT && 'Informe o título da obra.' })}
+          ${field('subtitle', 'Subtítulo', { full: true })}
+          <label class="check full"><input type="checkbox" class="cb" data-fcheck="keep" ${f.keep ? 'checked' : ''}><span>Manter a grafia do título<small>Evita que nomes próprios fiquem em caixa baixa na referência.</small></span></label>
+          <label class="check"><input type="checkbox" class="cb"><span>É parte de outra obra</span></label>
+          <label class="check"><input type="checkbox" class="cb"><span>Possui ilustrações</span></label>
+        </div></fieldset>
+        <fieldset class="fset"><legend>Autoria<small>Sem autor, a referência começa pelo título.</small></legend><div class="fgrid">
+          ${field('author', 'Autor', { full: true, ph: 'Nome e sobrenome', help: 'Sugere autores já cadastrados. Enter adiciona mais um.' })}
+        </div></fieldset>
+        <fieldset class="fset"><legend>Publicação</legend><div class="fgrid">
+          ${field('place', 'Local')}${field('publisher', 'Editora')}
+          ${field('year', 'Ano', { req: true, ph: 'Ex.: 1975', err: errY && 'Informe o ano ou escolha “Sem data”.' })}
+          <div class="field"><label for="f-prec">Precisão da data</label><select class="select" id="f-prec"><option>Data exata</option><option>Aproximada (circa)</option><option>Sem data</option></select></div>
+          ${field('edition', 'Edição', { ph: 'Ex.: 3' })}
+        </div></fieldset>
+        <fieldset class="fset"><legend>Descrição física</legend><div class="fgrid three">
+          ${field('pages', 'Páginas')}<div class="field"><label for="f-vol">Volumes</label><input class="input" id="f-vol"></div><div class="field"><label for="f-dim">Dimensões</label><input class="input" id="f-dim" placeholder="Ex.: 23 cm"></div>
+        </div></fieldset>
+        <fieldset class="fset"><legend>Acesso online<small>Opcional.</small></legend><div class="fgrid">
+          <div class="field"><label for="f-url">URL</label><input class="input" id="f-url" placeholder="https://"></div><div class="field"><label for="f-acc">Data de acesso</label><input class="input" id="f-acc" placeholder="dd/mm/aaaa"></div>
+        </div></fieldset>
+        <fieldset class="fset"><legend>Resumo<small>Alimenta a síntese do Nous.</small></legend><div class="field"><textarea class="textarea" aria-label="Resumo"></textarea></div></fieldset>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <div style="min-width:0"><div class="preview-label">Prévia da referência ABNT</div><div class="preview-text ${prev ? '' : 'placeholder'}" id="nw-prev">${prev || 'Preencha título e ano para ver a referência.'}</div></div>
+      <div class="actions"><button class="btn ghost" data-action="close-overlay">Cancelar</button><button class="btn primary" id="nw-save" data-action="save-work" title="Salvar (⌘↵)">${ms('check')}Salvar no acervo</button></div>
+    </div>
+  </div></div>`;
+}
+
+/* ── paleta ⌘K ─────────────────────────────────────── */
+function paletteItems(q) {
+  q = q.trim().toLowerCase();
+  const acts = [['add', 'Inserir nova obra', () => openNewWork(), '⌘N'], ['format_quote', 'Registrar fragmento', () => act('new-fragment')], ['contrast', 'Alternar tema', () => setTheme(S.theme === 'dark' ? 'light' : 'dark')], ['library_books', 'Ir para Acervo', () => go('acervo')], ['format_quote', 'Ir para Fragmentos', () => go('fragmentos')]].filter(a => !q || a[1].toLowerCase().includes(q));
+  const ws = works.filter(w => !q || [w.title, ...w.authors, w.year].join(' ').toLowerCase().includes(q)).slice(0, q ? 6 : 4);
+  const fs = q ? frags.filter(f => f.excerpt.toLowerCase().includes(q)).slice(0, 4) : [];
+  const out = [];
+  if (ws.length) out.push({ g: 'Obras' }, ...ws.map(w => ({ icon: TYPE_ICON[w.type], t: w.title, s: authorsLine(w), run: () => go('acervo', { sel: w.id, type: null, q: '' }) })));
+  if (fs.length) out.push({ g: 'Fragmentos' }, ...fs.map(f => ({ icon: kindIcon(f.fragment_type), t: f.excerpt, s: f.work_title, run: () => go('fragmentos', { fq: q }) })));
+  if (acts.length) out.push({ g: 'Ações' }, ...acts.map(a => ({ icon: a[0], t: a[1], s: a[3], run: a[2] })));
+  return out;
+}
+function renderPalette() {
+  const P = S.palette; const items = paletteItems(P.q); P.items = items.filter(i => !i.g);
+  P.idx = Math.min(P.idx, Math.max(P.items.length - 1, 0));
+  let k = -1;
+  return `<div class="palette" data-action="close-overlay-bg"><div class="palette-box" role="dialog" aria-modal="true" aria-label="Buscar">
+    <div class="palette-input">${ms('search')}<input id="pq" value="${esc(P.q)}" placeholder="Buscar obras, fragmentos e ações" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="presults"></div>
+    <div class="palette-results" id="presults" role="listbox">${items.length ? items.map(i => i.g ? `<div class="p-group">${i.g}</div>` : (k++, `<button class="p-item" role="option" data-pidx="${k}" aria-selected="${k === P.idx}">${ms(i.icon, 'sm')}<span class="t">${esc(i.t)}</span>${i.s ? `<span class="s">${esc(i.s)}</span>` : ''}</button>`)).join('') : `<div class="p-group" style="padding:16px 8px">Nada encontrado para “${esc(P.q)}”.</div>`}</div>
+    <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navegar</span><span><kbd>↵</kbd> abrir</span><span><kbd>esc</kbd> fechar</span></div>
+  </div></div>`;
+}
+
+/* ── menus ─────────────────────────────────────────── */
+function openMenu(kind, btn) {
+  const r = btn.getBoundingClientRect();
+  S.menu = { kind, x: r.left, y: r.bottom + 4, right: r.right, id: +btn.dataset.id || null };
+  renderMenu();
+  setTimeout(() => $('#menu-root .menu-item')?.focus(), 10);
+}
+function renderMenu() {
+  const M = S.menu; if (!M) { $('#menu-root').innerHTML = ''; return; }
+  let html = '';
+  if (M.kind === 'type') {
+    const counts = works.reduce((m, w) => (m[w.type] = (m[w.type] || 0) + 1, m), {});
+    html = `<div class="menu-label">Filtrar por tipo</div>` + Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<button class="menu-item" role="menuitem" data-mpick-type="${esc(t)}">${ms(TYPE_ICON[t] || 'description')}<span class="t">${esc(t)}</span><span class="n">${n}</span></button>`).join('');
+  } else if (M.kind === 'compfilter') {
+    html = `<div class="menu-label">Filtrar por compilação</div>` + comps.map(c => `<button class="menu-item" role="menuitem" data-mpick-comp="${c.id}">${ms('folder')}<span class="t">${esc(c.name)}</span><span class="n">${c.works.length}</span></button>`).join('');
+  } else if (M.kind === 'work-more') {
+    html = `<button class="menu-item" role="menuitem" data-action="copy-ref" data-id="${M.id}">${ms('content_copy')}<span class="t">Copiar referência</span><kbd>⌘C</kbd></button>
+      <button class="menu-item" role="menuitem" data-action="toast" data-msg="Escolha a compilação de destino">${ms('bookmark_add')}<span class="t">Adicionar à compilação</span></button>
+      <button class="menu-item" role="menuitem" data-action="toast" data-msg="Obra duplicada">${ms('library_add')}<span class="t">Duplicar</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-item danger" role="menuitem" data-action="delete-work" data-id="${M.id}">${ms('delete')}<span class="t">Excluir obra</span></button>`;
+  } else if (M.kind === 'comp-more') {
+    html = `<button class="menu-item" role="menuitem" data-action="toast" data-msg="Editar nome e descrição">${ms('edit')}<span class="t">Editar detalhes</span></button>
+      <button class="menu-item" role="menuitem" aria-disabled="true" data-action="toast" title="Planejado">${ms('ios_share')}<span class="t">Exportar para .docx</span><span class="badge">Planejado</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-item danger" role="menuitem" data-action="toast" data-msg="Compilação excluída" data-undo="1">${ms('delete')}<span class="t">Excluir compilação</span></button>`;
+  }
+  const left = M.kind.endsWith('more') ? Math.max(8, M.right - 240) : M.x;
+  $('#menu-root').innerHTML = `<div class="menu" role="menu" style="top:${M.y}px; left:${left}px">${html}</div>`;
+}
+
+/* ── render ────────────────────────────────────────── */
+function render() {
+  document.documentElement.dataset.theme = S.theme;
+  const views = { inicio: viewInicio, acervo: viewAcervo, fragmentos: viewFragmentos, compilacao: viewCompilacao, compilacoes: viewCompilacoes,
+    estruturas: () => viewPlaceholder('Estruturas de Saber', 'Constelação 3D das afinidades entre as obras.'),
+    nous: () => viewPlaceholder('Nous', 'Síntese conceitual do acervo com a sua chave do Google Gemini.'),
+    config: () => viewPlaceholder('Configurações', 'Tema, escala e proporções da interface.') };
+  const v = $('#view');
+  v.classList.toggle('fill', ['acervo', 'compilacao'].includes(S.view) && !(S.view === 'compilacao' && S.tab !== 'caderno' && false));
+  v.innerHTML = views[S.view]();
+  $$('.cb[data-indeterminate]').forEach(c => c.indeterminate = true);
+  renderShell(); renderOverlay(); renderMenu(); spy();
+}
+function renderOverlay() { $('#overlay').innerHTML = S.form ? renderNewWork() : S.palette ? renderPalette() : ''; }
+function refreshForm() { const p = abntPreview(S.form); const el = $('#nw-prev'); el.innerHTML = p || 'Preencha título e ano para ver a referência.'; el.classList.toggle('placeholder', !p); }
+let spyObs;
+function spy() {
+  spyObs?.disconnect(); const root = $('#writing'); if (!root) return;
+  spyObs = new IntersectionObserver((es) => {
+    const vis = es.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+    if (!vis) return; S.idea = +vis.target.id.replace('idea-', '');
+    $$('.ol-item[data-idea]').forEach(b => b.setAttribute('aria-current', String(+b.dataset.idea === S.idea)));
+  }, { root, rootMargin: '0px 0px -65% 0px' });
+  $$('.idea', root).forEach(el => spyObs.observe(el));
+}
+let toastTimer;
+function toast(msg, undo, icon = 'check_circle') {
+  clearTimeout(toastTimer);
+  $('#toast-root').innerHTML = `<div class="toast" role="status">${ms(icon)}<span>${esc(msg)}</span>${undo ? '<button data-action="undo">Desfazer</button>' : ''}<button data-action="dismiss-toast" aria-label="Fechar aviso">${ms('close', 'sm')}</button></div>`;
+  toastTimer = setTimeout(() => { $('#toast-root').innerHTML = ''; }, undo ? 6000 : 3000);
+}
+function flash(btn, label = 'Copiada') {
+  if (!btn) return; const icon = btn.querySelector('.ms'); const lab = btn.querySelector('span');
+  const old = [icon?.className, lab?.textContent];
+  btn.dataset.state = 'success'; if (icon) icon.className = icon.className.replace(/fa-(regular|solid) fa-[a-z-]+/, 'fa-solid fa-check'); if (lab) lab.textContent = label;
+  setTimeout(() => { delete btn.dataset.state; if (icon) icon.className = old[0]; if (lab) lab.textContent = old[1]; }, 1500);
+}
+const copy = (t) => { try { navigator.clipboard?.writeText(t); } catch (e) {} };
+let undoStack = null;
+function removeWorks(ids) {
+  const removed = ids.map(id => ({ w: byId[id], i: works.indexOf(byId[id]) })).filter(r => r.w);
+  works = works.filter(w => !ids.includes(w.id)); byId = Object.fromEntries(works.map(w => [w.id, w]));
+  undoStack = removed; S.checked.clear(); if (ids.includes(S.sel)) S.sel = null;
+  render(); toast(removed.length === 1 ? `“${removed[0].w.title}” excluída do acervo` : `${removed.length} obras excluídas do acervo`, true, 'delete');
+}
+function act(a, el) {
+  switch (a) {
+    case 'new-work': openNewWork(); break;
+    case 'new-fragment': S.palette = null; renderOverlay(); toast('Novo fragmento: escolha a obra, o tipo e a localização', false, 'info'); break;
+    case 'toggle-theme': setTheme(S.theme === 'dark' ? 'light' : 'dark'); break;
+    case 'palette': S.palette = { q: '', idx: 0 }; renderOverlay(); setTimeout(() => $('#pq')?.focus(), 20); break;
+    case 'close-overlay': S.form = null; S.palette = null; renderOverlay(); break;
+    case 'back': travel(-1); break;
+    case 'fwd': travel(1); break;
+    case 'copy-ref': copy(refPlain(byId[+el.dataset.id])); if (el.classList.contains('menu-item')) { S.menu = null; renderMenu(); toast('Referência copiada'); } else flash(el); break;
+    case 'copy-frag': { const f = frags.find(x => x.id === +el.dataset.id); copy(`${/^[“"]/.test(f.excerpt.trim()) ? f.excerpt : '“' + f.excerpt + '”'} ${shortCite(f)}`); flash(el, 'Copiado'); break; }
+    case 'copy-skeleton': copy('esqueleto'); flash(el, 'Copiado'); break;
+    case 'bulk-copy': copy(works.filter(w => S.checked.has(w.id)).map(refPlain).join('\n')); flash(el, 'Copiadas'); break;
+    case 'bulk-delete': removeWorks([...S.checked]); break;
+    case 'delete-work': S.menu = null; removeWorks([+el.dataset.id]); break;
+    case 'undo': if (undoStack) { undoStack.sort((x, y) => x.i - y.i).forEach(r => works.splice(r.i, 0, r.w)); byId = Object.fromEntries(works.map(w => [w.id, w])); undoStack = null; render(); } $('#toast-root').innerHTML = ''; break;
+    case 'dismiss-toast': $('#toast-root').innerHTML = ''; break;
+    case 'check-all': { const ids = visibleWorks().list.map(w => w.id); const all = ids.every(id => S.checked.has(id)); ids.forEach(id => all ? S.checked.delete(id) : S.checked.add(id)); render(); break; }
+    case 'clear-checked': S.checked.clear(); render(); break;
+    case 'clear-type': S.type = null; render(); break;
+    case 'clear-comp': S.compFilter = null; render(); break;
+    case 'clear-filters': Object.assign(S, { type: null, compFilter: null, q: '' }); render(); break;
+    case 'clear-fq': S.fq = ''; render(); break;
+    case 'close-insp': S.sel = null; render(); break;
+    case 'insp-prev': case 'insp-next': { const ids = visibleWorks().list.map(w => w.id); const i = ids.indexOf(S.sel); const j = i + (a === 'insp-next' ? 1 : -1); if (ids[j]) { S.sel = ids[j]; render(); $(`[data-row="${S.sel}"]`)?.scrollIntoView({ block: 'nearest' }); } break; }
+    case 'collapse-all': fragOrder().order.forEach(id => S.collapsed.add(id)); render(); break;
+    case 'expand-all': S.collapsed.clear(); render(); break;
+    case 'save-work': {
+      const f = S.form; if (!f.title.trim() || !f.year.trim()) { f.tried = true; renderOverlay(); (f.title.trim() ? $('#f-year') : $('#f-title'))?.focus(); return; }
+      el.dataset.state = 'loading'; el.innerHTML = `${ms('progress_activity')}Salvando`;
+      setTimeout(() => { const t = f.title; S.form = null; renderOverlay(); toast(`“${t}” salva no acervo`); }, 650); break;
+    }
+    case 'toast': S.menu = null; renderMenu(); if (el.getAttribute('aria-disabled') === 'true') return; toast(el.dataset.msg, !!el.dataset.undo, el.dataset.undo ? 'delete' : 'info'); break;
+  }
+}
+function setTheme(t) { S.theme = t; try { localStorage.setItem('hup-theme', t); } catch (e) {} render(); }
+function selectRow(id) { S.sel = id; render(); $(`[data-row="${id}"]`)?.focus({ preventScroll: false }); }
+
+document.addEventListener('click', (e) => {
+  if (S.menu && !e.target.closest('.menu') && !e.target.closest('[data-menu]')) { S.menu = null; renderMenu(); }
+  const t = e.target.closest('[data-action],[data-go],[data-sel],[data-type],[data-fkind],[data-tab],[data-idea],[data-ftype],[data-pidx],[data-menu],[data-sort],[data-check],[data-row],[data-row-go],[data-itab],[data-collapse],[data-mpick-type],[data-mpick-comp],[data-idea-go]');
+  if (!t) return;
+  const ds = t.dataset;
+  if (ds.action === 'close-overlay-bg') { if (e.target === t) act('close-overlay'); return; }
+  if (ds.action) { e.stopPropagation(); return act(ds.action, t); }
+  if (ds.menu) { if (S.menu?.kind === ds.menu) { S.menu = null; renderMenu(); } else openMenu(ds.menu, t); return; }
+  if (ds.mpickType) { S.menu = null; S.type = ds.mpickType; return render(); }
+  if (ds.mpickComp) { S.menu = null; S.compFilter = +ds.mpickComp; return render(); }
+  if (ds.pidx) { const it = S.palette.items[+ds.pidx]; S.palette = null; renderOverlay(); return it.run(); }
+  if (ds.ftype) { S.form.type = ds.ftype; return renderOverlay(); }
+  if (ds.check) { e.stopPropagation(); const id = +ds.check; S.checked.has(id) ? S.checked.delete(id) : S.checked.add(id); return render(); }
+  if (ds.sort) { if (S.sortKey === ds.sort) S.sortDir = S.sortDir === 'asc' ? 'desc' : 'asc'; else { S.sortKey = ds.sort; S.sortDir = ['title', 'author', 'type'].includes(ds.sort) ? 'asc' : 'desc'; } return render(); }
+  if (ds.itab) { S.itab = ds.itab; return render(); }
+  if (ds.collapse) { const id = +ds.collapse; S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id); return render(); }
+  if (ds.rowGo) return selectRow(+ds.rowGo);
+  if (ds.row) return selectRow(+ds.row);
+  if (ds.go) { const ex = {}; if (ds.comp) ex.comp = +ds.comp; if (ds.tab) ex.tab = ds.tab; if (ds.type) Object.assign(ex, { type: ds.type, q: '' }); if (ds.sel) Object.assign(ex, { sel: +ds.sel, type: null, q: '' }); if (ds.sortkey) Object.assign(ex, { sortKey: ds.sortkey, sortDir: ds.sortdir }); return go(ds.go, ex); }
+  if (ds.ideaGo) { S.tab = 'caderno'; S.idea = +ds.ideaGo; render(); $(`#idea-${S.idea}`)?.scrollIntoView({ block: 'start' }); return; }
+  if (ds.fkind) { S.fKind = ds.fkind; return render(); }
+  if (ds.tab) { S.tab = ds.tab; return render(); }
+  if (ds.idea) { S.idea = +ds.idea; $$('.ol-item[data-idea]').forEach(b => b.setAttribute('aria-current', String(+b.dataset.idea === S.idea))); $(`#idea-${S.idea}`)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
+});
+const keepFocus = (id) => { const pos = document.activeElement?.selectionStart; return () => { const n = $('#' + id); n?.focus(); if (pos != null) n?.setSelectionRange(pos, pos); }; };
+document.addEventListener('input', (e) => {
+  const id = e.target.id;
+  if (id === 'q') { S.q = e.target.value; const r = keepFocus('q'); render(); r(); }
+  if (id === 'fq') { S.fq = e.target.value; const r = keepFocus('fq'); render(); r(); }
+  if (id === 'pq') { S.palette.q = e.target.value; S.palette.idx = 0; const r = keepFocus('pq'); renderOverlay(); r(); }
+  if (e.target.dataset.f && S.form) { S.form[e.target.dataset.f] = e.target.value; if (S.form.tried && e.target.value.trim()) { e.target.removeAttribute('aria-invalid'); e.target.parentElement.querySelector('.err')?.remove(); } refreshForm(); }
+});
+document.addEventListener('change', (e) => { if (e.target.dataset.fcheck && S.form) { S.form[e.target.dataset.fcheck] = e.target.checked; refreshForm(); } });
+document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey; const k = e.key.toLowerCase();
+  if (mod && k === 'k') { e.preventDefault(); return act(S.palette ? 'close-overlay' : 'palette'); }
+  if (mod && k === 'n') { e.preventDefault(); return openNewWork(); }
+  if (mod && k === 'enter' && S.form) { e.preventDefault(); return act('save-work', $('#nw-save')); }
+  if (mod && e.key === '[') { e.preventDefault(); return travel(-1); }
+  if (mod && e.key === ']') { e.preventDefault(); return travel(1); }
+  if (e.key === 'Escape') {
+    if (S.menu) { S.menu = null; return renderMenu(); }
+    if (S.palette || S.form) { e.preventDefault(); return act('close-overlay'); }
+    if (S.checked.size) { S.checked.clear(); return render(); }
+    if (S.sel && S.view === 'acervo') { S.sel = null; return render(); }
+  }
+  if (S.palette && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+    e.preventDefault(); const P = S.palette;
+    if (e.key === 'Enter') { const it = P.items[P.idx]; if (it) { S.palette = null; renderOverlay(); it.run(); } return; }
+    P.idx = Math.max(0, Math.min(P.items.length - 1, P.idx + (e.key === 'ArrowDown' ? 1 : -1)));
+    $$('.p-item').forEach(b => b.setAttribute('aria-selected', String(+b.dataset.pidx === P.idx)));
+    $(`.p-item[data-pidx="${P.idx}"]`)?.scrollIntoView({ block: 'nearest' }); return;
+  }
+  const row = e.target.closest?.('[data-row]');
+  if (row) {
+    const id = +row.dataset.row;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const sib = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling; if (sib?.dataset.row) selectRow(+sib.dataset.row); }
+    if (e.key === 'Enter') selectRow(id);
+    if (e.key === ' ') { e.preventDefault(); S.checked.has(id) ? S.checked.delete(id) : S.checked.add(id); render(); $(`[data-row="${id}"]`)?.focus(); }
+    if (mod && k === 'c') { copy(refPlain(byId[id])); toast('Referência copiada'); }
+  }
+});
+
+hist.stack.push(snap()); hist.i = 0;
+render();
+window.__hup = { S, go, render, act, setTheme, openNewWork };
+})();
+</script>
+</body>
+</html>

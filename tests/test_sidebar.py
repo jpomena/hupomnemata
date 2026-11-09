@@ -17,7 +17,7 @@ from src.configs.settings import (
     UI,
 )
 from src.utils.types import ViewConfig
-from src.views.sidebar import SidebarComposer
+from src.views.sidebar import SidebarComposer, SidebarData
 
 
 @pytest.fixture
@@ -36,100 +36,57 @@ def view_config():
     )
 
 
-def test_sidebar_navigation_scroll_and_expand(view_config):
-    navigated = []
+def _walk(control):
+    yield control
+    for attr in ("content", "controls"):
+        child = getattr(control, attr, None)
+        if isinstance(child, list):
+            for item in child:
+                yield from _walk(item)
+        elif child is not None and hasattr(child, "__dict__"):
+            yield from _walk(child)
+
+
+def _nav_items(sidebar_control):
+    return [c for c in _walk(sidebar_control) if isinstance(getattr(c, "data", None), str)]
+
+
+def test_sidebar_structure_and_scrollable_navigation(view_config):
     sidebar = SidebarComposer(
         scale=1.0,
         config=view_config,
-        on_navigate=navigated.append,
+        on_navigate=lambda _d: None,
+        data=SidebarData(works=29, fragments=47, compilations=[(1, "O multiplicador punitivo")]),
     )
     composed = sidebar.compose()
     assert isinstance(composed, ft.Container)
-
-    # Coluna principal
     main_column = composed.content
     assert isinstance(main_column, ft.Column)
-    assert main_column.spacing == 0
-    assert len(main_column.controls) == 3
+    assert len(main_column.controls) == 3  # busca, navegação, rodapé
 
-    # Seção 1: Branding
-    branding = main_column.controls[0]
-    assert isinstance(branding, ft.Container)
-
-    # Seção 2: Navegação
     nav_container = main_column.controls[1]
-    assert isinstance(nav_container, ft.Container)
     assert nav_container.expand is True
+    assert nav_container.content.scroll == ft.ScrollMode.AUTO
 
-    nav_column = nav_container.content
-    assert isinstance(nav_column, ft.Column)
-    assert nav_column.expand is True
-    # O scroll AUTO garante que os itens nunca invadam o rodapé
-    assert nav_column.scroll == ft.ScrollMode.AUTO
-
-    # Verifica que todos os menus estão contidos na coluna
-    cadernos_header = nav_column.controls[0]
-    assert cadernos_header.value == "Cadernos"
-    menu_items = nav_column.controls[1:]
-    assert len(menu_items) == len(view_config.core_menus)
+    destinations = [item.data for item in _nav_items(composed)]
+    for expected in ("dashboard", "Acervo", "Fragmentos", "compilacao:1", "Compilações", "Estruturas de Saber", "Nous", "Configurações"):
+        assert expected in destinations
 
 
-def test_sidebar_footnote_height_and_scroll_constraints(view_config):
-    # Teste na escala padrão 1.0x (altura variável para se ajustar à citação)
-    sidebar_normal = SidebarComposer(
-        scale=1.0,
-        config=view_config,
-        on_navigate=lambda _: None,
-    )
-    composed_normal = sidebar_normal.compose()
-    footnote_normal = composed_normal.content.controls[2]
-    assert isinstance(footnote_normal, ft.Container)
-    # A altura rígida foi removida para permitir que o painel se ajuste à citação
-    assert footnote_normal.height is None
-
-    # A citação deve estar contida em uma coluna compacta (tight) que cresce com o texto
-    inner_column = footnote_normal.content
-    assert isinstance(inner_column, ft.Column)
-    assert inner_column.tight is True
-    citation_text = inner_column.controls[0]
-    assert isinstance(citation_text, ft.Text)
-    assert citation_text.size == view_config.font_sizes["cormorant_small"] * 1.0
-
-    # Teste na escala grande 1.40x (ambos menu e painel crescem proporcionalmente)
-    sidebar_large = SidebarComposer(
-        scale=1.40,
-        config=view_config,
-        on_navigate=lambda _: None,
-    )
-    composed_large = sidebar_large.compose()
-    footnote_large = composed_large.content.controls[2]
-    assert footnote_large.height is None
-    citation_large = footnote_large.content.controls[0]
-    assert citation_large.size == view_config.font_sizes["cormorant_small"] * 1.40
-
-    # Teste na escala reduzida 0.80x
-    sidebar_small = SidebarComposer(
-        scale=0.80,
-        config=view_config,
-        on_navigate=lambda _: None,
-    )
-    composed_small = sidebar_small.compose()
-    footnote_small = composed_small.content.controls[2]
-    assert footnote_small.height is None
-    citation_small = footnote_small.content.controls[0]
-    assert citation_small.size == view_config.font_sizes["cormorant_small"] * 0.80
+def test_sidebar_marks_current_destination(view_config):
+    sidebar = SidebarComposer(scale=1.0, config=view_config, on_navigate=lambda _d: None, current="Acervo")
+    items = {item.data: item for item in _nav_items(sidebar.compose())}
+    assert items["Acervo"].bgcolor == view_config.colors["selected"]
+    assert items["Fragmentos"].bgcolor is None
 
 
 def test_sidebar_menu_click_triggers_navigation(view_config):
     navigated = []
     sidebar = SidebarComposer(
-        scale=1.0,
-        config=view_config,
-        on_navigate=navigated.append,
+        scale=1.0, config=view_config, on_navigate=navigated.append,
+        data=SidebarData(compilations=[(7, "Tese")]),
     )
-    composed = sidebar.compose()
-    nav_column = composed.content.controls[1].content
-    menu_button = nav_column.controls[1]  # Primeiro item de menu ("Acervo")
-
-    menu_button.on_click(None)
-    assert "Acervo" in navigated
+    items = {item.data: item for item in _nav_items(sidebar.compose())}
+    items["Fragmentos"].on_click(None)
+    items["compilacao:7"].on_click(None)
+    assert navigated == ["Fragmentos", "compilacao:7"]

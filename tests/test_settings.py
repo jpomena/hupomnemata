@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 import pytest
 import flet as ft
+from src.utils.fa import glyph as fa_glyph
 
 from src.configs.settings import (
     COLORS_DARK,
@@ -413,9 +414,12 @@ def test_title_bar_icon_switches_on_maximize(test_config):
         on_compilation_edit_fragment=lambda *_: None,
     )
     title_bar = composer_windowed._compose_custom_title_bar()
-    toolbar_row = title_bar.content.content.controls[1]
-    maximize_btn = toolbar_row.controls[1]
-    assert maximize_btn.icon == ft.Icons.CROP_SQUARE
+    window_controls = title_bar.content.content.controls[-1]
+    maximize_btn = window_controls.controls[1]
+    square, _family = fa_glyph("square", "regular")
+    clone, _family = fa_glyph("clone", "regular")
+    assert maximize_btn is composer_windowed.maximize_button
+    assert maximize_btn.data.value == square
     assert maximize_btn.tooltip == "Maximizar"
 
     # Quando maximizado, o ícone deve ser FILTER_NONE
@@ -460,17 +464,16 @@ def test_title_bar_icon_switches_on_maximize(test_config):
         on_compilation_edit_fragment=lambda *_: None,
     )
     title_bar_max = composer_maximized._compose_custom_title_bar()
-    toolbar_row_max = title_bar_max.content.content.controls[1]
-    restore_btn = toolbar_row_max.controls[1]
-    assert restore_btn.icon == ft.Icons.FILTER_NONE
+    restore_btn = title_bar_max.content.content.controls[-1].controls[1]
+    assert restore_btn.data.value == clone
     assert restore_btn.tooltip == "Restaurar"
 
     # Testar update_window_state dinâmico sem reconstruir a barra
     composer_windowed.update_window_state(True)
-    assert composer_windowed.maximize_button.icon == ft.Icons.FILTER_NONE
+    assert composer_windowed.maximize_button.data.value == clone
     assert composer_windowed.maximize_button.tooltip == "Restaurar"
 
     composer_windowed.update_window_state(False)
-    assert composer_windowed.maximize_button.icon == ft.Icons.CROP_SQUARE
+    assert composer_windowed.maximize_button.data.value == square
     assert composer_windowed.maximize_button.tooltip == "Maximizar"
 
