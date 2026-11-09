@@ -83,7 +83,7 @@ def test_fragment_crud_and_optional_comment_location(fragment_database):
 
     service.update(comment_id, {
         'fragment_type': 'comment',
-        'excerpt': 'Comentário contextualizado.',
+        'excerpt': 'Paráfrase contextualizado.',
         'bib_res_id': resource_id,
         'location_type': 'Capítulo',
         'location_value': 'III',
@@ -91,7 +91,7 @@ def test_fragment_crud_and_optional_comment_location(fragment_database):
     service.delete(quote_id)
     records = service.list_fragments()
     assert len(records) == 1
-    assert records[0]['excerpt'] == 'Comentário contextualizado.'
+    assert records[0]['excerpt'] == 'Paráfrase contextualizado.'
     assert records[0]['location_value'] == 'III'
 
     other_location_id = service.create({
@@ -309,7 +309,7 @@ SAMPLE_FRAGMENTS = [
     {
         'id': 2,
         'fragment_type': 'comment',
-        'excerpt': 'Comentário 2',
+        'excerpt': 'Paráfrase 2',
         'bib_res_id': 22,
         'work_title': 'Outra obra',
         'citation_author': 'Souza',
@@ -443,7 +443,7 @@ def test_fragment_form_applies_location_rules():
     assert 'O autor relaciona' in composer.excerpt.hint_text
     assert FragmentService._payload({
         'fragment_type': 'comment',
-        'excerpt': 'Comentário sem localização.',
+        'excerpt': 'Paráfrase sem localização.',
         'bib_res_id': 21,
         'location_type': None,
         'location_value': '',
@@ -508,13 +508,13 @@ def test_fragments_screen_groups_filters_and_rows():
     header_texts = _texts(header)
     assert header_texts[:2] == [
         'Fragmentos',
-        '3 citações e comentários de 2 obras do acervo.',
+        '3 citações e paráfrases de 2 obras do acervo.',
     ]
     assert 'Novo fragmento' in header_texts
 
     # segmentado com contagens e um grupo (card) por obra, mais recente primeiro
     segment_texts = _texts(composer.segment_host)
-    assert segment_texts == ['Todos', '3', 'Citações', '2', 'Comentários', '1']
+    assert segment_texts == ['Todos', '3', 'Citações', '2', 'Paráfrases', '1']
     groups = [
         control for control in composer.fragment_list.controls
         if isinstance(getattr(control, 'data', None), dict)
@@ -525,9 +525,9 @@ def test_fragments_screen_groups_filters_and_rows():
     assert 'Outra obra' in first_group_texts
     assert 'Souza · 2023' in first_group_texts
     assert '2' in first_group_texts
-    # citação em serifa com aspas (sem duplicar), comentário em Montserrat
+    # citação em serifa com aspas (sem duplicar), paráfrase em Montserrat
     assert '“Já entre aspas”' in first_group_texts
-    assert 'Comentário 2' in first_group_texts
+    assert 'Paráfrase 2' in first_group_texts
     assert 'cap. III' in first_group_texts
     rows = groups[0].content.controls[1:]
     assert [row.data['fragment_id'] for row in rows] == [2, 3]

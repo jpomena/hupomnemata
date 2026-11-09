@@ -312,7 +312,7 @@ class KnowledgePanel:
         excerpt = frag.get("excerpt") or ""
         loc = frag.get("location") or ""
         frag_type = (frag.get("fragment_type") or "quote").capitalize()
-        type_label = "Citação" if frag_type.lower() == "quote" else "Comentário"
+        type_label = "Citação" if frag_type.lower() == "quote" else "Paráfrase"
 
         badge_bg = self.config.colors.get("card_hover", self.config.colors["surface"])
         card = ft.Container(

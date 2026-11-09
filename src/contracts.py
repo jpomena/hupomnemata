@@ -5,7 +5,7 @@ from src.domains import WorkMixin
 
 FRAGMENT_TYPE_LABELS = {
     'quote': 'Citação',
-    'comment': 'Comentários/Paráfrases',
+    'comment': 'Paráfrases/Paráfrases',
 }
 
 FRAGMENT_LOCATION_TYPES = (

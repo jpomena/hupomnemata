@@ -124,7 +124,7 @@ def summarize_dashboard(data: dict | None) -> DashboardSummary:
             'at': fragment['created_at'],
             'icon': 'quote-left' if is_quote else 'comment',
             'icon_style': 'solid' if is_quote else 'regular',
-            'prefix': 'Citação em ' if is_quote else 'Comentário em ',
+            'prefix': 'Citação em ' if is_quote else 'Paráfrase em ',
             'title': fragment.get('work_title') or 'Obra sem título',
             'snippet': ' '.join(str(fragment.get('excerpt') or '').split()),
             'serif': is_quote,
@@ -258,7 +258,7 @@ class DashboardComposer:
             self._kpi(
                 'quote-left', 'Fragmentos', summary.fragments,
                 f"{plural(summary.quotes, 'citação', 'citações')} · "
-                f"{plural(summary.comments, 'comentário', 'comentários')}",
+                f"{plural(summary.comments, 'paráfrase', 'paráfrases')}",
                 lambda _e: self.on_navigate('Fragmentos'),
             ),
             self._kpi(

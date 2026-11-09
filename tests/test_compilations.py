@@ -562,7 +562,7 @@ def test_sections_and_section_assignments_are_compilation_scoped(
         service.add_work(compilation_id, work_id)
     fragment_id = FragmentService().create({
         'fragment_type': 'comment',
-        'excerpt': 'Comentário reutilizado.',
+        'excerpt': 'Paráfrase reutilizado.',
         'bib_res_id': work_id,
         'location_type': None,
         'location_value': None,
@@ -735,7 +735,7 @@ def _sample_compilation() -> CompilationRecord:
                 }, {
                     'id': 21,
                     'fragment_type': 'comment',
-                    'excerpt': 'Comentário ainda disponível.',
+                    'excerpt': 'Paráfrase ainda disponível.',
                     'bib_res_id': 10,
                     'work_title': 'Obra existente',
                     'citation_author': 'Autor',
@@ -1248,7 +1248,7 @@ def test_fragment_note_auto_links_when_added_to_available_material(
     fragment_service = FragmentService()
     fragment_id = fragment_service.create({
         'fragment_type': 'comment',
-        'excerpt': 'Comentário disponível mas ainda não no caderno.',
+        'excerpt': 'Paráfrase disponível mas ainda não no caderno.',
         'bib_res_id': work_id,
         'location_type': None,
         'location_value': None,

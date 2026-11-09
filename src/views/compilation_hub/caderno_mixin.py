@@ -43,7 +43,7 @@ QUEUE_KEY = 'queue'
 
 
 def kind_label(fragment: CompilationFragmentRecord) -> str:
-    return 'Citação' if fragment['fragment_type'] == 'quote' else 'Comentário'
+    return 'Citação' if fragment['fragment_type'] == 'quote' else 'Paráfrase'
 
 
 def quoted(text: str) -> str:

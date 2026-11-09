@@ -517,7 +517,7 @@ frags.forEach(f => (fragsByWork[f.bib_res_id] ||= []).push(f));
 const comps = D.compilations;
 const compsOfWork = (id) => comps.filter(c => c.works.includes(id));
 const qt = (s) => /^[“"«]/.test(String(s).trim()) ? esc(s) : `“${esc(s)}”`;
-const kindLabel = (t) => t === 'quote' ? 'Citação' : 'Comentário';
+const kindLabel = (t) => t === 'quote' ? 'Citação' : 'Paráfrase';
 const shortCite = (f) => `(${f.citation_author}, ${f.display_year}${f.location_value ? ', ' + f.location_value : ''})`;
 const refHtml = (w) => w.ref.map(([t, s]) => s === 'bold' ? `<b>${esc(t)}</b>` : s === 'italic' ? `<i>${esc(t)}</i>` : esc(t)).join('');
 const refPlain = (w) => w.ref.map(([t]) => t).join('');
@@ -614,7 +614,7 @@ function viewInicio() {
         <div class="stat-big"><span class="v">${works.length}</span><span class="muted">obras</span></div>
         <ul class="kv">${typeCounts.map(([t, n]) => `<li><button data-go="acervo" data-type="${esc(t)}">${esc(t)}</button><span class="num">${n}</span></li>`).join('')}</ul>
         <div class="stat-big" style="margin-top:var(--space-lg)"><span class="v">${frags.length}</span><span class="muted">fragmentos</span></div>
-        <ul class="kv"><li><span>Citações</span><span class="num">${quotes}</span></li><li><span>Comentários</span><span class="num">${frags.length - quotes}</span></li></ul>
+        <ul class="kv"><li><span>Citações</span><span class="num">${quotes}</span></li><li><span>Paráfrases</span><span class="num">${frags.length - quotes}</span></li></ul>
       </section>
       <section class="reveal" style="--i:2">
         <h2 class="panel-title">Começar algo</h2>
@@ -736,7 +736,7 @@ function inspector(w) {
     ${kids.length ? `<section class="insp-sec"><span class="tag">Partes desta obra</span>${kids.map(k => `<button class="link" data-sel="${k.id}">${esc(k.title)}</button>`).join('')}</section>` : ''}
     <section class="insp-sec">
       <div class="ref-meta"><span class="tag">Fragmentos · ${fs.length}</span><button class="btn sm ghost" data-action="new-fragment">${ms('add')}Novo</button></div>
-      ${fs.length ? fs.map(f => `<div class="mini-frag"><span class="cite-line"><b>${kindLabel(f.fragment_type)}</b><span class="num">${esc(f.location_value || 'sem localização')}</span></span><p class="clamp-3">${f.fragment_type === 'quote' ? qt(f.excerpt) : esc(f.excerpt)}</p></div>`).join('') : `<div class="empty">${ms('format_quote')}Nenhum fragmento ainda. Registre uma citação ou comentário desta obra.</div>`}
+      ${fs.length ? fs.map(f => `<div class="mini-frag"><span class="cite-line"><b>${kindLabel(f.fragment_type)}</b><span class="num">${esc(f.location_value || 'sem localização')}</span></span><p class="clamp-3">${f.fragment_type === 'quote' ? qt(f.excerpt) : esc(f.excerpt)}</p></div>`).join('') : `<div class="empty">${ms('format_quote')}Nenhum fragmento ainda. Registre uma citação ou paráfrase desta obra.</div>`}
     </section>
     <section class="insp-sec">
       <span class="tag">Compilações</span>
@@ -757,9 +757,9 @@ function viewFragmentos() {
   const seg = (k, l, n) => `<button data-fkind="${k}" aria-pressed="${S.fKind === k}">${l}<span class="num">${n}</span></button>`;
   return `<div class="page"><div class="frag-layout">
     <div>
-      <div class="page-head" style="margin-bottom:var(--space-lg)"><div><h1 class="page-title">Fragmentos</h1><p class="page-sub">Citações e comentários das obras do seu acervo.</p></div></div>
+      <div class="page-head" style="margin-bottom:var(--space-lg)"><div><h1 class="page-title">Fragmentos</h1><p class="page-sub">Citações e paráfrases das obras do seu acervo.</p></div></div>
       <div class="frag-tools">
-        <div class="seg" role="group" aria-label="Tipo de fragmento">${seg('all', 'Todos', frags.length)}${seg('quote', 'Citações', nQ)}${seg('comment', 'Comentários', frags.length - nQ)}</div>
+        <div class="seg" role="group" aria-label="Tipo de fragmento">${seg('all', 'Todos', frags.length)}${seg('quote', 'Citações', nQ)}${seg('comment', 'Paráfrases', frags.length - nQ)}</div>
         <label class="searchbox">${ms('search')}<span class="sr">Filtrar</span><input class="input" id="fq" placeholder="Filtrar por texto, obra ou autor" value="${esc(S.fq)}" autocomplete="off"></label>
       </div>
       ${groups.length ? groups.map(g => { const w = byId[g.id]; return `<section class="work-group" id="wg-${g.id}">

@@ -511,7 +511,7 @@ Object.values(fragsByWork).forEach(a => a.sort((x, y) => x.id - y.id));
 const comps = D.compilations;
 const compsOfWork = (id) => comps.filter(c => c.works.includes(id));
 const compsOfFrag = (id) => comps.filter(c => c.members.some(m => m.fragment_id === id));
-const kindLabel = (t) => t === 'quote' ? 'Citação' : 'Comentário';
+const kindLabel = (t) => t === 'quote' ? 'Citação' : 'Paráfrase';
 const kindIcon = (t) => t === 'quote' ? 'format_quote' : 'chat_bubble';
 const qt = (s) => /^[“"«]/.test(String(s).trim()) ? esc(s) : `“${esc(s)}”`;
 const shortCite = (f) => `(${f.citation_author}, ${f.display_year}${f.location_value ? ', ' + f.location_value : ''})`;
@@ -604,7 +604,7 @@ function viewInicio() {
   return `${pageHead({ title: 'Gabinete de Leitura', desc: 'Seu repositório pessoal de bibliografia e escrita.', actions: `<button class="btn" data-action="new-fragment">${ms('format_quote')}Novo fragmento</button><button class="btn primary" data-action="new-work">${ms('add')}Nova obra</button>` })}
     <div class="card kpis">
       ${kpi('library_books', 'Obras', works.length, `em ${plural(types.length, 'tipo documental', 'tipos documentais')}`, 'data-go="acervo"')}
-      ${kpi('format_quote', 'Fragmentos', frags.length, `${quotes} citações · ${frags.length - quotes} comentários`, 'data-go="fragmentos"')}
+      ${kpi('format_quote', 'Fragmentos', frags.length, `${quotes} citações · ${frags.length - quotes} paráfrases`, 'data-go="fragmentos"')}
       ${kpi('folder_open', 'Compilações', comps.length, plural(linked, 'obra vinculada', 'obras vinculadas'), 'data-go="compilacoes"')}
       ${kpi('edit_note', 'Obras sem fragmentos', noFrag, 'ainda não fichadas', 'data-go="acervo" data-sortkey="frag" data-sortdir="asc"')}
     </div>
@@ -720,7 +720,7 @@ function inspector(w) {
   const tab = (k, l, n) => `<button class="tab" role="tab" data-itab="${k}" aria-selected="${S.itab === k}">${l}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
   const body = S.itab === 'fragmentos'
     ? (fs.length ? fs.map(f => `<div class="mini-frag"><div style="min-width:0"><div class="meta"><b>${kindLabel(f.fragment_type)}</b>${f.location_value ? `<span class="sep"></span><span>${esc(f.location_value)}</span>` : ''}</div><p class="clamp-3">${f.fragment_type === 'quote' ? qt(f.excerpt) : esc(f.excerpt)}</p></div><button class="icon-btn" data-action="copy-frag" data-id="${f.id}" aria-label="Copiar com citação" title="Copiar com citação">${ms('content_copy', 'sm')}</button></div>`).join('') + `<div style="padding:var(--space-md) var(--space-lg)"><button class="btn sm" data-action="new-fragment">${ms('add')}Novo fragmento</button></div>`
-      : `<div style="padding:var(--space-lg)"><div class="empty-state">${ms('format_quote')}<strong>Nenhum fragmento</strong><span>Registre uma citação ou um comentário desta obra.</span><button class="btn sm" data-action="new-fragment">${ms('add')}Novo fragmento</button></div></div>`)
+      : `<div style="padding:var(--space-lg)"><div class="empty-state">${ms('format_quote')}<strong>Nenhum fragmento</strong><span>Registre uma citação ou um paráfrase desta obra.</span><button class="btn sm" data-action="new-fragment">${ms('add')}Novo fragmento</button></div></div>`)
     : `<section class="insp-sec">
         <div class="sec-head"><h3 class="sec-title">Referência ABNT</h3><button class="btn sm" data-action="copy-ref" data-id="${w.id}">${ms('content_copy')}<span>Copiar</span></button></div>
         <div class="ref-box">${w.ref.length ? refHtml(w) : '<span class="faint">Este tipo ainda não tem formatador.</span>'}</div>
@@ -769,9 +769,9 @@ function viewFragmentos() {
   const nWorks = new Set(frags.map(f => f.bib_res_id)).size;
   const seg = (k, l, n) => `<button data-fkind="${k}" aria-pressed="${S.fKind === k}">${l}<span class="n">${n}</span></button>`;
   const allCollapsed = order.length && order.every(id => S.collapsed.has(id));
-  return `${pageHead({ title: 'Fragmentos', desc: `${frags.length} citações e comentários de ${nWorks} obras do acervo.`, actions: `<button class="btn primary" data-action="new-fragment">${ms('add')}Novo fragmento</button>` })}
+  return `${pageHead({ title: 'Fragmentos', desc: `${frags.length} citações e paráfrases de ${nWorks} obras do acervo.`, actions: `<button class="btn primary" data-action="new-fragment">${ms('add')}Novo fragmento</button>` })}
     <div class="toolbar" role="toolbar">
-      <div class="seg" role="group" aria-label="Tipo">${seg('all', 'Todos', frags.length)}${seg('quote', 'Citações', nQ)}${seg('comment', 'Comentários', frags.length - nQ)}</div>
+      <div class="seg" role="group" aria-label="Tipo">${seg('all', 'Todos', frags.length)}${seg('quote', 'Citações', nQ)}${seg('comment', 'Paráfrases', frags.length - nQ)}</div>
       <label class="searchbox" style="width:300px">${ms('search')}<span class="sr">Filtrar</span><input class="input" id="fq" placeholder="Filtrar por texto, obra ou autor" value="${esc(S.fq)}" autocomplete="off"></label>
       <span class="spacer"></span>
       <span class="count">${list.length === frags.length ? plural(order.length, 'obra', 'obras') : `${list.length} de ${frags.length} em ${plural(order.length, 'obra', 'obras')}`}</span>
