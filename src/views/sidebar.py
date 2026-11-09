@@ -84,8 +84,10 @@ class SidebarComposer:
             ft.Container(glyph, width=s(18), alignment=ft.Alignment.CENTER),
             label_text,
         ]
+        count_ctrl = None
         if count is not None:
-            controls.append(ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True))
+            count_ctrl = ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True)
+            controls.append(count_ctrl)
 
         def _on_hover_item(hovering: bool) -> None:
             if not active:
@@ -95,6 +97,8 @@ class SidebarComposer:
                     glyph.border = ft.Border.all(1.5, c.colors["gold"]) if hovering else ft.Border.all(1.5, c.colors["faint"])
                     glyph.bgcolor = c.colors["gold"] if hovering else None
                 label_text.color = c.colors["text"] if hovering else c.colors["muted"]
+                if count_ctrl is not None:
+                    count_ctrl.color = c.colors["gold"] if hovering else c.colors["faint"]
 
         item = ui.hover_surface(
             c,
