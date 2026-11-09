@@ -367,6 +367,7 @@ def test_window_events_trigger_native_readjustment(tmp_path):
     dummy_page.width = 1920
     dummy_page.height = 1080
     dummy_page.window.maximized = True
+    controller.current_destination = "Estruturas de Saber"
     controller.handle_window_event(SimpleNamespace(data="maximize"))
     assert controller.scale == 1.50
 
