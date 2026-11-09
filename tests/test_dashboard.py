@@ -17,6 +17,7 @@ from src.configs.settings import (
 from src.controllers.core_controller import CoreController
 from src.utils.types import ViewConfig
 from src.views.core_composer import CoreComposer
+from src.views.ui_kit import s
 
 
 def test_incomplete_sections_show_wip_dashboard():
@@ -340,7 +341,7 @@ def test_dashboard_kpi_hover_enhancement():
     cell.on_hover(SimpleNamespace(data='true'))
     assert cell.bgcolor == _config().colors['card_hover']
     assert cell.border.left.color == _config().colors['gold']
-    assert cell.border.left.width == 3
+    assert cell.border.left.width == s(3)
 
     # Hover out
     cell.on_hover(SimpleNamespace(data='false'))
