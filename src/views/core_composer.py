@@ -259,13 +259,13 @@ class CoreComposer:
             color=c.colors["text"],
             font_family=c.font_families["greek"],
             style=ft.TextStyle(letter_spacing=1.2),
+            text_align=ft.TextAlign.CENTER,
             no_wrap=True,
         )
         brand = ft.Container(
             content=brand_text,
             width=s(c.ui["sidebar_width"]),
-            padding=ft.Padding.only(left=s(16)),
-            alignment=ft.Alignment.CENTER_LEFT,
+            alignment=ft.Alignment.CENTER,
             border=ft.Border.only(right=ft.BorderSide(1, c.colors["border"])),
             on_click=lambda _e: self.on_navigate("dashboard"),
             animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
