@@ -218,28 +218,46 @@ class NousComposer:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "COMO OBTER SUA CHAVE GRATUITA DO GOOGLE GEMINI EM 3 PASSOS:",
+                        "COMO OBTER SUA CHAVE GRATUITA¹ DO GOOGLE GEMINI EM 3 PASSOS:",
                         size=11 * self.scale,
                         weight=ft.FontWeight.W_700,
                         color=self.config.colors["gold"],
+                        font_family=self.config.font_families['montserrat'],
                     ),
                     ft.Text(
-                        "1. Acesse o portal oficial do Google AI Studio (aistudio.google.com/app/apikey). O uso do modelo Gemini 2.5 Flash é 100% gratuito e não exige cartão de crédito.",
+                        "1. Acesse o portal oficial do Google AI Studio (aistudio.google.com/app/apikey).",
                         size=12 * self.scale,
                         color=self.config.colors["text"],
+                        font_family=self.config.font_families['montserrat'],
                     ),
                     ft.Text(
                         "2. Faça login com sua conta Google e clique no botão azul 'Get API key' (ou 'Create API key') para gerar uma nova chave.",
                         size=12 * self.scale,
                         color=self.config.colors["text"],
+                        font_family=self.config.font_families['montserrat'],
                     ),
                     ft.Text(
-                        "3. Copie a chave (começa com 'AIzaSy...'), cole no campo abaixo e clique em 'Salvar e Testar Conexão'. Sua chave é gravada localmente de forma privada.",
+                        "3. Copie a chave (começa com 'AIzaSy...'), cole no campo abaixo e clique em 'Salvar e Testar Conexão'². Sua chave é gravada localmente de forma privada.",
                         size=12 * self.scale,
                         color=self.config.colors["text"],
+                        font_family=self.config.font_families['montserrat'],
+                    ),
+                    ft.Text(
+                        "1 A disponibilidade de chaves gratuitas depende única e exclusivamente da Google, não cabendo a esta aplicação o fornecimento de chaves gratuitas.",
+                        size=10 * self.scale,
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families['montserrat'],
+                        italic=True,
+                    ),
+                    ft.Text(
+                        "2 Os desenvolvedores não se responsabilizam por quaisquer custos decorrentes do uso de modelos generativos de linguagem pelo usuário, fornecendo apenas uma interface para uso mediado.",
+                        size=10 * self.scale,
+                        color=self.config.colors["text"],
+                        font_family=self.config.font_families['montserrat'],
+                        italic=True,
                     ),
                 ],
-                spacing=6 * self.scale,
+                spacing=8 * self.scale,
                 tight=True,
             ),
         )

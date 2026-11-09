@@ -749,17 +749,17 @@ def input_field(
     """Campo de texto do padrão v2 (sem rótulo flutuante; use ``form_field``)."""
     colors = c.colors
     text_style = ft.TextStyle(
-        font_family=c.font_families["montserrat"],
+        font_family=c.font_families["cormorant"],
         color=colors["text"],
         weight=W500,
-        size=s(13),
+        size=s(16),
         height=1.5 if multiline else None,
     )
     hint_style = ft.TextStyle(
-        font_family=c.font_families["montserrat"],
+        font_family=c.font_families["cormorant"],
         color=colors.get("faint", colors["muted"]),
         weight=W500,
-        size=s(13),
+        size=s(16),
         letter_spacing=UI_TRACKING,
     )
     prefix = None
