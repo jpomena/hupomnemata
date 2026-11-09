@@ -175,13 +175,8 @@ class SidebarComposer:
         )
         search.border = ft.Border.all(1, c.colors["border_strong"])
         search.expand = True
-        new_work = ui.icon_button(
-            c, "plus",
-            on_click=lambda _e: self.on_new_work() if self.on_new_work else self.on_navigate("work_insert"),
-            tooltip="Nova obra (⌘N)", boxed=True, size=32,
-        )
         return ft.Container(
-            content=ft.Row([search, new_work], spacing=s(8)),
+            content=ft.Row(controls=[search], spacing=s(8)),
             padding=ft.Padding.only(left=s(12), right=s(12), top=s(12), bottom=s(8)),
         )
 
