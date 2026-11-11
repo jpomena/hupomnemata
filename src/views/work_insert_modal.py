@@ -13,7 +13,15 @@ from typing import TypedDict
 import flet as ft
 
 from src.contracts import AuthorReference, AuthorSearchResult
+from src.services.metadata_service import (
+    IdentifierType,
+    ImportedMetadata,
+    MetadataService,
+    check_local_duplicate,
+    detect_identifier,
+)
 from src.services.reference_preview import PreviewResult
+from src.utils.fa import fa_icon
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
 from src.views.work_insert_modal_author import AuthorSearchMixin
@@ -148,6 +156,20 @@ class WorkInsertModalComposer(
         self.type_query = ""
         self._logged_preview_errors: set[str] = set()
         self.preview_result: PreviewResult | None = None
+
+        # Estado da barra de importação inline
+        self.import_bar_visible = False
+        self._import_loading = False
+        self._import_ignore_duplicate = False
+        self.import_service = MetadataService()
+        self.import_input: ft.TextField | None = None
+        self.import_badge_container: ft.Container | None = None
+        self.import_error_box: ft.Container | None = None
+        self.import_error_text: ft.Text | None = None
+        self.import_duplicate_box: ft.Container | None = None
+        self.import_loading_box: ft.Container | None = None
+        self.import_submit_button: ft.Container | None = None
+        self.import_bar: ft.Container | None = None
 
         c = self.config
         self.type_search = ui.search_field(
@@ -330,6 +352,23 @@ class WorkInsertModalComposer(
         self.fields.clear()
         self.type_query = ""
         self.type_search.value = ""
+        self.import_bar_visible = False
+        if self.import_bar is not None:
+            self.import_bar.visible = False
+        if self.import_input is not None:
+            self.import_input.value = ""
+            self.import_input.disabled = False
+        if self.import_badge_container is not None:
+            self.import_badge_container.visible = False
+            self.import_badge_container.content = None
+        if self.import_error_box is not None:
+            self.import_error_box.visible = False
+        if self.import_duplicate_box is not None:
+            self.import_duplicate_box.visible = False
+        if self.import_loading_box is not None:
+            self.import_loading_box.visible = False
+        self._import_loading = False
+        self._import_ignore_duplicate = False
         self._set_saving(False, update=False)
         self._render(update_page=False)
 
@@ -434,7 +473,7 @@ class WorkInsertModalComposer(
         if update:
             _safe_update(button)
 
-    def _close(self, event) -> None:
+    def _close(self, event=None) -> None:
         """Fecha o diálogo sem persistir dados."""
         self._reset()
         if self.modal is not None:
@@ -464,22 +503,363 @@ class WorkInsertModalComposer(
 
     # ── montagem ───────────────────────────────────────────
 
+    # ── importação de metadados inline ─────────────────────
+
     def _open_import_dialog(self, _e=None) -> None:
-        """Abre o diálogo de importação de metadados por DOI, ISBN ou ISSN."""
-        from src.views.import_modal import ImportModalDialog
+        """Abre a barra inline de importação de metadados por DOI, ISBN ou ISSN."""
+        self.toggle_import_bar(True)
 
-        def on_nav(wid: int) -> None:
-            self._close()
+    def toggle_import_bar(self, visible: bool | None = None) -> None:
+        """Exibe ou oculta a barra inline de importação de metadados."""
+        if visible is None:
+            self.import_bar_visible = not self.import_bar_visible
+        else:
+            self.import_bar_visible = visible
+
+        if self.import_bar is not None:
+            self.import_bar.visible = self.import_bar_visible
+            _safe_update(self.import_bar)
+
+        if self.import_bar_visible:
+            if self.import_error_box is not None:
+                self.import_error_box.visible = False
+                _safe_update(self.import_error_box)
+            if self.import_duplicate_box is not None:
+                self.import_duplicate_box.visible = False
+                _safe_update(self.import_duplicate_box)
+            self._import_ignore_duplicate = False
+
+            if self.import_input is not None:
+                run_task = getattr(self.page, "run_task", None)
+                focus = getattr(self.import_input, "focus", None)
+                if run_task is not None and focus is not None:
+                    try:
+                        run_task(focus)
+                    except Exception:
+                        pass
+        if self.page:
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+    def _on_import_input_change(self, event: ft.ControlEvent) -> None:
+        raw = event.control.value or ""
+        id_type, _ = detect_identifier(raw)
+        c = self.config
+
+        if self.import_badge_container is not None:
+            if not raw.strip():
+                self.import_badge_container.visible = False
+                self.import_badge_container.content = None
+            elif id_type == IdentifierType.DOI:
+                self.import_badge_container.visible = True
+                self.import_badge_container.content = ui.badge(c, "DOI Detectado")
+            elif id_type == IdentifierType.ISBN:
+                self.import_badge_container.visible = True
+                self.import_badge_container.content = ui.badge(c, "ISBN Detectado")
+            elif id_type == IdentifierType.ISSN:
+                self.import_badge_container.visible = True
+                self.import_badge_container.content = ui.badge(c, "ISSN Detectado")
+            else:
+                self.import_badge_container.visible = True
+                self.import_badge_container.content = ui.badge(c, "Formato desconhecido")
+            _safe_update(self.import_badge_container)
+
+        if self.import_error_box is not None and self.import_error_box.visible:
+            self.import_error_box.visible = False
+            _safe_update(self.import_error_box)
+        if self.import_duplicate_box is not None and self.import_duplicate_box.visible:
+            self.import_duplicate_box.visible = False
+            _safe_update(self.import_duplicate_box)
+        self._import_ignore_duplicate = False
+
+    def _set_import_loading(self, loading: bool) -> None:
+        self._import_loading = loading
+        if self.import_loading_box is not None:
+            self.import_loading_box.visible = loading
+            _safe_update(self.import_loading_box)
+        if self.import_submit_button is not None:
+            self.import_submit_button.disabled = loading
+            _safe_update(self.import_submit_button)
+        if self.import_input is not None:
+            self.import_input.disabled = loading
+            _safe_update(self.import_input)
+
+    def _show_import_error(self, message: str) -> None:
+        if self.import_error_text is not None:
+            self.import_error_text.value = message
+        if self.import_error_box is not None:
+            self.import_error_box.visible = True
+            _safe_update(self.import_error_box)
+        if self.import_duplicate_box is not None:
+            self.import_duplicate_box.visible = False
+            _safe_update(self.import_duplicate_box)
+
+    def _show_import_duplicate_warning(self, work_id: int, work_title: str) -> None:
+        c = self.config
+
+        def _on_view_existing(_e):
+            self._close(None)
             if self.on_navigate_to_work is not None:
-                self.on_navigate_to_work(wid)
+                self.on_navigate_to_work(work_id)
 
-        dialog = ImportModalDialog(
-            page=self.page,
-            config=self.config,
-            on_success=self.apply_imported_metadata,
-            on_navigate_to_work=on_nav,
+        def _on_force_continue(_e):
+            self._import_ignore_duplicate = True
+            if self.import_duplicate_box is not None:
+                self.import_duplicate_box.visible = False
+                _safe_update(self.import_duplicate_box)
+            raw = (self.import_input.value or "").strip() if self.import_input else ""
+            self._execute_import_search(raw)
+
+        if self.import_duplicate_box is not None:
+            self.import_duplicate_box.content = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                fa_icon(
+                                    "triangle-exclamation",
+                                    size=ui.s(14),
+                                    color=c.colors.get("warning", "#eab308"),
+                                ),
+                                ui.ui_text(
+                                    c,
+                                    "Identificador já cadastrado no Acervo:",
+                                    size=12,
+                                    weight=ui.W600,
+                                    color=c.colors.get("warning", "#eab308"),
+                                ),
+                            ],
+                            spacing=ui.s(6),
+                        ),
+                        ui.ui_text(
+                            c,
+                            f"“{work_title}”",
+                            size=12,
+                            color=c.colors["text"],
+                            weight=ui.W500,
+                        ),
+                        ft.Row(
+                            [
+                                ui.button(
+                                    c,
+                                    "Ver obra cadastrada",
+                                    variant="default",
+                                    small=True,
+                                    on_click=_on_view_existing,
+                                ),
+                                ui.button(
+                                    c,
+                                    "Importar como nova",
+                                    variant="ghost",
+                                    small=True,
+                                    on_click=_on_force_continue,
+                                ),
+                            ],
+                            spacing=ui.s(6),
+                        ),
+                    ],
+                    spacing=ui.s(6),
+                    tight=True,
+                ),
+                bgcolor=ui.alpha(c.colors.get("warning", "#eab308"), 0.12),
+                border=ft.Border.all(
+                    1, ui.alpha(c.colors.get("warning", "#eab308"), 0.3)
+                ),
+                border_radius=ft.BorderRadius.all(ui.s(6)),
+                padding=ui.s(10),
+            )
+            self.import_duplicate_box.visible = True
+            _safe_update(self.import_duplicate_box)
+
+    def _on_import_search_clicked(self) -> None:
+        if self._import_loading:
+            return
+
+        raw = (self.import_input.value or "").strip() if self.import_input else ""
+        if not raw:
+            self._show_import_error("Por favor, digite um DOI, ISBN ou ISSN.")
+            return
+
+        id_type, clean_id = detect_identifier(raw)
+        if id_type == IdentifierType.UNKNOWN:
+            self._show_import_error(
+                "Identificador não reconhecido. Certifique-se de inserir um DOI (10.xxxx), ISBN ou ISSN."
+            )
+            return
+
+        if not self._import_ignore_duplicate:
+            duplicate = check_local_duplicate(id_type, clean_id)
+            if duplicate:
+                work_id, work_title = duplicate
+                self._show_import_duplicate_warning(work_id, work_title)
+                return
+
+        self._execute_import_search(raw)
+
+    def _execute_import_search(self, raw: str) -> None:
+        self._set_import_loading(True)
+        if self.import_error_box is not None:
+            self.import_error_box.visible = False
+            _safe_update(self.import_error_box)
+
+        async def _async_search():
+            import asyncio
+
+            try:
+                metadata = await asyncio.to_thread(self.import_service.resolve, raw)
+                self._set_import_loading(False)
+                self.toggle_import_bar(False)
+                self.apply_imported_metadata(metadata)
+            except Exception as exc:
+                err_msg = str(exc)
+                if "não foi encontrado" in err_msg.lower():
+                    clean_msg = err_msg
+                else:
+                    clean_msg = f"Falha ao consultar metadados: {err_msg}"
+                self._set_import_loading(False)
+                self._show_import_error(clean_msg)
+
+        run_task = getattr(self.page, "run_task", None)
+        if run_task is not None:
+            run_task(_async_search)
+        else:
+            try:
+                metadata = self.import_service.resolve(raw)
+                self._set_import_loading(False)
+                self.toggle_import_bar(False)
+                self.apply_imported_metadata(metadata)
+            except Exception as exc:
+                self._set_import_loading(False)
+                self._show_import_error(str(exc))
+
+    def _build_import_bar(self) -> ft.Container:
+        c = self.config
+        self.import_input = ui.input_field(
+            c,
+            hint="Ex.: 10.1038/nature.2014.14583, 978-85-7559-484-1 ou 0101-3300",
+            prefix_icon="barcode",
+            on_change=self._on_import_input_change,
+            on_submit=lambda _e: self._on_import_search_clicked(),
+            expand=True,
         )
-        dialog.show()
+        self.import_badge_container = ft.Container(content=None, visible=False)
+        self.import_error_text = ui.ui_text(
+            c, "", size=12, color=c.colors.get("danger", "#ef4444")
+        )
+        self.import_error_box = ft.Container(
+            content=ft.Row(
+                [
+                    fa_icon(
+                        "circle-exclamation",
+                        size=ui.s(14),
+                        color=c.colors.get("danger", "#ef4444"),
+                    ),
+                    ft.Container(content=self.import_error_text, expand=True),
+                ],
+                spacing=ui.s(8),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            visible=False,
+            padding=ft.Padding.symmetric(vertical=ui.s(4)),
+        )
+        self.import_duplicate_box = ft.Container(
+            visible=False, padding=ft.Padding.symmetric(vertical=ui.s(4))
+        )
+        loading_ring = ft.ProgressRing(
+            width=ui.s(16),
+            height=ui.s(16),
+            stroke_width=2,
+            color=c.colors["gold"],
+        )
+        loading_label = ui.ui_text(
+            c, "Consultando bases abertas...", size=12, color=c.colors["muted"]
+        )
+        self.import_loading_box = ft.Container(
+            content=ft.Row(
+                [loading_ring, loading_label],
+                spacing=ui.s(8),
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            visible=False,
+            padding=ft.Padding.symmetric(vertical=ui.s(4)),
+        )
+        self.import_submit_button = ui.button(
+            c,
+            "Buscar e Preencher",
+            icon_name="magnifying-glass",
+            variant="primary",
+            small=True,
+            on_click=lambda _e: self._on_import_search_clicked(),
+        )
+        cancel_btn = ui.button(
+            c,
+            "Cancelar",
+            variant="ghost",
+            small=True,
+            on_click=lambda _e: self.toggle_import_bar(False),
+        )
+
+        bar_header = ft.Row(
+            [
+                fa_icon("file-import", size=ui.s(14), color=c.colors["gold"]),
+                ui.ui_text(
+                    c,
+                    "Importar metadados por DOI, ISBN ou ISSN",
+                    size=13,
+                    weight=ui.W600,
+                ),
+                ui.ui_text(
+                    c,
+                    "— preenche automaticamente tipo, dados da obra, autores e revista vinculada.",
+                    size=12,
+                    color=c.colors.get("faint", c.colors["muted"]),
+                    expand=True,
+                ),
+                ui.icon_button(
+                    c,
+                    "xmark",
+                    on_click=lambda _e: self.toggle_import_bar(False),
+                    tooltip="Ocultar importação",
+                ),
+            ],
+            spacing=ui.s(8),
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        input_row = ft.Row(
+            [
+                self.import_input,
+                self.import_badge_container,
+                self.import_submit_button,
+                cancel_btn,
+            ],
+            spacing=ui.s(8),
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        content_col = ft.Column(
+            [
+                bar_header,
+                input_row,
+                self.import_loading_box,
+                self.import_error_box,
+                self.import_duplicate_box,
+            ],
+            spacing=ui.s(8),
+            tight=True,
+        )
+
+        return ft.Container(
+            content=content_col,
+            padding=ft.Padding.only(
+                left=ui.s(24), right=ui.s(16), top=ui.s(12), bottom=ui.s(12)
+            ),
+            bgcolor=c.colors.get("chrome", c.colors["surface"]),
+            border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
+            visible=self.import_bar_visible,
+        )
 
     def apply_imported_metadata(self, metadata) -> None:
         """Aplica os metadados importados aos campos do modal e re-renderiza."""
@@ -549,7 +929,7 @@ class WorkInsertModalComposer(
                     icon_name="file-import",
                     variant="default",
                     small=True,
-                    on_click=self._open_import_dialog,
+                    on_click=lambda _e: self.toggle_import_bar(),
                     tooltip="Importar metadados por DOI, ISBN ou ISSN",
                 )
             )
@@ -644,10 +1024,19 @@ class WorkInsertModalComposer(
     def compose(self) -> ft.AlertDialog:
         """Montagem final do modal em tela."""
         c = self.config
+        self.import_bar = self._build_import_bar()
+        form_panel = ft.Container(
+            content=ft.Column(
+                [self.import_bar, self.form],
+                spacing=0,
+                expand=True,
+            ),
+            expand=True,
+        )
         body_controls: list[ft.Control] = []
         if self.shows_type_list:
             body_controls.append(self._type_column())
-        body_controls.append(ft.Container(content=self.form, expand=True))
+        body_controls.append(form_panel)
         width, height = self._dialog_size()
         dialog_box = ft.Container(
             content=ft.Column(

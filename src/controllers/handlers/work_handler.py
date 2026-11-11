@@ -62,6 +62,13 @@ class WorkControllerMixin:
 
     def open_import_work(self) -> None:
         """Abre o diálogo de importação automatizada por DOI, ISBN ou ISSN."""
+        if getattr(self, "work_insert_modal", None) is not None:
+            composer = getattr(self.work_insert_modal, "composer", None)
+            if composer is not None and getattr(self.work_insert_modal, "open", False):
+                if hasattr(composer, "toggle_import_bar"):
+                    composer.toggle_import_bar(True)
+                    return
+
         from src.views.import_modal import ImportModalDialog
 
         def on_nav_work(work_id: int) -> None:
