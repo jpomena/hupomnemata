@@ -255,6 +255,7 @@ FIELD_SECTIONS: dict[str, str] = {
     "physical_description": PHYSICAL,
     "instrumentation": PHYSICAL,
     # acesso online
+    "doi": ONLINE,
     "url": ONLINE,
     "viewed_at": ONLINE,
     # notas

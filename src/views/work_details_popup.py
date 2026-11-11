@@ -19,7 +19,7 @@ from src.utils.types import ViewConfig, WORK_TYPE_LABELS
 class WorkDetailsPopup:
     WORK_FIELDS = {
         "title", "subtitle", "abstract", "date_anchor", "display_year",
-        "date_precision", "url", "viewed_at",
+        "date_precision", "doi", "url", "viewed_at",
     }
     RESOURCE_FIELDS = {
         "part_start_page", "part_end_page", "part_volume",
@@ -38,6 +38,7 @@ class WorkDetailsPopup:
         "display_year": "Ano",
         "date_anchor": "Data de referência",
         "date_precision": "Precisão da data",
+        "doi": "DOI",
         "url": "Endereço eletrônico",
         "viewed_at": "Data de acesso",
         "created_at": "Cadastrado em",
@@ -306,7 +307,8 @@ class WorkDetailsPopup:
         text_value = self._format_value(value)
         value_control: ft.Control
 
-        if label == "url" and isinstance(value, str) and value:
+        if label in {"url", "doi"} and isinstance(value, str) and value:
+            target_url = value if label == "url" else (value if value.startswith("http") else f"https://doi.org/{value}")
             value_control = ft.Text(
                 value="",
                 size=self.config.font_sizes["montserrat_small"],
@@ -316,7 +318,7 @@ class WorkDetailsPopup:
                 spans=[
                     ft.TextSpan(
                         text=text_value,
-                        url=value,
+                        url=target_url,
                         style=ft.TextStyle(
                             color=self.config.colors["gold"],
                             decoration=ft.TextDecoration.UNDERLINE,

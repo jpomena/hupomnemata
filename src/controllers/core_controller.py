@@ -423,6 +423,7 @@ class CoreController(
             on_delete_works=self.delete_works,
             get_dashboard_data=self.dashboard_data,
             compilation_work_references=self.compilation_work_references,
+            on_import_work=self.open_import_work,
         )
 
     def build_application(self) -> None:

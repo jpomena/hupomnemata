@@ -117,6 +117,7 @@ class WorksComposer:
             nous_service: object | None = None,
             sort_key: str | None = None,
             sort_desc: bool | None = None,
+            on_import_work: Callable[[], None] | None = None,
     ) -> None:
         self.scale = scale
         self.config = config
@@ -133,6 +134,7 @@ class WorksComposer:
         self.on_delete_works = on_delete_works
         self.on_copy_text = on_copy_text
         self.nous_service = nous_service
+        self.on_import_work = on_import_work
 
         self.query = ""
         self.type_filter = type_filter
@@ -941,7 +943,7 @@ class WorksComposer:
         header = ui.page_header(
             c, "Acervo", description,
             actions=[
-                ui.button(c, "Importar", icon_name="file-import", disabled=True, tooltip="Planejado: BibTeX, ISBN, ISSN, DOI ou PDF"),
+                ui.button(c, "Importar", icon_name="file-import", on_click=lambda _e: self.on_import_work() if self.on_import_work else None, tooltip="Importar metadados por DOI, ISBN ou ISSN"),
                 ui.button(c, "Nova obra", icon_name="plus", variant="primary", on_click=lambda _e: self.on_navigate("work_insert")),
             ],
         )
