@@ -640,6 +640,105 @@ def test_doi_article_number_fallback():
     assert result.values["number"] == "1"
 
 
+def test_work_insert_modal_inline_import_bar():
+    from types import SimpleNamespace
+    from src.views.work_insert_modal import WorkInsertModalComposer
+
+    config = _test_config()
+    page = SimpleNamespace(update=MagicMock(), show_dialog=MagicMock(), pop_dialog=MagicMock(), run_task=None)
+    composer = WorkInsertModalComposer(
+        page=page,
+        config=config,
+        on_save=lambda _data: True,
+    )
+    modal = composer.compose()
+    assert modal is not None
+    assert composer.import_bar is not None
+    assert composer.import_bar.visible is False
+
+    # 1. Ativar barra inline via toggle
+    composer.toggle_import_bar(True)
+    assert composer.import_bar_visible is True
+    assert composer.import_bar.visible is True
+
+    # 2. Testar detecção de identificadores no input_change
+    event_mock = SimpleNamespace(control=SimpleNamespace(value="10.1038/nature12345"))
+    composer._on_import_input_change(event_mock)
+    assert composer.import_badge_container.visible is True
+    row = composer.import_badge_container.content.content
+    assert any("DOI Detectado" in getattr(ctrl, "value", "") for ctrl in row.controls)
+
+    event_mock.control.value = "978-85-7559-484-1"
+    composer._on_import_input_change(event_mock)
+    row = composer.import_badge_container.content.content
+    assert any("ISBN Detectado" in getattr(ctrl, "value", "") for ctrl in row.controls)
+
+    event_mock.control.value = "0101-3300"
+    composer._on_import_input_change(event_mock)
+    row = composer.import_badge_container.content.content
+    assert any("ISSN Detectado" in getattr(ctrl, "value", "") for ctrl in row.controls)
+
+    event_mock.control.value = "invalid-code"
+    composer._on_import_input_change(event_mock)
+    row = composer.import_badge_container.content.content
+    assert any("Formato desconhecido" in getattr(ctrl, "value", "") for ctrl in row.controls)
+
+    # 3. Testar busca com campo vazio
+    composer.import_input.value = ""
+    composer._on_import_search_clicked()
+    assert composer.import_error_box.visible is True
+    assert "digite um DOI, ISBN ou ISSN" in composer.import_error_text.value
+
+    # 4. Testar resolução e preenchimento bem-sucedido
+    composer.import_input.value = "9788575594841"
+    fake_meta = ImportedMetadata(
+        identifier_type=IdentifierType.ISBN,
+        raw_identifier="9788575594841",
+        normalized_identifier="9788575594841",
+        work_type="editorial_monograph",
+        values={
+            "title": "A Nova Razão do Mundo",
+            "subtitle": "Ensaio sobre o neoliberalismo",
+            "publisher": "Boitempo",
+            "date_anchor": "2016",
+        },
+        authors=[{"name": "Pierre Dardot", "given_names": "Pierre", "last_name": "Dardot", "corporation": False}],
+    )
+
+    with patch.object(composer.import_service, "resolve", return_value=fake_meta):
+        composer._on_import_search_clicked()
+        # Ao ter sucesso, a barra é fechada e os campos aplicados
+        assert composer.import_bar_visible is False
+        assert composer.import_bar.visible is False
+        assert composer.selected.key == "editorial_monograph"
+        assert composer.stored_values["title"] == "A Nova Razão do Mundo"
+        assert composer.stored_values["subtitle"] == "Ensaio sobre o neoliberalismo"
+        assert len(composer.author_references) == 1
+        assert composer.author_references[0]["name"] == "Pierre Dardot"
+
+    # 5. Fechar modal deve resetar a barra de importação
+    composer._close()
+    assert composer.import_bar_visible is False
+    assert composer.import_input.value == ""
+
+
+def test_work_handler_open_import_routes_to_inline_bar_when_modal_open():
+    from types import SimpleNamespace
+    from src.controllers.handlers.work_handler import WorkControllerMixin
+
+    class DummyHandler(WorkControllerMixin):
+        def __init__(self):
+            self.work_insert_modal = SimpleNamespace(
+                open=True,
+                composer=SimpleNamespace(toggle_import_bar=MagicMock()),
+            )
+
+    handler = DummyHandler()
+    handler.open_import_work()
+    handler.work_insert_modal.composer.toggle_import_bar.assert_called_once_with(True)
+
+
+
 
 
 
