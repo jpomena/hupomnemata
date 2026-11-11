@@ -355,3 +355,41 @@ def test_works_composer_import_button_triggers_callback():
     assert called == [True]
 
 
+@pytest.mark.anyio
+async def test_import_modal_execute_remote_search_async():
+    from types import SimpleNamespace
+    from src.views.import_modal import ImportModalDialog
+    import asyncio
+    import inspect
+
+    success_results = []
+    def fake_run_task(handler, *args, **kwargs):
+        # Asynchronously schedule the coroutine handler like Flet's run_task
+        assert inspect.iscoroutinefunction(handler), "run_task handler must be a coroutine function"
+        return asyncio.create_task(handler(*args, **kwargs))
+
+    page = SimpleNamespace(
+        show_dialog=MagicMock(),
+        pop_dialog=MagicMock(),
+        update=MagicMock(),
+        run_task=fake_run_task,
+    )
+    config = _test_config()
+    modal = ImportModalDialog(
+        page=page,
+        config=config,
+        on_success=lambda meta: success_results.append(meta),
+    )
+    modal.input_field.value = "978-85-7559-484-1"
+
+    fake_meta = MagicMock(spec=ImportedMetadata)
+    with patch.object(modal.service, "resolve", return_value=fake_meta):
+        modal._execute_remote_search()
+        await asyncio.sleep(0.05)
+
+        assert len(success_results) == 1
+        assert success_results[0] == fake_meta
+        assert modal.loading is False
+
+
+
