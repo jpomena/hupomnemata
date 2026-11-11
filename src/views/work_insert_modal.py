@@ -106,6 +106,7 @@ class WorkInsertModalComposer(
         initial_author_references: list[AuthorReference] | None = None,
         initial_parent_work_id: int | None = None,
         initial_parent_work_title: str = "",
+        on_navigate_to_work: Callable[[int], None] | None = None,
     ):
         self.page = page
         self.config = config
@@ -115,6 +116,7 @@ class WorkInsertModalComposer(
         self.on_create_parent_work: Callable[
             [Callable[[int, str], None], str | None], None
         ] | None = on_create_parent_work
+        self.on_navigate_to_work = on_navigate_to_work
         self.parent_mode = parent_mode
         self.edit_mode = edit_mode
         self.initial_work_type = initial_work_type
@@ -462,17 +464,83 @@ class WorkInsertModalComposer(
 
     # ── montagem ───────────────────────────────────────────
 
+    def _open_import_dialog(self, _e=None) -> None:
+        """Abre o diálogo de importação de metadados por DOI, ISBN ou ISSN."""
+        from src.views.import_modal import ImportModalDialog
+
+        def on_nav(wid: int) -> None:
+            self._close()
+            if self.on_navigate_to_work is not None:
+                self.on_navigate_to_work(wid)
+
+        dialog = ImportModalDialog(
+            page=self.page,
+            config=self.config,
+            on_success=self.apply_imported_metadata,
+            on_navigate_to_work=on_nav,
+        )
+        dialog.show()
+
+    def apply_imported_metadata(self, metadata) -> None:
+        """Aplica os metadados importados aos campos do modal e re-renderiza."""
+        target_spec = next(
+            (spec for spec in WORK_TYPES if spec.key == metadata.work_type),
+            None,
+        )
+        if target_spec is not None:
+            self.selected = target_spec
+            self.partial_enabled = (
+                target_spec.key in ALWAYS_PARTIAL_TYPES
+                or target_spec.key in MAGAZINE_PARENT_TYPES
+            )
+        self.fields = {}
+        self.stored_values.update(metadata.values)
+        self.author_references = list(metadata.authors)
+        self.author_search = ""
+        self.author_control = None
+        self.author_search_field = None
+        self.author_results = None
+        self.author_pills = None
+        self.parent_work_search = ""
+        self.parent_work_id = None
+        self.parent_work_field = None
+        self.parent_work_results = None
+        self.errors.clear()
+        self._render(update_page=True)
+        if self.page:
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
     def _header(self) -> ft.Container:
         c = self.config
+        actions: list[ft.Control] = []
+        if not self.edit_mode and not self.parent_mode:
+            actions.append(
+                ui.button(
+                    c,
+                    "Importar",
+                    icon_name="file-import",
+                    variant="default",
+                    small=True,
+                    on_click=self._open_import_dialog,
+                    tooltip="Importar metadados por DOI, ISBN ou ISSN",
+                )
+            )
+        actions.append(
+            ui.icon_button(
+                c, "xmark", on_click=self._close, tooltip="Fechar (Esc)"
+            )
+        )
         return ft.Container(
             content=ft.Row(
                 [
                     ui.ui_text(c, self.title, size=15, weight=ui.W600, expand=True),
-                    ui.icon_button(
-                        c, "xmark", on_click=self._close, tooltip="Fechar (Esc)"
-                    ),
+                    *actions,
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=ui.s(8),
             ),
             height=ui.s(52),
             padding=ft.Padding.only(left=ui.s(24), right=ui.s(12)),
@@ -588,5 +656,6 @@ class WorkInsertModalComposer(
             content=dialog_box,
             actions=[],
         )
+        self.modal.composer = self
         self._render(update_page=False)
         return self.modal

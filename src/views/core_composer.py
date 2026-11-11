@@ -488,6 +488,7 @@ class CoreComposer:
             on_open_fragments=lambda query: self.on_navigate_with("Fragmentos", query=query),
             actions=[
                 ("plus", "Inserir nova obra", "⌘N", lambda: self.on_navigate("work_insert")),
+                ("file-import", "Importar obra (DOI, ISBN, ISSN)", "⌘I", lambda: self.on_import_work() if self.on_import_work else None),
                 ("circle-half-stroke", "Alternar tema", None, lambda: self.on_toggle_theme() if self.on_toggle_theme else None),
                 ("book", "Ir para Acervo", None, lambda: self.on_navigate("Acervo")),
                 ("quote-left", "Ir para Fragmentos", None, lambda: self.on_navigate("Fragmentos")),
@@ -743,6 +744,7 @@ class CoreComposer:
         initial_author_references: list[AuthorReference] | None = None,
         initial_parent_work_id: int | None = None,
         initial_parent_work_title: str = "",
+        on_navigate_to_work: Callable[[int], None] | None = None,
     ) -> ft.AlertDialog:
         return WorkInsertModalComposer(
             page=page,
@@ -758,6 +760,7 @@ class CoreComposer:
             initial_author_references=initial_author_references,
             initial_parent_work_id=initial_parent_work_id,
             initial_parent_work_title=initial_parent_work_title,
+            on_navigate_to_work=on_navigate_to_work,
         ).compose()
 
     @staticmethod
