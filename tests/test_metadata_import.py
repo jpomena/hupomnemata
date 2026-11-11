@@ -871,6 +871,88 @@ def test_issn_metadata_first_and_last_volume_year_and_place():
         assert res.values["date_anchor"] == "1995"
 
 
+def test_viewed_at_populated_when_digital_url_present():
+    from datetime import datetime
+
+    service = MetadataService()
+    today_str = datetime.now().strftime("%d/%m/%Y")
+
+    # DOI sempre possui URL canônica e portanto deve receber viewed_at padrão hoje
+    csl_sample = {
+        "type": "journal-article",
+        "title": "Digital Document Test",
+        "container-title": "Journal of Computing",
+        "URL": "https://doi.org/10.1000/182",
+    }
+    result = service._map_csl_json(csl_sample, raw_doi="10.1000/182", normalized_doi="10.1000/182")
+    assert result.values.get("url") == "https://doi.org/10.1000/182"
+    assert result.values.get("viewed_at") == today_str
+
+
+def test_viewed_at_omitted_when_document_not_digital():
+    service = MetadataService()
+
+    # Livro físico da BrasilAPI sem URL
+    b_sample = {
+        "title": "A Sociedade do Espetáculo",
+        "publisher": "Contraponto",
+        "year": 1997,
+    }
+    b_res = service._map_brasil_api(b_sample, raw_isbn="9788585910150", normalized_isbn="9788585910150")
+    assert "url" not in b_res.values
+    assert "viewed_at" not in b_res.values
+
+    # Livro da OpenLibrary com link interno de catálogo não deve registrar URL nem viewed_at
+    ol_sample = {
+        "title": "A Sociedade do Espetáculo",
+        "publishers": ["Contraponto"],
+        "publish_date": "1997",
+        "url": "http://openlibrary.org/books/OL123M/Sociedade",
+    }
+    ol_res = service._map_open_library(ol_sample, raw_isbn="9788585910150", normalized_isbn="9788585910150")
+    assert "url" not in ol_res.values
+    assert "viewed_at" not in ol_res.values
+
+    # Fusão (merge) de ISBN para obra física: viewed_at e links de catálogo OpenLibrary devem estar ausentes
+    merged = service._merge_isbn_metadata(b_res, ol_res)
+    assert "url" not in merged.values
+    assert "viewed_at" not in merged.values
+
+
+def test_resolve_enforces_viewed_at_rule():
+    from datetime import datetime
+
+    service = MetadataService()
+    today_str = datetime.now().strftime("%d/%m/%Y")
+
+    # Documento digital com URL recebe viewed_at no resolve()
+    with patch.object(service, "fetch_doi") as mock_fetch:
+        mock_fetch.return_value = ImportedMetadata(
+            identifier_type=IdentifierType.DOI,
+            raw_identifier="10.1234/test",
+            normalized_identifier="10.1234/test",
+            work_type="journal_article",
+            values={"title": "Online Article", "url": "https://doi.org/10.1234/test"},
+            authors=[],
+        )
+        res = service.resolve("10.1234/test", auto_provision_magazine=False)
+        assert res.values.get("viewed_at") == today_str
+
+    # Documento físico sem URL no resolve() não possui viewed_at
+    with patch.object(service, "fetch_isbn") as mock_fetch_isbn:
+        mock_fetch_isbn.return_value = ImportedMetadata(
+            identifier_type=IdentifierType.ISBN,
+            raw_identifier="9788575594841",
+            normalized_identifier="9788575594841",
+            work_type="editorial_monograph",
+            values={"title": "Livro Físico", "isbn": "9788575594841"},
+            authors=[],
+        )
+        res_isbn = service.resolve("9788575594841")
+        assert "viewed_at" not in res_isbn.values
+
+
+
 
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -465,6 +466,17 @@ class MetadataService:
                     if isinstance(warnings, list):
                         warnings.append(f"Não foi possível auto-provisionar a revista: {exc}")
 
+        # Documentos digitais com URL recebem data de acesso (viewed_at) = datetime.now() por padrão.
+        # Se a obra não for digital ou não possuir URL, viewed_at não deve ser preenchido.
+        meta_values = getattr(metadata, "values", None)
+        if isinstance(meta_values, dict):
+            doc_url = str(meta_values.get("url", "") or "").strip()
+            if doc_url:
+                if not meta_values.get("viewed_at"):
+                    meta_values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
+            else:
+                meta_values.pop("viewed_at", None)
+
         return metadata
 
     # ── DOI ────────────────────────────────────────────────────────
@@ -682,6 +694,8 @@ class MetadataService:
             "url": url,
             "date_precision": "Data exata",
         }
+        if url:
+            values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
         if date_anchor:
             values["date_anchor"] = date_anchor
         if display_year:
@@ -947,6 +961,17 @@ class MetadataService:
         elif b_abs:
             values["abstract"] = b_abs
 
+        # URL e Data de acesso: não herdar links de catálogo do Open Library
+        merged_url = str(values.get("url") or "").strip()
+        if "openlibrary.org/books/" in merged_url or "openlibrary.org/isbn/" in merged_url:
+            values.pop("url", None)
+            values.pop("viewed_at", None)
+        elif merged_url:
+            values["url"] = merged_url
+            values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
+        else:
+            values.pop("viewed_at", None)
+
         return ImportedMetadata(
             identifier_type=IdentifierType.ISBN,
             raw_identifier=b_meta.raw_identifier or ol_meta.raw_identifier,
@@ -1059,6 +1084,9 @@ class MetadataService:
             clean_subjs = [str(s).strip() for s in subjects if str(s).strip()]
             if clean_subjs:
                 values["additional_notes"] = f"Assuntos: {', '.join(clean_subjs)}"
+
+        if values.get("url"):
+            values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISBN,
@@ -1280,10 +1308,12 @@ class MetadataService:
             if clean_subjs:
                 values["additional_notes"] = f"Assuntos: {', '.join(clean_subjs)}"
 
-        if data.get("url"):
-            values["url"] = str(data["url"]).strip()
-        else:
-            values["url"] = f"https://openlibrary.org/isbn/{normalized_isbn}"
+        # Livros cadastrados no Open Library são, na quase totalidade, monografias impressas.
+        # URLs de páginas de catálogo da Open Library não devem ser atribuídas como link de acesso do documento.
+        raw_ol_url = str(data.get("url", "") or "").strip()
+        if raw_ol_url and not ("openlibrary.org/books/" in raw_ol_url or "openlibrary.org/isbn/" in raw_ol_url):
+            values["url"] = raw_ol_url
+            values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISBN,
@@ -1368,6 +1398,11 @@ class MetadataService:
             values["last_volume_year"] = last_vol_year
         if notes_parts:
             values["additional_notes"] = " · ".join(notes_parts)
+
+        raw_issn_url = str(data.get("URL", "") or "").strip()
+        if raw_issn_url.startswith("http"):
+            values["url"] = raw_issn_url
+            values["viewed_at"] = datetime.now().strftime("%d/%m/%Y")
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISSN,
