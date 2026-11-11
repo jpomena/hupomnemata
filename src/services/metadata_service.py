@@ -491,6 +491,25 @@ class MetadataService:
         isbn: str,
         client: httpx.Client | None,
     ) -> dict[str, Any] | None:
+        # Tentar primeiro a API com jscmd=data (traz nomes de autores e editoras sem chaves extras)
+        url_data = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
+        try:
+            if client is not None:
+                resp = client.get(url_data, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
+                if resp.status_code == 200:
+                    res_dict = resp.json().get(f"ISBN:{isbn}")
+                    if res_dict:
+                        return res_dict
+            else:
+                with httpx.Client(timeout=self.DEFAULT_TIMEOUT) as local_client:
+                    resp = local_client.get(url_data, headers=self.HEADERS, follow_redirects=True)
+                    if resp.status_code == 200:
+                        res_dict = resp.json().get(f"ISBN:{isbn}")
+                        if res_dict:
+                            return res_dict
+        except Exception:
+            pass
+
         url = f"https://openlibrary.org/isbn/{isbn}.json"
         try:
             if client is not None:
@@ -520,22 +539,29 @@ class MetadataService:
             subtitle = parts[1].strip()
 
         publishers = data.get("publishers", [])
-        publisher = publishers[0] if isinstance(publishers, list) and publishers else ""
+        publisher = ""
+        if isinstance(publishers, list) and publishers:
+            p0 = publishers[0]
+            publisher = str(p0.get("name", "") if isinstance(p0, dict) else p0).strip()
 
         publish_date = str(data.get("publish_date", "") or "").strip()
         year_match = re.search(r"\d{4}", publish_date)
         display_year = year_match.group(0) if year_match else ""
         date_anchor = f"01/01/{int(display_year):04d}" if display_year else ""
 
-        # OpenLibrary pode trazer autores como chaves `authors: [{"key": "/authors/OL..."}]`
         authors: list[AuthorReference] = []
         raw_authors = data.get("authors", [])
         if isinstance(raw_authors, list):
             for a in raw_authors:
+                name = ""
                 if isinstance(a, dict) and "name" in a:
+                    name = str(a["name"]).strip()
+                elif isinstance(a, str):
+                    name = a.strip()
+                if name:
                     authors.append(
                         {
-                            "name": str(a["name"]).strip(),
+                            "name": name,
                             "id": None,
                             "corporation": False,
                             "acronym": None,

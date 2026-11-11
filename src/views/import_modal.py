@@ -314,33 +314,32 @@ class ImportModalDialog:
         except Exception:
             pass
 
-        def run_thread():
+        async def _async_search():
+            import asyncio
             try:
-                metadata = self.service.resolve(raw)
-                # Encaminhar sucesso de volta à thread principal do UI
-                def finish_success():
-                    self.close()
-                    self.on_success(metadata)
-
-                if hasattr(self.page, "run_task"):
-                    self.page.run_task(lambda: finish_success())
-                else:
-                    finish_success()
+                metadata = await asyncio.to_thread(self.service.resolve, raw)
+                self._set_loading(False)
+                self.close()
+                self.on_success(metadata)
             except Exception as exc:
                 err_msg = str(exc)
                 if "não foi encontrado" in err_msg.lower():
                     clean_msg = err_msg
                 else:
                     clean_msg = f"Falha ao consultar metadados: {err_msg}"
+                self._set_loading(False)
+                self._show_error(clean_msg)
 
-                def finish_error():
-                    self._set_loading(False)
-                    self._show_error(clean_msg)
-
-                if hasattr(self.page, "run_task"):
-                    self.page.run_task(lambda: finish_error())
-                else:
-                    finish_error()
-
-        thread = threading.Thread(target=run_thread, daemon=True)
-        thread.start()
+        run_task = getattr(self.page, "run_task", None)
+        if run_task is not None:
+            run_task(_async_search)
+        else:
+            # Fallback em ambientes de teste onde page é mock
+            try:
+                metadata = self.service.resolve(raw)
+                self._set_loading(False)
+                self.close()
+                self.on_success(metadata)
+            except Exception as exc:
+                self._set_loading(False)
+                self._show_error(str(exc))
