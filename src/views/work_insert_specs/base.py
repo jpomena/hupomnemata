@@ -58,6 +58,7 @@ COMMON = (
         required=True
     ),
     FieldSpec(key="date_precision", label="Precisão da data", kind="dropdown"),
+    FieldSpec(key="doi", label="DOI", hint="Ex.: 10.1038/nature.2014.14583"),
     FieldSpec(key="url", label="URL", hint="https://z-library.gs/..."),
     FieldSpec(
         key="viewed_at",

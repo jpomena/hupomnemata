@@ -60,6 +60,38 @@ class WorkControllerMixin:
         if self.work_insert_modal is not None:
             self.page.show_dialog(self.work_insert_modal)
 
+    def open_import_work(self) -> None:
+        """Abre o diálogo de importação automatizada por DOI, ISBN ou ISSN."""
+        from src.views.import_modal import ImportModalDialog
+
+        def on_nav_work(work_id: int) -> None:
+            if hasattr(self, "navigate_with"):
+                self.navigate_with("Acervo", focus_work_id=work_id)
+
+        dialog = ImportModalDialog(
+            page=self.page,
+            config=self.view_config,
+            on_success=self._on_metadata_imported,
+            on_navigate_to_work=on_nav_work,
+        )
+        dialog.show()
+
+    def _on_metadata_imported(self, metadata) -> None:
+        """Abre o formulário de cadastro pré-preenchido com os metadados importados."""
+        modal = CoreComposer.compose_work_insert_modal(
+            page=self.page,
+            config=self.view_config,
+            on_save=self.submission_controller.handle_work_submission,
+            search_authors=self.search_authors,
+            search_works=self.search_works,
+            on_create_parent_work=self.open_parent_work,
+            initial_work_type=metadata.work_type,
+            edit_mode=False,
+            initial_values=metadata.values,
+            initial_author_references=metadata.authors,
+        )
+        self.page.show_dialog(modal)
+
     def open_work_details(self, resource) -> None:
         modal = CoreComposer.compose_work_details_popup(
             resource=resource,

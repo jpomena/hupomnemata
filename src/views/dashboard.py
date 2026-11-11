@@ -172,6 +172,7 @@ class DashboardComposer:
         on_navigate_with: Callable[..., None] | None = None,
         on_new_fragment: Callable[[], None] | None = None,
         on_open_palette: Callable[[], None] | None = None,
+        on_import_work: Callable[[], None] | None = None,
     ):
         self.scale = scale
         self.config = config
@@ -184,6 +185,7 @@ class DashboardComposer:
             lambda: self.on_navigate_with('Fragmentos', create=True)
         )
         self.on_open_palette = on_open_palette
+        self.on_import_work = on_import_work
         self.summary = DashboardSummary()
 
     # ── dados ──────────────────────────────────────────────
@@ -615,7 +617,13 @@ class DashboardComposer:
             self._shortcut('file-circle-plus', 'Inserir nova obra', lambda _e: self.on_navigate('work_insert'), shortcut='⌘N'),
             self._shortcut('quote-left', 'Registrar fragmento', lambda _e: self.on_new_fragment()),
             self._shortcut('magnifying-glass', 'Buscar no gabinete', lambda _e: self.on_open_palette() if self.on_open_palette else None, shortcut='⌘K'),
-            self._shortcut('file-import', 'Importar metadados', planned=True, tooltip='Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF'),
+            self._shortcut(
+                'file-import',
+                'Importar metadados',
+                on_click=lambda _e: self.on_import_work() if self.on_import_work else None,
+                planned=self.on_import_work is None,
+                tooltip='Inserir obra por DOI, ISBN ou ISSN' if self.on_import_work else 'Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF',
+            ),
             self._shortcut('file-export', 'Exportar referências', planned=True, tooltip='Exportar referências e dados'),
         ]
         return ui.card(c, [

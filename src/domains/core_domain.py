@@ -339,6 +339,7 @@ class WorkMixin(Base):
     )
 
     # -------------------------- Infraestrutura -------------------------------
+    doi: Mapped[str | None] = mapped_column(String(150), nullable=True)
     url: Mapped[str] = mapped_column(String(1000), nullable=True)
     viewed_at: Mapped[datetime] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(

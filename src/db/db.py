@@ -226,6 +226,14 @@ def _ensure_legacy_columns() -> None:
                     'preserve_title_spelling BOOLEAN NOT NULL DEFAULT 0'
                 ))
                 columns.add('preserve_title_spelling')
+            if (
+                {'title', 'bib_res_id'} <= columns
+                and 'doi' not in columns
+            ):
+                conn.execute(text(
+                    f'ALTER TABLE "{table.name}" ADD COLUMN doi VARCHAR(150)'
+                ))
+                columns.add('doi')
         if 'bibliographic_resources' in table_columns:
             br_columns = table_columns['bibliographic_resources']
             if 'llm_description' not in br_columns:

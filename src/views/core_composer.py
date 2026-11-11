@@ -119,6 +119,7 @@ class CoreComposer:
         on_delete_works: Callable[[list], None] | None = None,
         get_dashboard_data: Callable[[], dict] | None = None,
         compilation_work_references: Callable[[list[int]], dict] | None = None,
+        on_import_work: Callable[[], None] | None = None,
     ):
         self.page = page
         self.scale = scale
@@ -196,6 +197,7 @@ class CoreComposer:
         self.works_composer = None
         self.get_dashboard_data = get_dashboard_data
         self.compilation_work_references = compilation_work_references
+        self.on_import_work = on_import_work
         self.fragment_dialog_composer: FragmentsComposer | None = None
 
     # ── shell: barra de título, sidebar, breadcrumb ────────
@@ -509,6 +511,7 @@ class CoreComposer:
             on_navigate_with=getattr(self, "on_navigate_with", None),
             on_new_fragment=self.open_fragment_create,
             on_open_palette=self.open_palette,
+            on_import_work=getattr(self, "on_import_work", None),
         ).compose()
 
     def open_fragment_create(self) -> None:
@@ -616,6 +619,7 @@ class CoreComposer:
             on_add_to_compilation=self.on_compilation_add_work,
             on_delete_works=getattr(self, "on_delete_works", None),
             nous_service=getattr(self, "nous_service", None),
+            on_import_work=getattr(self, "on_import_work", None),
         )
         return self.works_composer.compose()
 
