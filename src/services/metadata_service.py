@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any
 
 import httpx
+from sqlalchemy import func, select
 
 from src.contracts import AuthorReference
 from src.db.db import SessionLocal
@@ -15,6 +16,7 @@ from src.domains import (
     BibliographicResource,
     EditorialMonograph,
     JournalArticle,
+    Magazine,
     MonographicProceedings,
     NewspaperArticle,
     PeriodicalCollection,
@@ -38,6 +40,8 @@ class ImportedMetadata:
     values: dict[str, object]
     authors: list[AuthorReference]
     warnings: list[str] = field(default_factory=list)
+    parent_work_id: int | None = None
+    parent_work_title: str = ""
 
 
 # ── Detecção e Normalização ──────────────────────────────────────
@@ -157,6 +161,36 @@ def check_local_duplicate(
     return None
 
 
+def find_or_create_magazine(title: str, publication_place: str = "[s.l.]") -> tuple[int, str]:
+    """Localiza uma Revista cadastrada pelo título ou cria uma nova se inexistente."""
+    cleaned_title = (title or "").strip()
+    if not cleaned_title:
+        raise ValueError("Título da revista não pode ser vazio.")
+    place = (publication_place or "").strip() or "[s.l.]"
+
+    with SessionLocal() as session:
+        stmt = (
+            select(BibliographicResource.id, Magazine.title)
+            .join(Magazine, Magazine.bib_res_id == BibliographicResource.id)
+            .where(func.lower(Magazine.title) == func.lower(cleaned_title))
+        )
+        row = session.execute(stmt).first()
+        if row is not None:
+            return row[0], row[1]
+
+        resource = BibliographicResource()
+        magazine = Magazine(
+            title=cleaned_title,
+            publication_place=place,
+            display_year="[s.d.]",
+        )
+        resource.magazine = magazine
+        session.add(resource)
+        session.commit()
+        session.refresh(resource)
+        return resource.id, magazine.title
+
+
 # ── MetadataService ──────────────────────────────────────────────
 
 
@@ -172,19 +206,45 @@ class MetadataService:
         self,
         raw_text: str,
         client: httpx.Client | None = None,
+        auto_provision_magazine: bool = True,
     ) -> ImportedMetadata:
         """Ponto de entrada: detecta o formato e executa a busca correspondente."""
         id_type, clean_id = detect_identifier(raw_text)
+        metadata: ImportedMetadata
         if id_type == IdentifierType.DOI:
-            return self.fetch_doi(clean_id, client=client)
-        if id_type == IdentifierType.ISBN:
-            return self.fetch_isbn(clean_id, client=client)
-        if id_type == IdentifierType.ISSN:
-            return self.fetch_issn(clean_id, client=client)
+            metadata = self.fetch_doi(clean_id, client=client)
+        elif id_type == IdentifierType.ISBN:
+            metadata = self.fetch_isbn(clean_id, client=client)
+        elif id_type == IdentifierType.ISSN:
+            metadata = self.fetch_issn(clean_id, client=client)
+        else:
+            raise ValueError(
+                "Identificador não reconhecido. Forneça um DOI válido (10.xxxx/...), ISBN (10 ou 13 dígitos) ou ISSN (xxxx-xxxx)."
+            )
 
-        raise ValueError(
-            "Identificador não reconhecido. Forneça um DOI válido (10.xxxx/...), ISBN (10 ou 13 dígitos) ou ISSN (xxxx-xxxx)."
-        )
+        if (
+            auto_provision_magazine
+            and getattr(metadata, "work_type", None) == "journal_article"
+            and not getattr(metadata, "parent_work_id", None)
+        ):
+            values = getattr(metadata, "values", {}) or {}
+            journal_title = values.get("journal_title")
+            if journal_title:
+                try:
+                    pub_place = str(
+                        values.get("publication_city")
+                        or values.get("publication_place")
+                        or "[s.l.]"
+                    )
+                    mag_id, mag_title = find_or_create_magazine(str(journal_title), pub_place)
+                    metadata.parent_work_id = mag_id
+                    metadata.parent_work_title = mag_title
+                except Exception as exc:
+                    warnings = getattr(metadata, "warnings", None)
+                    if isinstance(warnings, list):
+                        warnings.append(f"Não foi possível auto-provisionar a revista: {exc}")
+
+        return metadata
 
     # ── DOI ────────────────────────────────────────────────────────
 

@@ -78,6 +78,23 @@ class WorkControllerMixin:
 
     def _on_metadata_imported(self, metadata) -> None:
         """Abre o formulário de cadastro pré-preenchido com os metadados importados."""
+        parent_id = getattr(metadata, "parent_work_id", None)
+        parent_title = getattr(metadata, "parent_work_title", "")
+        if not parent_id and metadata.work_type == "journal_article":
+            j_title = metadata.values.get("journal_title")
+            if j_title:
+                try:
+                    from src.services.metadata_service import find_or_create_magazine
+
+                    pub_place = str(
+                        metadata.values.get("publication_city")
+                        or metadata.values.get("publication_place")
+                        or "[s.l.]"
+                    )
+                    parent_id, parent_title = find_or_create_magazine(str(j_title), pub_place)
+                except Exception:
+                    pass
+
         modal = CoreComposer.compose_work_insert_modal(
             page=self.page,
             config=self.view_config,
@@ -89,6 +106,9 @@ class WorkControllerMixin:
             edit_mode=False,
             initial_values=metadata.values,
             initial_author_references=metadata.authors,
+            initial_parent_work_id=parent_id,
+            initial_parent_work_title=parent_title or str(metadata.values.get("journal_title", "")),
+            on_navigate_to_work=lambda wid: self.navigate_with("Acervo", focus_work_id=wid),
         )
         self.page.show_dialog(modal)
 
