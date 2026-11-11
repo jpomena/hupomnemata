@@ -503,4 +503,81 @@ async def test_import_modal_execute_remote_search_async():
         assert modal.loading is False
 
 
+def test_find_or_create_magazine():
+    from src.services.metadata_service import find_or_create_magazine
+    from src.db.db import SessionLocal
+    from src.domains.core_domain import BibliographicResource
+    from src.domains.periodicals import Magazine
+    from sqlalchemy import delete
+
+    mag_id, mag_title = find_or_create_magazine("Revista de Teste Temporária", "São Paulo")
+    assert mag_id > 0
+    assert mag_title == "Revista de Teste Temporária"
+
+    # Segunda chamada com case diferente deve retornar o mesmo id sem duplicar
+    mag_id_2, mag_title_2 = find_or_create_magazine("revista de teste temporária")
+    assert mag_id_2 == mag_id
+    assert mag_title_2 == "Revista de Teste Temporária"
+
+    with pytest.raises(ValueError):
+        find_or_create_magazine("   ")
+
+    # Limpar registro criado no teste
+    with SessionLocal() as session:
+        session.execute(delete(Magazine).where(Magazine.bib_res_id == mag_id))
+        session.execute(delete(BibliographicResource).where(BibliographicResource.id == mag_id))
+        session.commit()
+
+
+def test_work_insert_modal_auto_provisions_magazine_for_journal_article():
+    from types import SimpleNamespace
+    from src.views.work_insert_modal import WorkInsertModalComposer
+    from src.services.metadata_service import ImportedMetadata, IdentifierType
+    from src.db.db import SessionLocal
+    from src.domains.core_domain import BibliographicResource
+    from src.domains.periodicals import Magazine
+    from sqlalchemy import delete
+
+    config = _test_config()
+    page = SimpleNamespace(update=MagicMock(), show_dialog=MagicMock(), pop_dialog=MagicMock())
+    composer = WorkInsertModalComposer(
+        page=page,
+        config=config,
+        on_save=lambda _data: True,
+    )
+    composer.compose()
+
+    meta_article = ImportedMetadata(
+        identifier_type=IdentifierType.DOI,
+        raw_identifier="10.1016/j.cell.2020.02.052",
+        normalized_identifier="10.1016/j.cell.2020.02.052",
+        work_type="journal_article",
+        values={
+            "title": "Cryo-EM structure of the SARS-CoV-2 spike",
+            "journal_title": "Cell Research Journal",
+            "volume": "181",
+            "number": "2",
+            "part_start_page": "271",
+            "date_anchor": "15/03/2020",
+        },
+        authors=[{"name": "Daniel Wrapp", "given_names": "Daniel", "last_name": "Wrapp", "corporation": False}],
+    )
+
+    composer.apply_imported_metadata(meta_article)
+
+    assert composer.selected.key == "journal_article"
+    assert composer.parent_work_id is not None
+    assert composer.parent_work_id > 0
+    assert composer.parent_work_search == "Cell Research Journal"
+    collected = composer._collect()
+    assert collected["parent_bibliographic_resource_id"] == composer.parent_work_id
+
+    # Limpar registro criado no teste
+    with SessionLocal() as session:
+        session.execute(delete(Magazine).where(Magazine.bib_res_id == composer.parent_work_id))
+        session.execute(delete(BibliographicResource).where(BibliographicResource.id == composer.parent_work_id))
+        session.commit()
+
+
+
 

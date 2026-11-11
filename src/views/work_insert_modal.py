@@ -501,8 +501,33 @@ class WorkInsertModalComposer(
         self.author_search_field = None
         self.author_results = None
         self.author_pills = None
-        self.parent_work_search = ""
-        self.parent_work_id = None
+
+        # Vinculação automática com a Revista (obra-pai)
+        parent_id = getattr(metadata, "parent_work_id", None)
+        parent_title = getattr(metadata, "parent_work_title", "")
+        if not parent_id and self._parent_is_magazine():
+            j_title = metadata.values.get("journal_title")
+            if j_title:
+                try:
+                    from src.services.metadata_service import find_or_create_magazine
+
+                    pub_place = str(
+                        metadata.values.get("publication_city")
+                        or metadata.values.get("publication_place")
+                        or "[s.l.]"
+                    )
+                    parent_id, parent_title = find_or_create_magazine(str(j_title), pub_place)
+                except Exception:
+                    pass
+
+        if parent_id:
+            self.parent_work_id = parent_id
+            self.parent_work_search = parent_title or str(metadata.values.get("journal_title", ""))
+            self._clear_error(PARENT_KEY)
+        else:
+            self.parent_work_search = ""
+            self.parent_work_id = None
+
         self.parent_work_field = None
         self.parent_work_results = None
         self.errors.clear()
