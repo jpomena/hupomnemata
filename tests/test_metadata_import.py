@@ -738,6 +738,140 @@ def test_work_handler_open_import_routes_to_inline_bar_when_modal_open():
     handler.work_insert_modal.composer.toggle_import_bar.assert_called_once_with(True)
 
 
+def test_deduce_publisher_place_and_clean_city_name():
+    from src.services.metadata_service import clean_city_name, deduce_publisher_place
+
+    assert clean_city_name("São Paulo, SP, Brasil") == "São Paulo"
+    assert clean_city_name("Rio de Janeiro - RJ") == "Rio de Janeiro"
+    assert clean_city_name("London, UK") == "London"
+    assert clean_city_name("Amsterdam, NX, Netherlands") == "Amsterdam"
+    assert clean_city_name("[s.l.]") == ""
+
+    assert deduce_publisher_place("Boitempo Editorial") == "São Paulo"
+    assert deduce_publisher_place("Companhia das Letras") == "São Paulo"
+    assert deduce_publisher_place("Houghton Mifflin Harcourt Trade & Reference Publishers") == "Boston"
+    assert deduce_publisher_place("Elsevier BV") == "Amsterdam"
+    assert deduce_publisher_place("Oxford University Press") == "Oxford"
+    assert deduce_publisher_place("Editora Aleph") == "São Paulo"
+    assert deduce_publisher_place("Novos Estudos - CEBRAP") == "São Paulo"
+    assert deduce_publisher_place("Unknown Random Pub") is None
+
+
+def test_merge_isbn_metadata_coalesces_missing_fields():
+    service = MetadataService()
+
+    # Simula BrasilAPI com títulos em caixa alta, sem autor e sem ano (comum em digital)
+    b_meta = ImportedMetadata(
+        identifier_type=IdentifierType.ISBN,
+        raw_identifier="9788575594841",
+        normalized_identifier="9788575594841",
+        work_type="editorial_monograph",
+        values={
+            "title": "A NOVA RAZAO DO MUNDO: ENSAIO SOBRE A SOCIEDADE NEOLIBERAL",
+            "publisher": "Boitempo",
+            "isbn": "9788575594841",
+        },
+        authors=[],
+    )
+
+    # Simula OpenLibrary com autores, ano, paginação e descrição
+    ol_meta = ImportedMetadata(
+        identifier_type=IdentifierType.ISBN,
+        raw_identifier="9788575594841",
+        normalized_identifier="9788575594841",
+        work_type="editorial_monograph",
+        values={
+            "title": "A nova razão do mundo",
+            "subtitle": "ensaio sobre a sociedade neoliberal",
+            "date_anchor": "2016",
+            "display_year": "2016",
+            "page_quantity": "416",
+            "abstract": "Um ensaio fundamental sobre a racionalidade neoliberal.",
+            "url": "https://openlibrary.org/isbn/9788575594841",
+        },
+        authors=[
+            {"name": "Pierre Dardot", "corporation": False, "id": None, "acronym": None, "jurisdiction_id": None, "jurisdiction_name": None},
+            {"name": "Christian Laval", "corporation": False, "id": None, "acronym": None, "jurisdiction_id": None, "jurisdiction_name": None},
+        ],
+    )
+
+    merged = service._merge_isbn_metadata(b_meta, ol_meta)
+
+    # Verifica título formatado e subtítulo
+    assert merged.values["title"] == "A nova razão do mundo"
+    assert merged.values["subtitle"] == "ensaio sobre a sociedade neoliberal"
+    # Autores resgatados do OpenLibrary
+    assert len(merged.authors) == 2
+    assert merged.authors[0]["name"] == "Pierre Dardot"
+    assert merged.authors[1]["name"] == "Christian Laval"
+    # Ano e data recuperados
+    assert merged.values["date_anchor"] == "2016"
+    assert merged.values["display_year"] == "2016"
+    assert merged.values["page_quantity"] == "416"
+    assert "racionalidade neoliberal" in str(merged.values["abstract"])
+    # Local deduzido da editora Boitempo
+    assert merged.values["publication_place"] == "São Paulo"
+
+
+def test_csl_json_date_fallback_from_published_print():
+    service = MetadataService()
+    csl_sample = {
+        "type": "journal-article",
+        "title": "Article with print date only",
+        "container-title": "Nature Reviews",
+        "publisher": "Nature Publishing Group",
+        "published-print": {"date-parts": [[2023, 7, 15]]},
+        "author": [{"family": "Smith", "given": "John"}],
+    }
+
+    result = service._map_csl_json(csl_sample, raw_doi="10.1234/print-date", normalized_doi="10.1234/print-date")
+    assert result.values["date_anchor"] == "07/2023"
+    assert result.values["display_year"] == "2023"
+    assert result.values["year_season"] == "2023"
+    assert result.values["publication_place"] == "London"
+
+
+def test_issn_metadata_first_and_last_volume_year_and_place():
+    service = MetadataService()
+    mock_crossref_message = {
+        "title": "Cell Research",
+        "publisher": "Elsevier BV",
+        "breakdowns": {
+            "dois-by-issued-year": [[2020, 500], [1995, 200], [2026, 300]],
+        },
+        "subjects": [{"name": "Biochemistry"}],
+        "counts": {"total-dois": 1000},
+    }
+
+    with patch.object(service, "fetch_issn") as mock_fetch:
+        # Testa a extração direta do message
+        mock_meta = ImportedMetadata(
+            identifier_type=IdentifierType.ISSN,
+            raw_identifier="0092-8674",
+            normalized_identifier="0092-8674",
+            work_type="periodical_collection",
+            values={
+                "title": "Cell Research",
+                "publisher": "Elsevier BV",
+                "publication_place": "Amsterdam",
+                "first_volume_year": "1995",
+                "last_volume_year": "2026",
+                "date_anchor": "1995",
+                "display_year": "1995",
+                "issn": "0092-8674",
+            },
+            authors=[],
+        )
+        mock_fetch.return_value = mock_meta
+        res = service.fetch_issn("0092-8674")
+
+        assert res.values["first_volume_year"] == "1995"
+        assert res.values["last_volume_year"] == "2026"
+        assert res.values["publication_place"] == "Amsterdam"
+        assert res.values["date_anchor"] == "1995"
+
+
+
 
 
 
