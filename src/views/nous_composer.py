@@ -580,6 +580,7 @@ class NousComposer:
                 ),
             )
             self.works_column.controls.append(card)
+
     def _handle_open_ai_studio(self, _e: ft.ControlEvent) -> None:
         """Abre a página do Google AI Studio no navegador padrão."""
         url = "https://aistudio.google.com/app/apikey"
@@ -587,7 +588,7 @@ class NousComposer:
             webbrowser.open(url)
         except Exception:
             if self.page:
-                self.page.launch_url(url)
+                self.page.run_task(self.page.launch_url, url)
 
     def _get_error_colors(self) -> tuple[str, str]:
         """Retorna (cor_texto, cor_fundo) com contraste dinâmico:
@@ -601,14 +602,14 @@ class NousComposer:
 
     def _handle_save_and_test_key(self, _e: ft.ControlEvent) -> None:
         """Salva a chave de API fornecida e executa teste de conectividade."""
-        err_color, err_bg = self._get_error_colors()
-        is_dark = (self.current_theme_mode or "light").lower() == "dark"
+        err_color, _ = self._get_error_colors()
         key = (self.api_key_field.value or "").strip()
         if not key:
             self.status_feedback.value = "Por favor, digite ou cole a chave de API."
             self.status_feedback.color = err_color
             self.status_feedback.weight = ft.FontWeight.W_600
             self.page.update()
+
             return
 
         self.status_feedback.value = "Testando conexão com Google Gemini..."
@@ -752,6 +753,7 @@ class NousComposer:
 
         thread = threading.Thread(target=background_task, daemon=True)
         thread.start()
+
     def _handle_batch_generation(self, _e: ft.ControlEvent) -> None:
         """Executa processamento em lote para todas as obras pendentes em background thread."""
         if self.is_batch_running:
@@ -768,6 +770,7 @@ class NousComposer:
             self.batch_progress_text.value = f"Processando ({curr}/{total}): {title}"
             try:
                 self.page.update()
+
             except Exception:
                 pass
 
@@ -788,6 +791,7 @@ class NousComposer:
             self._refresh_works_data()
             try:
                 self.page.update()
+
             except Exception:
                 pass
 
@@ -818,12 +822,14 @@ class NousComposer:
             self.nous_service.override_work_description(work_id, new_text)
             dialog.open = False
             self.page.update()
+
             self._refresh_works_data()
 
         def clear_override(_):
             self.nous_service.override_work_description(work_id, None)
             dialog.open = False
             self.page.update()
+
             self._refresh_works_data()
 
         dialog = ft.AlertDialog(

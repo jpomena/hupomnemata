@@ -1,7 +1,6 @@
 """Testes unitários e de integração para o módulo de Configurações."""
 
 from types import SimpleNamespace
-from pathlib import Path
 import pytest
 import flet as ft
 from src.utils.fa import glyph as fa_glyph
@@ -477,4 +476,3 @@ def test_title_bar_icon_switches_on_maximize(test_config):
     composer_windowed.update_window_state(False)
     assert composer_windowed.maximize_button.data.value == square
     assert composer_windowed.maximize_button.tooltip == "Maximizar"
-

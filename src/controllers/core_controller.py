@@ -1,7 +1,6 @@
 """Controlador principal da aplicação."""
 
 import flet as ft
-from dataclasses import replace
 
 from src.configs.settings import (
     COLORS_LIGHT,

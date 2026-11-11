@@ -4,7 +4,6 @@ import flet as ft
 import pytest
 
 from src.configs.settings import (
-    COLORS_DARK,
     COLORS_LIGHT,
     CORE_MENUS,
     FONT_FAMILIES,

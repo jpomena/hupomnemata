@@ -15,7 +15,6 @@ import flet as ft
 from src.contracts import AuthorReference, AuthorSearchResult
 from src.services.metadata_service import (
     IdentifierType,
-    ImportedMetadata,
     MetadataService,
     check_local_duplicate,
     detect_identifier,

@@ -10,12 +10,6 @@ from src.domains import (
     BibliographicResource,
     EditorialMonograph,
     Fragment,
-    Author,
-    Authorship,
-    KnowledgeCluster,
-    KnowledgeClusterItem,
-    KnowledgeEmbedding,
-    KnowledgeLink,
 )
 from src.repositories.knowledge_repository import (
     KnowledgeRepository,
@@ -109,6 +103,7 @@ def test_knowledge_repository(memory_db):
 
     # 3. Links manuais
     link = repo.save_link("fragment", 1, "work", 10, weight=0.9, relation_type="deliberate", note="Ponte de teste")
+    assert link is not None
     memory_db.commit()
 
     links = repo.list_links()
@@ -1230,7 +1225,6 @@ def test_armillary_sphere_3d_gestures_and_hud_positioning():
 
 def test_armillary_sphere_3d_smoothness_typography_and_path_batching():
     """Valida anéis com alta resolução circular (96 passos), batched paths para 60 FPS e tipografia canônica Cormorant/Montserrat."""
-    import flet as ft
     import flet.canvas as cv
     from src.configs.settings import COLORS_LIGHT, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
     from src.utils.types import ViewConfig
@@ -1289,7 +1283,7 @@ def test_cosmic_tapestry_and_responsive_toolbar_adaptation():
     """Valida a tapeçaria cósmica profunda (Via Láctea, nebulosas, estrelas espectrais) e adaptação elástica da toolbar."""
     import flet as ft
     import flet.canvas as cv
-    from src.configs.settings import COLORS_DARK, COLORS_LIGHT, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
+    from src.configs.settings import COLORS_DARK, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
     from src.utils.types import ViewConfig
     from src.views.knowledge.armillary_sphere_3d import ArmillaryConstellation3D
     from src.views.knowledge.knowledge_composer import KnowledgeComposer
@@ -1377,8 +1371,3 @@ def test_cosmic_tapestry_and_responsive_toolbar_adaptation():
     assert composer.filter_mode_dropdown.width == 110 * composer.scale
     assert composer.sync_button.content.value == "Sync"
     assert composer.d3_button.content.value == "D3"
-
-
-
-
-

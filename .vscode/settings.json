@@ -1,3 +1,21 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:venv"
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "flake8.args": [
+        "--config=${workspaceFolder}/.flake8"
+    ],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportAttributeAccessIssue": "none",
+        "reportArgumentType": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalCall": "none",
+        "reportIncompatibleVariableOverride": "none",
+        "reportReturnType": "none",
+        "reportCallIssue": "none",
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalIterable": "none",
+        "reportIndexIssue": "none",
+        "reportOperatorIssue": "none"
+    }
 }

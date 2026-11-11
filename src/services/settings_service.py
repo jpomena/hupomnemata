@@ -105,7 +105,7 @@ class SettingsService:
                 data = json.load(file)
             return AppearanceSettings.from_dict(data)
         except Exception as error:
-            log_exception(error)
+            log_exception("Falha ao carregar configurações de aparência", error)
             return AppearanceSettings()
 
     def save_settings(self, settings: AppearanceSettings) -> bool:
@@ -116,7 +116,7 @@ class SettingsService:
                 json.dump(settings.to_dict(), file, indent=2, ensure_ascii=False)
             return True
         except Exception as error:
-            log_exception(error)
+            log_exception("Falha ao persistir configurações de aparência", error)
             return False
 
     def reset_to_defaults(self) -> AppearanceSettings:

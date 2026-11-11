@@ -3,7 +3,6 @@ Integração com Google Gemini (BYOK), descoberta dinâmica de modelos, síntese
 """
 
 from collections.abc import Callable
-import json
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
@@ -283,7 +282,7 @@ class NousAIService:
         try:
             self.knowledge_service.revectorize_work(work_id)
         except Exception as k_err:
-            log_exception(k_err)
+            log_exception("Falha ao re-vetorizar obra após síntese", k_err)
 
         return True
 

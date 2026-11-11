@@ -6,7 +6,7 @@ from collections.abc import Callable
 import math
 import random
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import flet as ft
 import flet.canvas as cv
 
@@ -572,7 +572,6 @@ class ArmillaryConstellation3D:
 
             work_node_color = self.config.colors.get("constellation_node_work", "#E5C158")
             frag_node_color = self.config.colors.get("constellation_node_fragment", "#7E9DB5")
-            filament_color = self.config.colors.get("constellation_filament", "#C5A059")
             text_color = "#E2E1E8"
             sel_text_color = "#FFE296"
 
@@ -646,7 +645,6 @@ class ArmillaryConstellation3D:
                     if s_id != sel_id_str and t_id != sel_id_str:
                         continue
 
-                    weight = float(link.get("weight") or 0.5)
                     sx1, sy1, sz1 = self.projected_nodes[s_id]
                     sx2, sy2, sz2 = self.projected_nodes[t_id]
 
