@@ -343,6 +343,8 @@ class CoreController(
             application.open_palette()
         elif mod and key.upper() == "N":
             self.open_insert_work()
+        elif mod and key.upper() == "I":
+            self.open_import_work()
         elif mod and key == "[":
             self.go_history(-1)
         elif mod and key == "]":
@@ -435,6 +437,7 @@ class CoreController(
                 search_authors=self.search_authors,
                 search_works=self.search_works,
                 on_create_parent_work=self.open_parent_work,
+                on_navigate_to_work=lambda wid: self.navigate_with("Acervo", focus_work_id=wid),
             )
         )
         self.application = self.create_composer()
@@ -453,6 +456,7 @@ class CoreController(
                 search_authors=self.search_authors,
                 search_works=self.search_works,
                 on_create_parent_work=self.open_parent_work,
+                on_navigate_to_work=lambda wid: self.navigate_with("Acervo", focus_work_id=wid),
             )
         )
         if hasattr(self.page, "clean"):

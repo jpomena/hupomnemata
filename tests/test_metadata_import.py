@@ -328,10 +328,9 @@ def test_import_modal_duplicate_warning_and_force_continue():
             assert mock_exec.called
 
 
-def test_works_composer_import_button_triggers_callback():
+def test_works_composer_header_has_no_import_button():
     from src.views.works import WorksComposer
 
-    called = []
     config = _test_config()
     composer = WorksComposer(
         scale=1,
@@ -343,16 +342,128 @@ def test_works_composer_import_button_triggers_callback():
         format_reference=lambda _r: None,
         on_copy_reference=lambda _r: None,
         on_delete_work=lambda _r: None,
-        on_import_work=lambda: called.append(True),
     )
     body = composer._compose_body()
-    # No header, o primeiro botão é "Importar"
     header = body.controls[0]
-    import_button = header.content.controls[1].controls[0]
-    assert import_button.content.controls[-1].value == "Importar"
-    assert import_button.opacity != 0.35
-    import_button.on_click(None)
+    # Header actions deve conter apenas o botão "Nova obra"
+    buttons = header.content.controls[1].controls
+    assert len(buttons) == 1
+    assert buttons[0].content.controls[-1].value == "Nova obra"
+
+
+def test_core_composer_palette_has_import_action():
+    import inspect
+    from unittest.mock import MagicMock
+    from src.views.core_composer import CoreComposer
+
+    config = _test_config()
+    called = []
+    page = MagicMock()
+    sig = inspect.signature(CoreComposer.__init__)
+    kwargs = {}
+    for param_name in sig.parameters:
+        if param_name in ("self", "args", "kwargs"):
+            continue
+        kwargs[param_name] = MagicMock()
+    kwargs["page"] = page
+    kwargs["scale"] = 1.0
+    kwargs["config"] = config
+    kwargs["on_import_work"] = lambda: called.append(True)
+
+    composer = CoreComposer(**kwargs)
+    composer.open_palette()
+    assert composer.palette is not None
+    # Verificar se a ação de importação está presente nas ações da paleta
+    import_actions = [a for a in composer.palette.actions if "Importar" in a[1]]
+    assert len(import_actions) == 1
+    icon, label, shortcut, handler = import_actions[0]
+    assert label == "Importar obra (DOI, ISBN, ISSN)"
+    assert shortcut == "⌘I"
+    handler()
     assert called == [True]
+
+
+def test_work_insert_modal_has_import_button_and_applies_metadata():
+    from types import SimpleNamespace
+    from src.views.work_insert_modal import WorkInsertModalComposer
+    from src.services.metadata_service import ImportedMetadata, IdentifierType
+
+    config = _test_config()
+    page = SimpleNamespace(update=MagicMock(), show_dialog=MagicMock(), pop_dialog=MagicMock())
+    composer = WorkInsertModalComposer(
+        page=page,
+        config=config,
+        on_save=lambda _data: True,
+    )
+    modal = composer.compose()
+    header = modal.composer._header()
+    # No header, deve haver o botão Importar e o botão Fechar
+    row = header.content
+    title = row.controls[0]
+    import_btn = row.controls[1]
+    close_btn = row.controls[2]
+
+    assert title.value == "Nova obra"
+    assert import_btn.content.controls[-1].value == "Importar"
+
+    # Simular aplicação de metadados importados
+    fake_meta = ImportedMetadata(
+        identifier_type=IdentifierType.ISBN,
+        raw_identifier="9780547539683",
+        normalized_identifier="9780547539683",
+        work_type="editorial_monograph",
+        values={
+            "title": "The Hobbit",
+            "subtitle": "There and Back Again",
+            "publication_city": "Boston",
+            "publisher": "Houghton Mifflin",
+            "publication_year": "2012",
+        },
+        authors=[
+            {"name": "J. R. R. Tolkien", "given_names": "J. R. R.", "last_name": "Tolkien", "corporation": False}
+        ],
+    )
+    composer.apply_imported_metadata(fake_meta)
+
+    # Verificar se os campos foram aplicados
+    assert composer.selected.key == "editorial_monograph"
+    assert composer.stored_values["title"] == "The Hobbit"
+    assert composer.stored_values["subtitle"] == "There and Back Again"
+    assert composer.stored_values["publisher"] == "Houghton Mifflin"
+    assert len(composer.author_references) == 1
+    assert composer.author_references[0]["name"] == "J. R. R. Tolkien"
+    # Campos renderizados
+    assert composer.fields["title"].value == "The Hobbit"
+    assert composer.fields["subtitle"].value == "There and Back Again"
+    assert composer.fields["publisher"].value == "Houghton Mifflin"
+
+
+def test_work_insert_modal_hides_import_button_in_edit_and_parent_mode():
+    from types import SimpleNamespace
+    from src.views.work_insert_modal import WorkInsertModalComposer
+
+    config = _test_config()
+    page = SimpleNamespace(update=MagicMock(), show_dialog=MagicMock(), pop_dialog=MagicMock())
+
+    # Edit mode
+    edit_composer = WorkInsertModalComposer(
+        page=page,
+        config=config,
+        on_save=lambda _data: True,
+        edit_mode=True,
+    )
+    header_edit = edit_composer._header()
+    assert len(header_edit.content.controls) == 2  # title e close
+
+    # Parent mode
+    parent_composer = WorkInsertModalComposer(
+        page=page,
+        config=config,
+        on_save=lambda _data: True,
+        parent_mode=True,
+    )
+    header_parent = parent_composer._header()
+    assert len(header_parent.content.controls) == 2  # title e close
 
 
 @pytest.mark.anyio
