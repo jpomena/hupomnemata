@@ -355,6 +355,7 @@ class MetadataService:
         # Datas
         date_anchor = ""
         display_year = ""
+        year_season = ""
         issued = data.get("issued", {})
         date_parts = issued.get("date-parts", []) if isinstance(issued, dict) else []
         if date_parts and isinstance(date_parts[0], list):
@@ -364,18 +365,36 @@ class MetadataService:
             day = parts[2] if len(parts) > 2 else 1
             if year:
                 display_year = str(year)
-                date_anchor = f"{day:02d}/{month:02d}/{year:04d}"
+                year_season = str(year)
+                if work_type == "journal_article":
+                    date_anchor = f"{month:02d}/{year:04d}"
+                elif work_type in ("editorial_monograph", "academic_monograph"):
+                    date_anchor = str(year)
+                elif work_type == "periodical_proceedings":
+                    date_anchor = f"{day:02d}/{month:02d}/{year:04d}"
+                else:
+                    date_anchor = f"{day:02d}/{month:02d}/{year:04d}"
 
         # Periódico / Revista / Publicação
         journal_title = str(data.get("container-title", "") or "").strip()
         if isinstance(journal_title, list):
             journal_title = journal_title[0] if journal_title else ""
 
+        journal_subtitle = ""
+        if ":" in journal_title:
+            j_parts = journal_title.split(":", 1)
+            journal_title = j_parts[0].strip()
+            journal_subtitle = j_parts[1].strip()
+
         publisher = str(data.get("publisher", "") or "").strip()
+        publisher_place = str(data.get("publisher-place", "") or "").strip()
+        if not publisher_place:
+            publisher_place = str(data.get("event-place", "") or "").strip()
+
         volume = str(data.get("volume", "") or "").strip()
         issue = str(data.get("issue", "") or "").strip()
 
-        # Páginas
+        # Páginas / Localizadores
         page_range = str(data.get("page", "") or "").strip()
         part_start_page = ""
         part_end_page = ""
@@ -386,6 +405,14 @@ class MetadataService:
                 part_end_page = p_parts[1].strip()
             else:
                 part_start_page = page_range
+        else:
+            page_first = str(data.get("page-first", "") or "").strip()
+            if page_first:
+                part_start_page = page_first
+            else:
+                article_num = str(data.get("article-number", "") or "").strip()
+                if article_num:
+                    part_start_page = article_num
 
         # Identificadores complementares
         issn_list = data.get("ISSN", [])
@@ -396,21 +423,32 @@ class MetadataService:
         isbn = isbn_list[0] if isinstance(isbn_list, list) and isbn_list else str(isbn_list or "")
         isbn = clean_isbn(isbn) if isbn else ""
 
+        # URL canônica
+        raw_url = str(data.get("URL", "") or "").strip()
+        url = raw_url if raw_url.startswith("http") else f"https://doi.org/{normalized_doi}"
+
         values: dict[str, object] = {
             "title": raw_title,
             "subtitle": raw_subtitle or None,
             "doi": normalized_doi,
-            "url": f"https://doi.org/{normalized_doi}",
+            "url": url,
             "date_precision": "Data exata",
         }
         if date_anchor:
             values["date_anchor"] = date_anchor
         if display_year:
             values["display_year"] = display_year
+        if year_season and work_type == "journal_article":
+            values["year_season"] = year_season
         if publisher:
             values["publisher"] = publisher
+        if publisher_place:
+            values["publication_place"] = publisher_place
+            values["publication_city"] = publisher_place
         if journal_title:
             values["journal_title"] = journal_title
+        if journal_subtitle:
+            values["journal_subtitle"] = journal_subtitle
         if volume:
             values["volume"] = volume
         if issue:
@@ -426,11 +464,101 @@ class MetadataService:
         if isbn:
             values["isbn"] = isbn
 
+        # Edição
+        edition = data.get("edition")
+        if edition:
+            edition_digits = re.sub(r"\D", "", str(edition))
+            if edition_digits:
+                values["edition"] = edition_digits
+
+        # Coleção
+        coll_name = str(data.get("collection-title", "") or "").strip()
+        if coll_name:
+            values["collection_name"] = coll_name
+        coll_num = data.get("collection-number")
+        if coll_num:
+            coll_num_digits = re.sub(r"\D", "", str(coll_num))
+            if coll_num_digits:
+                values["collection_number"] = coll_num_digits
+
+        # Páginas totais (para livros)
+        num_pages = data.get("number-of-pages")
+        if num_pages:
+            num_pages_digits = re.sub(r"\D", "", str(num_pages))
+            if num_pages_digits:
+                values["page_quantity"] = num_pages_digits
+
+        # Responsabilidades (Editores / Organizadores / Tradutores)
+        csl_editors = data.get("editor", [])
+        if isinstance(csl_editors, list) and csl_editors:
+            ed_names = []
+            for ed in csl_editors:
+                if isinstance(ed, dict):
+                    f = str(ed.get("family", "")).strip()
+                    g = str(ed.get("given", "")).strip()
+                    lit = str(ed.get("literal", "")).strip()
+                    if lit:
+                        ed_names.append(lit)
+                    elif f and g:
+                        ed_names.append(f"{g} {f}")
+                    elif f:
+                        ed_names.append(f)
+            if ed_names:
+                values["responsibilities"] = {"Organizador": "; ".join(ed_names)}
+
+        csl_translators = data.get("translator", [])
+        if isinstance(csl_translators, list) and csl_translators:
+            tr_names = []
+            for tr in csl_translators:
+                if isinstance(tr, dict):
+                    f = str(tr.get("family", "")).strip()
+                    g = str(tr.get("given", "")).strip()
+                    if f and g:
+                        tr_names.append(f"{g} {f}")
+                    elif f:
+                        tr_names.append(f)
+            if tr_names:
+                values["translation_notes"] = f"Tradução de {'; '.join(tr_names)}"
+
+        # Evento (para proceedings)
+        if work_type == "periodical_proceedings":
+            event_name = str(data.get("event-title", "") or "").strip()
+            if not event_name and isinstance(data.get("event"), dict):
+                event_name = str(data["event"].get("name", "")).strip()
+            if event_name:
+                values["event_name"] = event_name
+
+            event_place = str(data.get("event-place", "") or "").strip()
+            if not event_place and isinstance(data.get("event"), dict):
+                event_place = str(data["event"].get("location", "")).strip()
+            if event_place:
+                values["event_place"] = event_place
+
+            if display_year:
+                values["event_year"] = display_year
+            if date_anchor:
+                values["publication_date"] = date_anchor
+
+        # Abstract e Notas
         abstract = str(data.get("abstract", "") or "").strip()
-        # Limpar tags HTML/JATS frequentes em abstracts de Crossref
         if abstract:
-            clean_abstract = re.sub(r"<[^>]+>", "", abstract).strip()
+            clean_abstract = re.sub(r"<[^>]+>", "", abstract)
+            clean_abstract = re.sub(r"\s+", " ", clean_abstract).strip()
             values["abstract"] = clean_abstract
+
+        notes_parts = []
+        subjects = data.get("subject", [])
+        if isinstance(subjects, list) and subjects:
+            clean_subjs = [str(s).strip() for s in subjects if str(s).strip()]
+            if clean_subjs:
+                notes_parts.append(f"Palavras-chave: {', '.join(clean_subjs[:6])}")
+
+        article_num = str(data.get("article-number", "") or "").strip()
+        if article_num and article_num != part_start_page:
+            notes_parts.append(f"Artigo nº: {article_num}")
+
+        if notes_parts:
+            values["additional_notes"] = " · ".join(notes_parts)
 
         return ImportedMetadata(
             identifier_type=IdentifierType.DOI,
@@ -499,7 +627,7 @@ class MetadataService:
         publisher = str(data.get("publisher", "") or "").strip()
         year = data.get("year")
         display_year = str(year) if year else ""
-        date_anchor = f"01/01/{int(year):04d}" if year else ""
+        date_anchor = str(year) if year else ""
 
         authors: list[AuthorReference] = []
         raw_authors = data.get("authors", [])
@@ -532,10 +660,36 @@ class MetadataService:
             values["date_anchor"] = date_anchor
         if data.get("page_count"):
             values["page_quantity"] = str(data["page_count"])
-        if data.get("dimensions"):
-            values["dimensions"] = str(data["dimensions"])
+
+        # Localização da publicação
+        location = str(data.get("location", "") or "").strip()
+        if location:
+            values["publication_place"] = location
+            values["publication_city"] = location
+
+        # Dimensões físicas
+        dimensions_val = data.get("dimensions")
+        if isinstance(dimensions_val, dict):
+            w = dimensions_val.get("width")
+            h = dimensions_val.get("height")
+            unit = str(dimensions_val.get("unit", "cm")).lower()
+            if unit == "centimeter":
+                unit = "cm"
+            if w and h:
+                values["dimensions"] = f"{w} x {h} {unit}"
+            elif h:
+                values["dimensions"] = f"{h} {unit}"
+        elif dimensions_val:
+            values["dimensions"] = str(dimensions_val)
+
         if data.get("synopsis"):
             values["abstract"] = str(data["synopsis"]).strip()
+
+        subjects = data.get("subjects", [])
+        if isinstance(subjects, list) and subjects:
+            clean_subjs = [str(s).strip() for s in subjects if str(s).strip()]
+            if clean_subjs:
+                values["additional_notes"] = f"Assuntos: {', '.join(clean_subjs)}"
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISBN,
@@ -607,7 +761,7 @@ class MetadataService:
         publish_date = str(data.get("publish_date", "") or "").strip()
         year_match = re.search(r"\d{4}", publish_date)
         display_year = year_match.group(0) if year_match else ""
-        date_anchor = f"01/01/{int(display_year):04d}" if display_year else ""
+        date_anchor = display_year
 
         authors: list[AuthorReference] = []
         raw_authors = data.get("authors", [])
@@ -644,6 +798,62 @@ class MetadataService:
             values["date_anchor"] = date_anchor
         if data.get("number_of_pages"):
             values["page_quantity"] = str(data["number_of_pages"])
+
+        # Local de publicação
+        publish_places = data.get("publish_places", [])
+        if isinstance(publish_places, list) and publish_places:
+            pp = publish_places[0]
+            place_name = str(pp.get("name", "") if isinstance(pp, dict) else pp).strip()
+            if place_name:
+                values["publication_place"] = place_name
+                values["publication_city"] = place_name
+
+        # Dimensões físicas
+        phys_dim = str(data.get("physical_dimensions", "") or "").strip()
+        if phys_dim:
+            values["dimensions"] = phys_dim
+        elif data.get("weight"):
+            values["dimensions"] = str(data["weight"]).strip()
+
+        # Série / Coleção
+        series = data.get("series", [])
+        if isinstance(series, list) and series:
+            s0 = series[0]
+            series_name = str(s0.get("name", "") if isinstance(s0, dict) else s0).strip()
+            if series_name:
+                values["collection_name"] = series_name
+
+        # Edição
+        edition_name = str(data.get("edition_name", "") or "").strip()
+        if edition_name:
+            ed_digits = re.sub(r"\D", "", edition_name)
+            if ed_digits:
+                values["edition"] = ed_digits
+
+        # Descrição / Abstract
+        description = data.get("description", "")
+        if isinstance(description, dict):
+            description = description.get("value", "")
+        description = str(description or "").strip()
+        if description:
+            values["abstract"] = description
+        elif data.get("notes"):
+            notes_str = str(data["notes"] if not isinstance(data["notes"], dict) else data["notes"].get("value", "")).strip()
+            if notes_str:
+                values["additional_notes"] = notes_str
+
+        # Assuntos em additional_notes
+        subjects = data.get("subjects", [])
+        if isinstance(subjects, list) and subjects and "additional_notes" not in values:
+            clean_subjs = [str(s.get("name", "") if isinstance(s, dict) else s).strip() for s in subjects[:5]]
+            clean_subjs = [s for s in clean_subjs if s]
+            if clean_subjs:
+                values["additional_notes"] = f"Assuntos: {', '.join(clean_subjs)}"
+
+        if data.get("url"):
+            values["url"] = str(data["url"]).strip()
+        else:
+            values["url"] = f"https://openlibrary.org/isbn/{normalized_isbn}"
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISBN,
@@ -683,6 +893,19 @@ class MetadataService:
         title = str(data.get("title", "") or "").strip()
         publisher = str(data.get("publisher", "") or "").strip()
 
+        # Áreas e contagens
+        subjects = data.get("subjects", [])
+        notes_parts = []
+        if isinstance(subjects, list) and subjects:
+            clean_subjs = [str(s.get("name", "") if isinstance(s, dict) else s).strip() for s in subjects]
+            clean_subjs = [s for s in clean_subjs if s]
+            if clean_subjs:
+                notes_parts.append(f"Áreas: {', '.join(clean_subjs)}")
+
+        counts = data.get("counts", {})
+        if isinstance(counts, dict) and counts.get("total-dois"):
+            notes_parts.append(f"Total de artigos indexados: {counts['total-dois']}")
+
         values: dict[str, object] = {
             "title": title,
             "journal_title": title,
@@ -691,6 +914,8 @@ class MetadataService:
         }
         if publisher:
             values["publisher"] = publisher
+        if notes_parts:
+            values["additional_notes"] = " · ".join(notes_parts)
 
         return ImportedMetadata(
             identifier_type=IdentifierType.ISSN,
