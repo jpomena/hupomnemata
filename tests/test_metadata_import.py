@@ -100,7 +100,8 @@ def test_map_csl_json_journal_article():
     assert result.values["part_start_page"] == "150"
     assert result.values["part_end_page"] == "175"
     assert result.values["display_year"] == "2021"
-    assert result.values["date_anchor"] == "12/05/2021"
+    assert result.values["date_anchor"] == "05/2021"
+    assert result.values["year_season"] == "2021"
     assert result.values["issn"] == "1809-4538"
     assert result.values["abstract"] == "Um ensaio fundamental sobre neoliberalismo contemporâneo."
 
@@ -133,7 +134,7 @@ def test_map_brasil_api_isbn():
     assert result.values["subtitle"] == "ensaio sobre a sociedade neoliberal"
     assert result.values["publisher"] == "Boitempo"
     assert result.values["display_year"] == "2016"
-    assert result.values["date_anchor"] == "01/01/2016"
+    assert result.values["date_anchor"] == "2016"
     assert result.values["page_quantity"] == "416"
     assert result.values["dimensions"] == "21 x 14 cm"
     assert result.values["abstract"] == "Obra crítica sobre a racionalidade neoliberal."
@@ -577,6 +578,67 @@ def test_work_insert_modal_auto_provisions_magazine_for_journal_article():
         session.execute(delete(Magazine).where(Magazine.bib_res_id == composer.parent_work_id))
         session.execute(delete(BibliographicResource).where(BibliographicResource.id == composer.parent_work_id))
         session.commit()
+
+
+def test_csl_json_rich_metadata_extraction():
+    service = MetadataService()
+    csl_rich = {
+        "type": "book",
+        "title": "A Sociedade do Espetáculo",
+        "subtitle": "Edição Crítica",
+        "container-title": "Coleção Teoria Crítica: Século XX",
+        "collection-title": "Teoria Crítica",
+        "collection-number": "14",
+        "edition": "3rd",
+        "number-of-pages": "256",
+        "publisher": "Editora Contraponto",
+        "publisher-place": "Rio de Janeiro",
+        "issued": {"date-parts": [[1997, 8, 20]]},
+        "ISBN": ["978-85-85910-15-0"],
+        "author": [{"family": "Debord", "given": "Guy"}],
+        "editor": [{"family": "Agamben", "given": "Giorgio"}],
+        "translator": [{"family": "Vaz", "given": "Estela dos Santos"}],
+        "subject": ["Filosofia política", "Crítica cultural"],
+        "URL": "https://doi.org/10.1234/livro.1997",
+    }
+
+    result = service._map_csl_json(csl_rich, raw_doi="10.1234/livro.1997", normalized_doi="10.1234/livro.1997")
+    assert result.work_type == "editorial_monograph"
+    assert result.values["title"] == "A Sociedade do Espetáculo"
+    assert result.values["subtitle"] == "Edição Crítica"
+    assert result.values["edition"] == "3"
+    assert result.values["collection_name"] == "Teoria Crítica"
+    assert result.values["collection_number"] == "14"
+    assert result.values["page_quantity"] == "256"
+    assert result.values["publisher"] == "Editora Contraponto"
+    assert result.values["publication_place"] == "Rio de Janeiro"
+    assert result.values["responsibilities"] == {"Organizador": "Giorgio Agamben"}
+    assert "Estela dos Santos Vaz" in str(result.values["translation_notes"])
+    assert "Palavras-chave" in str(result.values["additional_notes"])
+    assert result.values["url"] == "https://doi.org/10.1234/livro.1997"
+    assert result.values["date_anchor"] == "1997"
+
+
+def test_doi_article_number_fallback():
+    service = MetadataService()
+    csl_online_only = {
+        "type": "journal-article",
+        "title": "Deep learning architectures for protein structure prediction",
+        "container-title": "Nature Communications",
+        "volume": "12",
+        "issue": "1",
+        "article-number": "e45892",
+        "issued": {"date-parts": [[2021, 10]]},
+        "author": [{"family": "Jumper", "given": "John"}],
+    }
+
+    result = service._map_csl_json(csl_online_only, raw_doi="10.1038/s41467-021-00001", normalized_doi="10.1038/s41467-021-00001")
+    assert result.values["part_start_page"] == "e45892"
+    assert result.values["date_anchor"] == "10/2021"
+    assert result.values["year_season"] == "2021"
+    assert result.values["volume"] == "12"
+    assert result.values["number"] == "1"
+
 
 
 
