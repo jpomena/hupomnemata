@@ -161,12 +161,201 @@ def check_local_duplicate(
     return None
 
 
+# ── Dicionário Canônico de Locais de Publicação por Editora ─────────────
+
+KNOWN_PUBLISHER_PLACES: dict[str, str] = {
+    # Editoras Brasileiras
+    "boitempo": "São Paulo",
+    "companhia das letras": "São Paulo",
+    "companhia de bolso": "São Paulo",
+    "editora 34": "São Paulo",
+    "zahar": "Rio de Janeiro",
+    "jorge zahar": "Rio de Janeiro",
+    "record": "Rio de Janeiro",
+    "rocco": "Rio de Janeiro",
+    "bertrand": "Rio de Janeiro",
+    "paz e terra": "Rio de Janeiro",
+    "josé olympio": "Rio de Janeiro",
+    "nova fronteira": "Rio de Janeiro",
+    "civilização brasileira": "Rio de Janeiro",
+    "vozes": "Petrópolis",
+    "cortez": "São Paulo",
+    "brasiliense": "São Paulo",
+    "martins fontes": "São Paulo",
+    "fgv": "Rio de Janeiro",
+    "edusp": "São Paulo",
+    "unesp": "São Paulo",
+    "fiocruz": "Rio de Janeiro",
+    "unb": "Brasília",
+    "scielo": "São Paulo",
+    "cebrap": "São Paulo",
+    "ufmg": "Belo Horizonte",
+    "ufrj": "Rio de Janeiro",
+    "ufsc": "Florianópolis",
+    "ufrgs": "Porto Alegre",
+    "loyola": "São Paulo",
+    "paulus": "São Paulo",
+    "paulinas": "São Paulo",
+    "autêntica": "Belo Horizonte",
+    "todavia": "São Paulo",
+    "iluminuras": "São Paulo",
+    "cosac naify": "São Paulo",
+    "hedra": "São Paulo",
+    "perspectiva": "São Paulo",
+    "estação liberdade": "São Paulo",
+    "l&pm": "Porto Alegre",
+    "lpm": "Porto Alegre",
+    "aleph": "São Paulo",
+    "intrínseca": "Rio de Janeiro",
+    "sextante": "Rio de Janeiro",
+    "arqueiro": "Rio de Janeiro",
+    "leya": "São Paulo",
+    "suma": "São Paulo",
+    "conrad": "São Paulo",
+    "veneta": "São Paulo",
+    "senac": "São Paulo",
+    "saraiva": "São Paulo",
+    "atlas": "São Paulo",
+    "forense": "Rio de Janeiro",
+    "revista dos tribunais": "São Paulo",
+    "malheiros": "São Paulo",
+    "manole": "São Paulo",
+    "guanabara koogan": "Rio de Janeiro",
+    "artmed": "Porto Alegre",
+    "penso": "Porto Alegre",
+    "bookman": "Porto Alegre",
+    "pearson": "São Paulo",
+    "cengage": "São Paulo",
+    "mcgraw-hill": "São Paulo",
+
+    # Editoras Internacionais / Acadêmicas
+    "elsevier": "Amsterdam",
+    "academic press": "San Diego",
+    "churchill livingstone": "Edinburgh",
+    "mosby": "St. Louis",
+    "saunders": "Philadelphia",
+    "cell press": "Cambridge, MA",
+    "the lancet": "London",
+    "springer": "Berlin",
+    "nature": "London",
+    "macmillan": "London",
+    "palgrave": "London",
+    "oxford": "Oxford",
+    "oup": "Oxford",
+    "cambridge": "Cambridge",
+    "cup": "Cambridge",
+    "harvard": "Cambridge, MA",
+    "mit press": "Cambridge, MA",
+    "yale": "New Haven",
+    "princeton": "Princeton",
+    "columbia": "New York",
+    "chicago": "Chicago",
+    "stanford": "Stanford",
+    "california": "Berkeley",
+    "johns hopkins": "Baltimore",
+    "cornell": "Ithaca",
+    "duke": "Durham",
+    "indiana university": "Bloomington",
+    "minnesota": "Minneapolis",
+    "edinburgh university": "Edinburgh",
+    "wiley": "Hoboken",
+    "blackwell": "Oxford",
+    "routledge": "London",
+    "taylor & francis": "London",
+    "taylor and francis": "London",
+    "sage": "Thousand Oaks",
+    "ieee": "Piscataway",
+    "acm": "New York",
+    "american chemical society": "Washington, DC",
+    "american physical society": "College Park",
+    "american psychological association": "Washington, DC",
+    "bmj": "London",
+    "plos": "San Francisco",
+    "frontiers": "Lausanne",
+    "mdpi": "Basel",
+    "de gruyter": "Berlin",
+    "brill": "Leiden",
+    "peter lang": "Bern",
+    "edward elgar": "Cheltenham",
+    "bloomsbury": "London",
+    "penguin": "London",
+    "random house": "New York",
+    "vintage": "New York",
+    "anchor": "New York",
+    "knopf": "New York",
+    "doubleday": "New York",
+    "farrar, straus": "New York",
+    "harpercollins": "New York",
+    "harper & row": "New York",
+    "simon & schuster": "New York",
+    "scribner": "New York",
+    "houghton mifflin": "Boston",
+    "norton": "New York",
+    "verso": "London",
+    "gallimard": "Paris",
+    "seuil": "Paris",
+    "minuit": "Paris",
+    "puf": "Paris",
+    "flammarion": "Paris",
+    "albin michel": "Paris",
+    "hachette": "Paris",
+    "suhrkamp": "Berlin",
+    "c.h. beck": "München",
+    "hanser": "München",
+    "fischer": "Frankfurt am Main",
+    "rowohlt": "Hamburg",
+    "bompiani": "Milano",
+    "feltrinelli": "Milano",
+    "einaudi": "Torino",
+    "laterza": "Roma",
+    "adelphi": "Milano",
+    "mulino": "Bologna",
+    "fondo de cultura": "Ciudad de México",
+    "siglo xxi": "Ciudad de México",
+    "alianza": "Madrid",
+    "gredos": "Madrid",
+    "crítica": "Barcelona",
+    "planeta": "Barcelona",
+    "anagrama": "Barcelona",
+    "taurus": "Madrid",
+    "trotta": "Madrid",
+    "akal": "Madrid",
+}
+
+
+def clean_city_name(raw_location: str | None) -> str:
+    """Extrai o nome canônico da cidade de uma string de localização."""
+    if not raw_location:
+        return ""
+    loc = raw_location.strip()
+    if not loc or loc.lower() in ("[s.l.]", "[s.l]", "s.l.", "unknown"):
+        return ""
+    parts = [p.strip() for p in re.split(r"[,;\-–/]", loc) if p.strip()]
+    if parts:
+        first = parts[0]
+        if len(first) > 2 and first.upper() not in ("SP", "RJ", "MG", "RS", "PR", "SC", "BA", "DF", "UK", "US", "USA"):
+            return first
+    return loc
+
+
+def deduce_publisher_place(publisher_name: str | None) -> str | None:
+    """Deduz a cidade sede de uma editora conhecida."""
+    if not publisher_name:
+        return None
+    name_clean = publisher_name.lower().strip()
+    for pub_pattern, city in KNOWN_PUBLISHER_PLACES.items():
+        if pub_pattern in name_clean:
+            return city
+    return None
+
+
 def find_or_create_magazine(title: str, publication_place: str = "[s.l.]") -> tuple[int, str]:
     """Localiza uma Revista cadastrada pelo título ou cria uma nova se inexistente."""
     cleaned_title = (title or "").strip()
     if not cleaned_title:
         raise ValueError("Título da revista não pode ser vazio.")
-    place = (publication_place or "").strip() or "[s.l.]"
+    cleaned_place = clean_city_name(publication_place)
+    place = cleaned_place or (publication_place or "").strip() or "[s.l.]"
 
     with SessionLocal() as session:
         stmt = (
@@ -176,7 +365,13 @@ def find_or_create_magazine(title: str, publication_place: str = "[s.l.]") -> tu
         )
         row = session.execute(stmt).first()
         if row is not None:
-            return row[0], row[1]
+            mag_id, mag_title = row[0], row[1]
+            if place != "[s.l.]":
+                mag_obj = session.get(Magazine, mag_id)
+                if mag_obj and (not mag_obj.publication_place or mag_obj.publication_place == "[s.l.]"):
+                    mag_obj.publication_place = place
+                    session.commit()
+            return mag_id, mag_title
 
         resource = BibliographicResource()
         magazine = Magazine(
@@ -201,6 +396,32 @@ class MetadataService:
     HEADERS = {
         "User-Agent": "Hupomnemata/1.0 (https://github.com/jpomena/hupomnemata; mailto:dev@hupomnemata.local)",
     }
+    _MEMBER_CACHE: dict[str, str] = {}
+
+    def _get_member_location(self, member_id: str, client: httpx.Client | None = None) -> str:
+        """Consulta a localização (cidade/país) da editora membro no Crossref."""
+        if not member_id:
+            return ""
+        if member_id in self._MEMBER_CACHE:
+            return self._MEMBER_CACHE[member_id]
+        url = f"https://api.crossref.org/members/{member_id}"
+        try:
+            if client is not None:
+                resp = client.get(url, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
+                if resp.status_code == 200:
+                    loc = str(resp.json().get("message", {}).get("location", "") or "").strip()
+                    self._MEMBER_CACHE[member_id] = loc
+                    return loc
+            else:
+                with httpx.Client(timeout=self.DEFAULT_TIMEOUT) as local_client:
+                    resp = local_client.get(url, headers=self.HEADERS, follow_redirects=True)
+                    if resp.status_code == 200:
+                        loc = str(resp.json().get("message", {}).get("location", "") or "").strip()
+                        self._MEMBER_CACHE[member_id] = loc
+                        return loc
+        except Exception:
+            pass
+        return ""
 
     def resolve(
         self,
@@ -356,8 +577,18 @@ class MetadataService:
         date_anchor = ""
         display_year = ""
         year_season = ""
-        issued = data.get("issued", {})
-        date_parts = issued.get("date-parts", []) if isinstance(issued, dict) else []
+
+        # Inspecionar múltiplos contêineres de data da Crossref em ordem de especificidade
+        date_parts = None
+        for date_key in ("published-print", "issued", "published-online", "published", "created"):
+            d_val = data.get(date_key)
+            if isinstance(d_val, dict):
+                dp = d_val.get("date-parts")
+                if dp and isinstance(dp, list) and len(dp) > 0 and isinstance(dp[0], list) and len(dp[0]) > 0:
+                    if dp[0][0]:  # tem ano válido
+                        date_parts = dp
+                        break
+
         if date_parts and isinstance(date_parts[0], list):
             parts = date_parts[0]
             year = parts[0] if len(parts) > 0 else None
@@ -387,12 +618,29 @@ class MetadataService:
             journal_subtitle = j_parts[1].strip()
 
         publisher = str(data.get("publisher", "") or "").strip()
-        publisher_place = str(data.get("publisher-place", "") or "").strip()
-        if not publisher_place:
-            publisher_place = str(data.get("event-place", "") or "").strip()
+        raw_place = str(data.get("publisher-place", "") or "").strip()
+        if not raw_place:
+            raw_place = str(data.get("event-place", "") or "").strip()
+
+        publisher_place = clean_city_name(raw_place)
+        if not publisher_place and publisher:
+            publisher_place = deduce_publisher_place(publisher) or ""
+
+        # Fallback para localização do membro Crossref
+        if not publisher_place and data.get("member"):
+            mem_id = str(data.get("member"))
+            mem_loc = self._get_member_location(mem_id, client=None)
+            if mem_loc:
+                publisher_place = clean_city_name(mem_loc)
+
+        # Fallback para SciELO (prefixo 10.1590)
+        if not publisher_place and normalized_doi.startswith("10.1590/"):
+            publisher_place = "São Paulo"
 
         volume = str(data.get("volume", "") or "").strip()
         issue = str(data.get("issue", "") or "").strip()
+        if not issue and isinstance(data.get("journal-issue"), dict):
+            issue = str(data["journal-issue"].get("issue", "") or "").strip()
 
         # Páginas / Localizadores
         page_range = str(data.get("page", "") or "").strip()
@@ -576,20 +824,137 @@ class MetadataService:
         isbn: str,
         client: httpx.Client | None = None,
     ) -> ImportedMetadata:
-        """Busca metadados de livro via BrasilAPI com fallback para Open Library."""
+        """Busca e coalesce metadados de livro via BrasilAPI e Open Library."""
         clean = clean_isbn(isbn)
+        b_meta: ImportedMetadata | None = None
+        ol_meta: ImportedMetadata | None = None
 
-        # 1. Tentar BrasilAPI primeiro (excelente para livros publicados no Brasil)
-        brasil_data = self._fetch_brasil_api_isbn(clean, client)
-        if brasil_data and brasil_data.get("title"):
-            return self._map_brasil_api(brasil_data, raw_isbn=isbn, normalized_isbn=clean)
+        # 1. Tentar BrasilAPI
+        try:
+            b_data = self._fetch_brasil_api_isbn(clean, client)
+            if b_data and (b_data.get("title") or b_data.get("authors")):
+                b_meta = self._map_brasil_api(b_data, raw_isbn=isbn, normalized_isbn=clean)
+        except Exception:
+            pass
 
-        # 2. Fallback: Open Library
-        ol_data = self._fetch_open_library_isbn(clean, client)
-        if ol_data and ol_data.get("title"):
-            return self._map_open_library(ol_data, raw_isbn=isbn, normalized_isbn=clean)
+        # 2. Tentar Open Library
+        # Se for ISBN brasileiro mas faltou autor ou ano ou página no BrasilAPI,
+        # ou se não for brasileiro, ou se b_meta não veio, busca OpenLibrary para enriquecimento
+        needs_ol = (
+            b_meta is None
+            or not b_meta.authors
+            or not b_meta.values.get("date_anchor")
+            or not b_meta.values.get("publication_place")
+            or not b_meta.values.get("page_quantity")
+        )
+        if needs_ol:
+            try:
+                ol_data = self._fetch_open_library_isbn(clean, client)
+                if ol_data and ol_data.get("title"):
+                    ol_meta = self._map_open_library(ol_data, raw_isbn=isbn, normalized_isbn=clean, client=client)
+            except Exception:
+                pass
+
+        if b_meta and ol_meta:
+            return self._merge_isbn_metadata(b_meta, ol_meta)
+        if b_meta:
+            if "publication_place" not in b_meta.values:
+                pub = str(b_meta.values.get("publisher", ""))
+                deduced = deduce_publisher_place(pub)
+                if deduced:
+                    b_meta.values["publication_place"] = deduced
+                    b_meta.values["publication_city"] = deduced
+            return b_meta
+        if ol_meta:
+            if "publication_place" not in ol_meta.values:
+                pub = str(ol_meta.values.get("publisher", ""))
+                deduced = deduce_publisher_place(pub)
+                if deduced:
+                    ol_meta.values["publication_place"] = deduced
+                    ol_meta.values["publication_city"] = deduced
+            return ol_meta
 
         raise ValueError(f"ISBN '{clean}' não foi encontrado na BrasilAPI nem na Open Library.")
+
+    def _merge_isbn_metadata(
+        self,
+        b_meta: ImportedMetadata,
+        ol_meta: ImportedMetadata,
+    ) -> ImportedMetadata:
+        """Funde e enriquece metadados do BrasilAPI e Open Library selecionando o melhor de cada base."""
+        b_title = str(b_meta.values.get("title", "") or "").strip()
+        ol_title = str(ol_meta.values.get("title", "") or "").strip()
+        if b_title.isupper() and ol_title and not ol_title.isupper():
+            title = ol_title
+        elif ol_title.isupper() and b_title and not b_title.isupper():
+            title = b_title
+        else:
+            title = b_title or ol_title
+
+        subtitle = b_meta.values.get("subtitle") or ol_meta.values.get("subtitle")
+
+        # Autores: BrasilAPI tem prioridade se preenchido; se vazio, OpenLibrary
+        authors = list(b_meta.authors) if b_meta.authors else list(ol_meta.authors)
+        if b_meta.authors and ol_meta.authors:
+            existing_names = {a["name"].lower() for a in b_meta.authors}
+            for a in ol_meta.authors:
+                if a["name"].lower() not in existing_names:
+                    authors.append(a)
+                    existing_names.add(a["name"].lower())
+
+        values = dict(b_meta.values)
+
+        for k, v in ol_meta.values.items():
+            if v and (k not in values or not values[k]):
+                values[k] = v
+
+        values["title"] = title
+        if subtitle:
+            values["subtitle"] = subtitle
+
+        # Editora
+        publisher = values.get("publisher") or ol_meta.values.get("publisher") or b_meta.values.get("publisher")
+        if publisher:
+            values["publisher"] = publisher
+
+        # Local de publicação
+        place = (
+            values.get("publication_place")
+            or ol_meta.values.get("publication_place")
+            or b_meta.values.get("publication_place")
+            or deduce_publisher_place(str(publisher or ""))
+        )
+        if place:
+            values["publication_place"] = place
+            values["publication_city"] = place
+
+        # Ano / Datas
+        date_anchor = values.get("date_anchor") or ol_meta.values.get("date_anchor") or b_meta.values.get("date_anchor")
+        if date_anchor:
+            values["date_anchor"] = date_anchor
+            values["display_year"] = str(values.get("display_year") or date_anchor)
+
+        # Páginas
+        pages = values.get("page_quantity") or ol_meta.values.get("page_quantity") or b_meta.values.get("page_quantity")
+        if pages and str(pages).isdigit() and int(pages) > 0:
+            values["page_quantity"] = str(pages)
+
+        # Abstract / Resumo: escolher o mais detalhado
+        b_abs = str(b_meta.values.get("abstract", "") or "").strip()
+        ol_abs = str(ol_meta.values.get("abstract", "") or "").strip()
+        if len(ol_abs) > len(b_abs):
+            values["abstract"] = ol_abs
+        elif b_abs:
+            values["abstract"] = b_abs
+
+        return ImportedMetadata(
+            identifier_type=IdentifierType.ISBN,
+            raw_identifier=b_meta.raw_identifier or ol_meta.raw_identifier,
+            normalized_identifier=b_meta.normalized_identifier or ol_meta.normalized_identifier,
+            work_type="editorial_monograph",
+            values=values,
+            authors=authors,
+        )
 
     def _fetch_brasil_api_isbn(
         self,
@@ -658,11 +1023,15 @@ class MetadataService:
             values["display_year"] = display_year
         if date_anchor:
             values["date_anchor"] = date_anchor
-        if data.get("page_count"):
+        if data.get("page_count") and int(data.get("page_count") or 0) > 0:
             values["page_quantity"] = str(data["page_count"])
 
         # Localização da publicação
-        location = str(data.get("location", "") or "").strip()
+        raw_location = str(data.get("location", "") or "").strip()
+        location = clean_city_name(raw_location)
+        if not location and publisher:
+            location = deduce_publisher_place(publisher) or ""
+
         if location:
             values["publication_place"] = location
             values["publication_city"] = location
@@ -700,31 +1069,15 @@ class MetadataService:
             authors=authors,
         )
 
-    def _fetch_open_library_isbn(
+    def _fetch_open_library_work(
         self,
-        isbn: str,
+        work_key: str,
         client: httpx.Client | None,
     ) -> dict[str, Any] | None:
-        # Tentar primeiro a API com jscmd=data (traz nomes de autores e editoras sem chaves extras)
-        url_data = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
-        try:
-            if client is not None:
-                resp = client.get(url_data, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
-                if resp.status_code == 200:
-                    res_dict = resp.json().get(f"ISBN:{isbn}")
-                    if res_dict:
-                        return res_dict
-            else:
-                with httpx.Client(timeout=self.DEFAULT_TIMEOUT) as local_client:
-                    resp = local_client.get(url_data, headers=self.HEADERS, follow_redirects=True)
-                    if resp.status_code == 200:
-                        res_dict = resp.json().get(f"ISBN:{isbn}")
-                        if res_dict:
-                            return res_dict
-        except Exception:
-            pass
-
-        url = f"https://openlibrary.org/isbn/{isbn}.json"
+        if not work_key:
+            return None
+        clean_key = work_key if work_key.startswith("/") else f"/{work_key}"
+        url = f"https://openlibrary.org{clean_key}.json"
         try:
             if client is not None:
                 resp = client.get(url, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
@@ -739,11 +1092,64 @@ class MetadataService:
             pass
         return None
 
+    def _fetch_open_library_isbn(
+        self,
+        isbn: str,
+        client: httpx.Client | None,
+    ) -> dict[str, Any] | None:
+        url_data = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
+        res_dict: dict[str, Any] = {}
+        try:
+            if client is not None:
+                resp = client.get(url_data, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
+                if resp.status_code == 200:
+                    res_dict = resp.json().get(f"ISBN:{isbn}") or {}
+            else:
+                with httpx.Client(timeout=self.DEFAULT_TIMEOUT) as local_client:
+                    resp = local_client.get(url_data, headers=self.HEADERS, follow_redirects=True)
+                    if resp.status_code == 200:
+                        res_dict = resp.json().get(f"ISBN:{isbn}") or {}
+        except Exception:
+            pass
+
+        url_edition = f"https://openlibrary.org/isbn/{isbn}.json"
+        try:
+            ed_json = None
+            if client is not None:
+                resp2 = client.get(url_edition, headers=self.HEADERS, follow_redirects=True, timeout=self.DEFAULT_TIMEOUT)
+                if resp2.status_code == 200:
+                    ed_json = resp2.json()
+            else:
+                with httpx.Client(timeout=self.DEFAULT_TIMEOUT) as local_client:
+                    resp2 = local_client.get(url_edition, headers=self.HEADERS, follow_redirects=True)
+                    if resp2.status_code == 200:
+                        ed_json = resp2.json()
+
+            if isinstance(ed_json, dict):
+                if not res_dict:
+                    res_dict = dict(ed_json)
+                else:
+                    if "works" not in res_dict and "works" in ed_json:
+                        res_dict["works"] = ed_json["works"]
+                    if "publish_places" not in res_dict and "publish_places" in ed_json:
+                        res_dict["publish_places"] = ed_json["publish_places"]
+                    if "physical_dimensions" not in res_dict and "physical_dimensions" in ed_json:
+                        res_dict["physical_dimensions"] = ed_json["physical_dimensions"]
+                    if "series" not in res_dict and "series" in ed_json:
+                        res_dict["series"] = ed_json["series"]
+                    if "edition_name" not in res_dict and "edition_name" in ed_json:
+                        res_dict["edition_name"] = ed_json["edition_name"]
+        except Exception:
+            pass
+
+        return res_dict if res_dict else None
+
     def _map_open_library(
         self,
         data: dict[str, Any],
         raw_isbn: str,
         normalized_isbn: str,
+        client: httpx.Client | None = None,
     ) -> ImportedMetadata:
         title = str(data.get("title", "") or "").strip()
         subtitle = str(data.get("subtitle", "") or "").strip()
@@ -800,13 +1206,18 @@ class MetadataService:
             values["page_quantity"] = str(data["number_of_pages"])
 
         # Local de publicação
+        place_name = ""
         publish_places = data.get("publish_places", [])
         if isinstance(publish_places, list) and publish_places:
             pp = publish_places[0]
-            place_name = str(pp.get("name", "") if isinstance(pp, dict) else pp).strip()
-            if place_name:
-                values["publication_place"] = place_name
-                values["publication_city"] = place_name
+            raw_pp = str(pp.get("name", "") if isinstance(pp, dict) else pp).strip()
+            place_name = clean_city_name(raw_pp)
+        if not place_name and publisher:
+            place_name = deduce_publisher_place(publisher) or ""
+
+        if place_name:
+            values["publication_place"] = place_name
+            values["publication_city"] = place_name
 
         # Dimensões físicas
         phys_dim = str(data.get("physical_dimensions", "") or "").strip()
@@ -830,17 +1241,36 @@ class MetadataService:
             if ed_digits:
                 values["edition"] = ed_digits
 
-        # Descrição / Abstract
-        description = data.get("description", "")
-        if isinstance(description, dict):
-            description = description.get("value", "")
-        description = str(description or "").strip()
-        if description:
-            values["abstract"] = description
-        elif data.get("notes"):
-            notes_str = str(data["notes"] if not isinstance(data["notes"], dict) else data["notes"].get("value", "")).strip()
-            if notes_str:
-                values["additional_notes"] = notes_str
+        # Enriquecer com informações da obra (works endpoint)
+        raw_works = data.get("works", [])
+        work_key = None
+        if isinstance(raw_works, list) and raw_works and isinstance(raw_works[0], dict):
+            work_key = raw_works[0].get("key")
+        if work_key:
+            work_data = self._fetch_open_library_work(work_key, client)
+            if isinstance(work_data, dict):
+                orig_title = str(work_data.get("title", "") or "").strip()
+                if orig_title and orig_title.lower() != title.lower() and "original_full_title" not in values:
+                    values["original_full_title"] = orig_title
+                desc = work_data.get("description", "")
+                if isinstance(desc, dict):
+                    desc = desc.get("value", "")
+                desc_str = str(desc or "").strip()
+                if desc_str and "abstract" not in values:
+                    values["abstract"] = desc_str
+
+        # Descrição / Abstract da edição se ainda não preenchido
+        if "abstract" not in values:
+            description = data.get("description", "")
+            if isinstance(description, dict):
+                description = description.get("value", "")
+            description = str(description or "").strip()
+            if description:
+                values["abstract"] = description
+            elif data.get("notes"):
+                notes_str = str(data["notes"] if not isinstance(data["notes"], dict) else data["notes"].get("value", "")).strip()
+                if notes_str:
+                    values["additional_notes"] = notes_str
 
         # Assuntos em additional_notes
         subjects = data.get("subjects", [])
@@ -892,6 +1322,19 @@ class MetadataService:
 
         title = str(data.get("title", "") or "").strip()
         publisher = str(data.get("publisher", "") or "").strip()
+        pub_place = deduce_publisher_place(publisher) or ""
+
+        # Anos de publicação (primeiro e último volume)
+        dois_by_year = data.get("breakdowns", {}).get("dois-by-issued-year", [])
+        if not dois_by_year:
+            dois_by_year = data.get("counts", {}).get("dois-by-issued-year", [])
+        valid_years = [
+            y[0]
+            for y in dois_by_year
+            if isinstance(y, list) and len(y) > 0 and isinstance(y[0], int) and y[0] > 1800
+        ]
+        first_vol_year = str(min(valid_years)) if valid_years else ""
+        last_vol_year = str(max(valid_years)) if valid_years else ""
 
         # Áreas e contagens
         subjects = data.get("subjects", [])
@@ -914,6 +1357,15 @@ class MetadataService:
         }
         if publisher:
             values["publisher"] = publisher
+        if pub_place:
+            values["publication_place"] = pub_place
+            values["publication_city"] = pub_place
+        if first_vol_year:
+            values["first_volume_year"] = first_vol_year
+            values["date_anchor"] = first_vol_year
+            values["display_year"] = first_vol_year
+        if last_vol_year:
+            values["last_volume_year"] = last_vol_year
         if notes_parts:
             values["additional_notes"] = " · ".join(notes_parts)
 
