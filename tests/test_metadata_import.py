@@ -406,6 +406,7 @@ def test_work_insert_modal_has_import_button_and_applies_metadata():
 
     assert title.value == "Nova obra"
     assert import_btn.content.controls[-1].value == "Importar"
+    assert close_btn is not None
 
     # Simular aplicação de metadados importados
     fake_meta = ImportedMetadata(
@@ -475,6 +476,7 @@ async def test_import_modal_execute_remote_search_async():
     import inspect
 
     success_results = []
+
     def fake_run_task(handler, *args, **kwargs):
         # Asynchronously schedule the coroutine handler like Flet's run_task
         assert inspect.iscoroutinefunction(handler), "run_task handler must be a coroutine function"
@@ -833,15 +835,6 @@ def test_csl_json_date_fallback_from_published_print():
 
 def test_issn_metadata_first_and_last_volume_year_and_place():
     service = MetadataService()
-    mock_crossref_message = {
-        "title": "Cell Research",
-        "publisher": "Elsevier BV",
-        "breakdowns": {
-            "dois-by-issued-year": [[2020, 500], [1995, 200], [2026, 300]],
-        },
-        "subjects": [{"name": "Biochemistry"}],
-        "counts": {"total-dois": 1000},
-    }
 
     with patch.object(service, "fetch_issn") as mock_fetch:
         # Testa a extração direta do message
@@ -950,11 +943,3 @@ def test_resolve_enforces_viewed_at_rule():
         )
         res_isbn = service.resolve("9788575594841")
         assert "viewed_at" not in res_isbn.values
-
-
-
-
-
-
-
-

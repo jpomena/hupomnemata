@@ -3,7 +3,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import flet as ft
-import flet.canvas as cv
 
 from src.utils.types import ViewConfig
 from src.views.knowledge.graph_template import generate_graph_html
@@ -74,9 +73,9 @@ def compute_graph_layout(
                     n2["y"] -= dy * force
 
         # 3. Atração por afinidade interna na constelação
-        for l in links:
-            s_id = l.get("source")
-            t_id = l.get("target")
+        for lnk in links:
+            s_id = lnk.get("source")
+            t_id = lnk.get("target")
             s = node_map.get(s_id)
             t = node_map.get(t_id)
             if s and t and s.get("cluster_id") == t.get("cluster_id"):
@@ -84,7 +83,7 @@ def compute_graph_layout(
                 dy = t["y"] - s["y"]
                 dist = math.hypot(dx, dy)
                 if dist > 60.0:
-                    w = float(l.get("weight") or 0.5)
+                    w = float(lnk.get("weight") or 0.5)
                     fx = dx * 0.05 * w
                     fy = dy * 0.05 * w
                     s["x"] += fx
@@ -371,7 +370,7 @@ class KnowledgeComposer:
 
     def _compute_viewport_dimensions(
         self, panel_open: bool = False, is_maximized: Optional[bool] = None
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Calcula precisamente a área visível do canvas 3D no dashboard."""
         pw, ph = Responsive.get_page_dimensions(self.page, is_maximized=is_maximized)
         sidebar_w = float(self.config.ui.get("sidebar_width", 350))
@@ -625,7 +624,7 @@ class KnowledgeComposer:
     def _get_filtered_links(self, visible_nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         all_links = self.graph_data.get("links") or []
         v_ids = {n["id"] for n in visible_nodes}
-        return [l for l in all_links if l.get("source") in v_ids and l.get("target") in v_ids]
+        return [lnk for lnk in all_links if lnk.get("source") in v_ids and lnk.get("target") in v_ids]
 
     def _update_stats_display(self) -> None:
         nodes = self._get_filtered_nodes()
@@ -831,7 +830,7 @@ class KnowledgeComposer:
             import webbrowser
             opened = webbrowser.open(abs_uri)
             if not opened and self.page:
-                self.page.launch_url(abs_uri)
+                self.page.run_task(self.page.launch_url, abs_uri)
 
             if self.page:
                 snack = ft.SnackBar(ft.Text("Visualização D3.js aberta no seu navegador."))

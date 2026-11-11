@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import flet as ft
+import pytest
+from sqlalchemy import create_engine
 
 from src.configs.settings import (
     COLORS_DARK,
@@ -17,6 +20,7 @@ from src.configs.settings import (
 from src.controllers.core_controller import CoreController
 from src.utils.types import ViewConfig
 from src.views.core_composer import CoreComposer
+from src.views.dashboard import DashboardComposer, summarize_dashboard
 from src.views.ui_kit import s
 
 
@@ -173,15 +177,7 @@ def test_settings_section_shows_settings_dashboard():
     assert len(cards_row.controls) == 3
 
 
-
 # ── Início (Gabinete de Leitura) ───────────────────────────
-
-from datetime import datetime, timedelta, timezone
-
-import pytest
-from sqlalchemy import create_engine
-
-from src.views.dashboard import DashboardComposer, summarize_dashboard
 
 
 def _config(colors=COLORS_LIGHT):

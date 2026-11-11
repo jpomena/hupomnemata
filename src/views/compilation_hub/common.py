@@ -248,7 +248,11 @@ def menu_labels(menu: ft.PopupMenuButton) -> list[str]:
 def run_menu_item(menu: ft.PopupMenuButton, label: str) -> None:
     """Dispara um item do menu pelo rótulo (usado nos testes e atalhos)."""
     item = next(item for item in menu.items if item.data == label)
-    item.on_click(None)
+    if callable(item.on_click):
+        try:
+            item.on_click(None)  # type: ignore
+        except TypeError:
+            item.on_click()  # type: ignore
 
 
 def max_width_box(c: ViewConfig, content: ft.Control, max_width: float, gutter: float = 0) -> ft.Container:

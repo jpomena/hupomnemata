@@ -4,11 +4,10 @@ from collections import Counter
 import math
 import random
 import re
-from typing import cast
 import numpy as np
 
 from src.db.db import SessionLocal
-from src.domains.core_domain import Fragment, BibliographicResource
+from src.domains.core_domain import BibliographicResource
 from src.repositories.knowledge_repository import (
     KnowledgeRepository,
     compute_text_hash,

@@ -19,7 +19,6 @@ from src.repositories import WorkRepository
 from src.services.work_form_service import WorkFormService
 from src.strategies import MusicalScoreFormatter
 from src.utils import TextStyle
-from src.services.work_form_service import WorkFormService
 from src.views.work_insert_specs import PARTIAL_WORK_TYPES, WORK_TYPES
 
 

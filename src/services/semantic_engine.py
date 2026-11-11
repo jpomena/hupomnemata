@@ -93,7 +93,7 @@ class NeuralONNXEngine(BaseSemanticEngine):
     """Motor neural baseado em ONNX Runtime para modelos multilíngues Sentence-Transformers."""
 
     def __init__(self, model_path: str):
-        import onnxruntime as ort
+        import onnxruntime as ort  # type: ignore
         self.session = ort.InferenceSession(
             model_path,
             providers=['CPUExecutionProvider'],

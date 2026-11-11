@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import flet as ft
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 
 from src.db import db as db_module
 from src.domains import (
@@ -921,7 +921,6 @@ def test_repository_lists_partial_works_with_parent_loaded():
 
 def test_service_lists_partial_work_ready_for_detached_reference_formatting():
     from src.db.db import SessionLocal
-    from src.repositories import WorkRepository
 
     with SessionLocal() as session:
         parent = BibliographicResource(
@@ -1102,7 +1101,7 @@ def test_acervo_search_filter_sort_and_keyboard():
     assert composer.handle_key('Escape', False) is True
     assert composer.checked == set()
     assert composer.handle_key('Escape', False) is True
-    assert composer.selected_id == None
+    assert composer.selected_id is None
 
 
 def test_acervo_row_child_work_title_truncation():
@@ -1426,8 +1425,6 @@ def test_legal_documents_require_exact_date_and_publication_fields():
 
 
 def test_legal_documents_accept_full_date_in_date_anchor():
-    from src.controllers.core_controller import CoreController
-
     payload = WorkFormService(CoreNormalizer()).prepare_payload(
         {
             'work_type': 'statute',

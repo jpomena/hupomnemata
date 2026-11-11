@@ -1,12 +1,10 @@
 """Testes unitários para o módulo Nous (Inteligência Artificial, BYOK e Esfera Armilar 3D)."""
 
-import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import httpx
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from src.configs.settings import (
     COLORS_LIGHT,
@@ -20,7 +18,7 @@ from src.configs.settings import (
     UI,
 )
 from src.db import db as db_module
-from src.db.db import Base, SessionLocal
+from src.db.db import SessionLocal
 from src.domains import (
     BibliographicResource,
     EditorialMonograph,
@@ -31,6 +29,7 @@ from src.utils.types import ViewConfig
 from src.views.knowledge.armillary_sphere_3d import ArmillaryConstellation3D
 from src.views.nous_composer import NousComposer
 from src.views.work_details_popup import WorkDetailsPopup
+
 
 @pytest.fixture(autouse=True)
 def clean_test_db(tmp_path):
@@ -45,7 +44,6 @@ def clean_test_db(tmp_path):
     engine.dispose()
     db_module.engine = old_engine
     db_module.SessionLocal.configure(bind=old_engine)
-
 
 
 @pytest.fixture
@@ -376,21 +374,26 @@ def test_nous_service_test_connection_404_fallback(monkeypatch):
 
     class MockResponse404:
         status_code = 404
+
         def json(self):
             return {"error": {"message": "Model not found"}}
 
     class MockResponse200:
         status_code = 200
+
         def json(self):
             return {"candidates": [{"content": {"parts": [{"text": "OK"}]}}]}
 
     class MockClient:
         def __init__(self, *args, **kwargs):
             pass
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
+
         def post(self, url, json=None):
             calls.append(url)
             if "gemini-1.5-flash" in url:

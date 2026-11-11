@@ -1,0 +1,19 @@
+{
+  "include": ["src", "tests"],
+  "exclude": [".venv"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "reportAttributeAccessIssue": "none",
+  "reportArgumentType": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalCall": "none",
+  "reportIncompatibleVariableOverride": "none",
+  "reportReturnType": "none",
+  "reportCallIssue": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalIterable": "none",
+  "reportIndexIssue": "none",
+  "reportOperatorIssue": "none"
+}
