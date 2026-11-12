@@ -43,6 +43,7 @@ from src.strategies import (
 from src.strategies.patent_formatter import PatentFormatter
 from src.utils import ABNTUtils
 from src.views.work_insert_specs import (
+    ALL_WORK_TYPES,
     ALWAYS_PARTIAL_TYPES,
     DEFAULTED_FIELDS,
     INHERITED_FROM_PARENT_FIELDS,
@@ -491,7 +492,7 @@ def test_submission_rejects_empty_required_fields_and_missing_parent():
 
 def test_magazine_form_has_only_name_and_publication_place():
     magazine_spec = next(
-        spec for spec in WORK_TYPES if spec.key == 'magazine'
+        spec for spec in ALL_WORK_TYPES if spec.key == 'magazine'
     )
     assert {field.key for field in magazine_spec.fields} == {
         'title',

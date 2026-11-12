@@ -276,6 +276,8 @@ def test_dashboard_compose_shows_kpis_tables_and_shortcuts(colors):
     )
     view = composer.compose()
     assert view.bgcolor == colors['bg']
+    kpi_container = view.content.controls[1]
+    assert kpi_container.margin is not None and kpi_container.margin.top == 14
     texts = _texts(view)
     for expected in (
         'Gabinete de Leitura', 'Novo fragmento', 'Nova obra',
@@ -284,7 +286,7 @@ def test_dashboard_compose_shows_kpis_tables_and_shortcuts(colors):
         'Compilações em andamento', 'O multiplicador punitivo', 'Abrir caderno',
         'Atividade recente', 'Obra cadastrada: ', 'Acervo por tipo', 'Livros em geral',
         'Atalhos', 'Inserir nova obra', 'Registrar fragmento', 'Buscar no gabinete',
-        'Importar metadados', 'Exportar referências', 'Planejado',
+        'Importar metadados', 'Importar por referências', 'Planejado',
         'Michel Foucault, A escrita de si',
     ):
         assert expected in texts, expected

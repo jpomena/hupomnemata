@@ -18,7 +18,7 @@ class PageConfigurator:
         page.fonts = self.config.page_fonts
         page.window.icon = "assets/images/icon.ico"
         page.theme = ft.Theme(
-            font_family=self.config.font_families["cormorant"],
+            font_family=self.config.font_families["montserrat"],
             tooltip_theme=ft.TooltipTheme(
                 text_style=ft.TextStyle(
                     font_family=self.config.font_families["montserrat"],

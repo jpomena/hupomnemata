@@ -78,12 +78,15 @@ def serif_text(
     c: ViewConfig,
     value: str,
     size: float = 18,
-    weight: ft.FontWeight = W500,
+    weight: ft.FontWeight = W600,
     color: str | None = None,
     max_lines: int | None = None,
     italic: bool = False,
     selectable: bool = False,
     height: float | None = 1.5,
+    expand: bool | int | None = None,
+    align: ft.TextAlign | None = None,
+    no_wrap: bool | None = None,
 ) -> ft.Text:
     """Texto de leitura em Cormorant (citações, sínteses, títulos)."""
     return ft.Text(
@@ -94,6 +97,9 @@ def serif_text(
         font_family=c.font_families["cormorant"],
         max_lines=max_lines,
         overflow=ft.TextOverflow.ELLIPSIS if max_lines else None,
+        no_wrap=(max_lines == 1) if no_wrap is None else no_wrap,
+        expand=expand,
+        text_align=align,
         italic=italic,
         selectable=selectable,
         style=ft.TextStyle(height=height),
@@ -387,8 +393,18 @@ def interactive_card(
     )
 
 
-def card_head(c: ViewConfig, title: str, trailing: ft.Control | None = None, count: int | None = None) -> ft.Container:
-    title_text = ui_text(c, title, size=13, weight=W600)
+def card_head(
+    c: ViewConfig,
+    title: str,
+    trailing: ft.Control | None = None,
+    count: int | None = None,
+    serif: bool = True,
+) -> ft.Container:
+    title_text = (
+        serif_text(c, title, size=17, weight=W700, color=c.colors["text"])
+        if serif
+        else ui_text(c, title, size=13, weight=W600)
+    )
     left: list[ft.Control] = [title_text]
     if count is not None:
         left.append(ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True))
@@ -418,7 +434,7 @@ def page_header(
         ft.Text(
             title,
             size=s(30),
-            weight=W600,
+            weight=W700,
             color=c.colors["text"],
             font_family=c.font_families["cormorant"],
             style=ft.TextStyle(height=1.1),
@@ -437,7 +453,9 @@ def page_header(
             vertical_alignment=ft.CrossAxisAlignment.END,
             spacing=s(24),
         ),
-        padding=ft.Padding.only(left=s(32), right=s(32), top=s(32), bottom=s(16)),
+        padding=ft.Padding.only(left=s(32), right=s(32), top=s(28), bottom=s(20)),
+        bgcolor=c.colors.get("surface", c.colors["bg"]),
+        border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
     )
 
 
@@ -448,8 +466,8 @@ def toolbar(c: ViewConfig, controls: Sequence[ft.Control], trailing: Sequence[ft
             spacing=s(8),
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        padding=ft.Padding.only(left=s(32), right=s(32), bottom=s(12)),
-        height=s(44),
+        padding=ft.Padding.only(left=s(32), right=s(32), top=s(10), bottom=s(10)),
+        height=s(54),
     )
 
 
@@ -472,13 +490,13 @@ def search_field(
         width=s(width) if width else None,
         expand=expand,
         autofocus=autofocus,
-        height=s(32),
+        height=s(34),
         dense=True,
         content_padding=ft.Padding.only(left=s(0), right=s(10), top=s(8), bottom=s(8)),
         prefix_icon=ft.Container(fa_icon("magnifying-glass", size=s(12), color=colors["faint"]), width=s(30), alignment=ft.Alignment.CENTER),
-        text_size=s(13),
-        text_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["text"], weight=W500, letter_spacing=UI_TRACKING),
-        hint_style=ft.TextStyle(font_family=c.font_families["montserrat"], color=colors["faint"], weight=W500, letter_spacing=UI_TRACKING, size=s(13)),
+        text_size=s(16),
+        text_style=ft.TextStyle(font_family=c.font_families["cormorant"], color=colors["text"], weight=W600, size=s(16)),
+        hint_style=ft.TextStyle(font_family=c.font_families["cormorant"], color=colors["faint"], weight=W600, size=s(16)),
         bgcolor=colors["bg"],
         border_color=colors["border_strong"],
         focused_border_color=colors["gold"],
@@ -751,15 +769,15 @@ def input_field(
     text_style = ft.TextStyle(
         font_family=c.font_families["cormorant"],
         color=colors["text"],
-        weight=W500,
-        size=s(16),
-        height=1.5 if multiline else None,
+        weight=W600,
+        size=s(17),
+        height=1.4 if multiline else None,
     )
     hint_style = ft.TextStyle(
         font_family=c.font_families["cormorant"],
         color=colors.get("faint", colors["muted"]),
-        weight=W500,
-        size=s(16),
+        weight=W600,
+        size=s(17),
         letter_spacing=UI_TRACKING,
     )
     prefix = None
@@ -780,14 +798,14 @@ def input_field(
         input_filter=input_filter,
         expand=expand,
         width=s(width) if width else None,
-        height=None if multiline else s(34),
+        height=None if multiline else s(36),
         autofocus=autofocus,
         dense=True,
         prefix=prefix,
         content_padding=ft.Padding.only(
             left=s(4 if prefix else 10), right=s(10), top=s(8), bottom=s(8)
         ),
-        text_size=s(13),
+        text_size=s(17),
         text_style=text_style,
         hint_style=hint_style,
         bgcolor=colors["bg"],
@@ -811,10 +829,10 @@ def dropdown_field(
     """Menu de seleção do padrão v2. ``options`` aceita textos ou ``(chave, texto)``."""
     colors = c.colors
     text_style = ft.TextStyle(
-        font_family=c.font_families["montserrat"],
+        font_family=c.font_families["cormorant"],
         color=colors["text"],
-        weight=W500,
-        size=s(13),
+        weight=W600,
+        size=s(16),
     )
     built: list[ft.DropdownOption] = []
     for option in options:
@@ -825,10 +843,10 @@ def dropdown_field(
                 text=text,
                 content=ft.Text(
                     text,
-                    size=s(13),
-                    weight=W500,
+                    size=s(16),
+                    weight=W600,
                     color=colors["text"],
-                    font_family=c.font_families["montserrat"],
+                    font_family=c.font_families["cormorant"],
                 ),
             )
         )
@@ -840,7 +858,7 @@ def dropdown_field(
         width=s(width) if width else None,
         expanded_insets=None if width else ft.Padding.all(0),
         dense=True,
-        text_size=s(13),
+        text_size=s(16),
         text_style=text_style,
         content_padding=ft.Padding.only(left=s(10), right=s(6), top=s(6), bottom=s(6)),
         bgcolor=colors["surface"],

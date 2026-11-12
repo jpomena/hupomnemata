@@ -231,8 +231,8 @@
       "icon": "book_outlined",
       "on_click": "work_insert"
     },
-    "Importar Metadados": {
-      "description": "Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF",
+    "Importar obra": {
+      "description": "Inserir obra por ISBN, ISSN, DOI",
       "icon": "upload_file"
     },
     "Fichamento Rápido": {

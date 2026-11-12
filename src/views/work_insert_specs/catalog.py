@@ -24,7 +24,6 @@ TYPE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "Periódicos",
         (
             "journal_article",
-            "magazine",
             "periodical_collection",
             "newspaper_article",
         ),

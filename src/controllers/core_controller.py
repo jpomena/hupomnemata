@@ -218,7 +218,10 @@ class CoreController(
 
     def sidebar_data(self) -> SidebarData:
         try:
-            works = len(self.service.list_works())
+            works = sum(
+                1 for r in self.service.list_works()
+                if not getattr(r, "is_magazine", False)
+            )
             fragments = len(self.fragment_service.list_fragments())
             compilations = [
                 (record["id"], record["name"])
@@ -232,6 +235,8 @@ class CoreController(
         query = (query or "").strip().lower()
         works = []
         for resource in self.service.list_works():
+            if getattr(resource, "is_magazine", False):
+                continue
             work = resource.specific_work
             if work is None:
                 continue
@@ -273,6 +278,8 @@ class CoreController(
         data: dict = {"works": [], "fragments": [], "compilations": []}
         try:
             for resource in self.service.list_works():
+                if getattr(resource, "is_magazine", False):
+                    continue
                 work = resource.specific_work
                 if work is None:
                     continue
@@ -344,6 +351,8 @@ class CoreController(
             self.open_insert_work()
         elif mod and key.upper() == "I":
             self.open_import_work()
+        elif mod and key.upper() == "R":
+            self.open_reverse_import()
         elif mod and key == "[":
             self.go_history(-1)
         elif mod and key == "]":
@@ -425,6 +434,9 @@ class CoreController(
             get_dashboard_data=self.dashboard_data,
             compilation_work_references=self.compilation_work_references,
             on_import_work=self.open_import_work,
+            on_reverse_import=self.open_reverse_import,
+            on_update_magazine=self.update_magazine,
+            on_delete_magazine=self.delete_magazine_cascade,
         )
 
     def build_application(self) -> None:

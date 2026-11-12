@@ -374,14 +374,19 @@ def test_core_composer_palette_has_import_action():
     composer = CoreComposer(**kwargs)
     composer.open_palette()
     assert composer.palette is not None
-    # Verificar se a ação de importação está presente nas ações da paleta
-    import_actions = [a for a in composer.palette.actions if "Importar" in a[1]]
+    # Verificar se a ação de importação de metadados está presente nas ações da paleta
+    import_actions = [a for a in composer.palette.actions if a[1] == "Importar obra (DOI, ISBN, ISSN)"]
     assert len(import_actions) == 1
     icon, label, shortcut, handler = import_actions[0]
     assert label == "Importar obra (DOI, ISBN, ISSN)"
     assert shortcut == "⌘I"
     handler()
     assert called == [True]
+
+    # Verificar se a importação reversa por referências também está registrada
+    ref_actions = [a for a in composer.palette.actions if "referências" in a[1]]
+    assert len(ref_actions) == 1
+    assert ref_actions[0][2] == "⌘R"
 
 
 def test_work_insert_modal_has_import_button_and_applies_metadata():

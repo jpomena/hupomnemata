@@ -19,7 +19,7 @@ from src.utils.display_dates import (
     sort_key,
 )
 from src.views import ui_kit as ui
-from src.views.ui_kit import W500, W600, s
+from src.views.ui_kit import W500, W600, W700, s
 
 FEED_LIMIT = 8
 LEFT_SPAN = 17
@@ -173,6 +173,7 @@ class DashboardComposer:
         on_new_fragment: Callable[[], None] | None = None,
         on_open_palette: Callable[[], None] | None = None,
         on_import_work: Callable[[], None] | None = None,
+        on_reverse_import: Callable[[], None] | None = None,
     ):
         self.scale = scale
         self.config = config
@@ -186,6 +187,7 @@ class DashboardComposer:
         )
         self.on_open_palette = on_open_palette
         self.on_import_work = on_import_work
+        self.on_reverse_import = on_reverse_import
         self.summary = DashboardSummary()
 
     # ── dados ──────────────────────────────────────────────
@@ -215,7 +217,7 @@ class DashboardComposer:
         colors = c.colors
         kpi_icon = ui.icon(c, icon_name, size=12, style=icon_style)
         kpi_label = ui.ui_text(c, label, size=12, color=colors['muted'])
-        value_text = ui.ui_text(c, str(value), size=24, weight=W600, tabular=True)
+        value_text = ui.serif_text(c, str(value), size=26, weight=W700)
         normal_border = None if last else ft.Border.only(right=ft.BorderSide(1, colors['border']))
         hover_border = ft.Border(
             left=ft.BorderSide(s(3), colors['gold']),
@@ -306,7 +308,7 @@ class DashboardComposer:
             border=ft.Border.all(1, c.colors['border']),
             border_radius=ft.BorderRadius.all(s(8)),
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-            margin=ft.Margin.only(left=s(32), right=s(32), bottom=s(24)),
+            margin=ft.Margin.only(left=s(32), right=s(32), top=s(14), bottom=s(24)),
         )
 
     def _column_head(self, label: str, width: float | None = None, right: bool = False) -> ft.Container:
@@ -378,7 +380,7 @@ class DashboardComposer:
         table_rows: list[ft.Control] = [header]
         for index, row in enumerate(rows):
             last = index == len(rows) - 1
-            name_text = ui.ui_text(c, row.get('name') or 'Sem nome', size=13, weight=W600, max_lines=2)
+            name_text = ui.serif_text(c, row.get('name') or 'Sem nome', size=15, weight=W700, max_lines=1, no_wrap=True)
             name_column: list[ft.Control] = [name_text]
             if row.get('description'):
                 name_column.append(ui.ui_text(c, row['description'], size=12, color=colors['faint'], max_lines=2))
@@ -514,14 +516,13 @@ class DashboardComposer:
         colors = c.colors
         track_width = s(90)
         ratio = max(0.04, count / maximum) if maximum else 0.04
-        name = ui.ui_text(c, label, size=13, color=colors['muted'])
+        name = ui.serif_text(c, label, size=15, weight=W700, color=colors['muted'])
         name_box = ft.Container(name, expand=True, on_click=lambda _e, t=label: self.on_navigate_with('Acervo', type_filter=t), tooltip=f'Ver {label} no acervo')
 
         def _hover(e):
             hovering = e.data in (True, 'true')
             name.color = colors['gold'] if hovering else colors['muted']
             name.style = ft.TextStyle(
-                letter_spacing=ui.UI_TRACKING,
                 decoration=ft.TextDecoration.UNDERLINE if hovering else ft.TextDecoration.NONE,
             )
             try:
@@ -589,7 +590,11 @@ class DashboardComposer:
         elif shortcut:
             trailing.append(ui.kbd(c, shortcut))
         icon_ctrl = ui.icon(c, icon_name, size=14)
-        label_ctrl = ui.ui_text(c, label, size=13, color=colors['faint'] if planned else colors['text'], expand=True)
+        label_ctrl = ui.serif_text(
+            c, label, size=15, weight=W600,
+            color=colors['faint'] if planned else colors['text'],
+            expand=True, max_lines=1, no_wrap=True
+        )
         content = ft.Row(
             controls=[
                 icon_ctrl,
@@ -624,7 +629,13 @@ class DashboardComposer:
                 planned=self.on_import_work is None,
                 tooltip='Inserir obra por DOI, ISBN ou ISSN' if self.on_import_work else 'Inserir obra por BibTeX, ISBN, ISSN, DOI ou PDF',
             ),
-            self._shortcut('file-export', 'Exportar referências', planned=True, tooltip='Exportar referências e dados'),
+            self._shortcut(
+                'file-lines',
+                'Importar por referências',
+                on_click=lambda _e: self.on_reverse_import() if self.on_reverse_import else None,
+                planned=self.on_reverse_import is None,
+                tooltip='Importar obras a partir de texto de referências bibliográficas via Nous',
+            ),
         ]
         return ui.card(c, [
             ui.card_head(c, 'Atalhos'),

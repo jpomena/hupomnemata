@@ -59,9 +59,9 @@ def _label_style(config: ViewConfig) -> ft.TextStyle:
 def _input_text_style(config: ViewConfig) -> ft.TextStyle:
     return ft.TextStyle(
         color=config.colors['text'],
-        size=13,
-        weight=ft.FontWeight.W_500,
-        font_family=config.font_families['montserrat'],
+        size=17,
+        weight=ft.FontWeight.W_600,
+        font_family=config.font_families['cormorant'],
     )
 
 

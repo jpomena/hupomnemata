@@ -83,6 +83,35 @@ class WorkControllerMixin:
         )
         dialog.show()
 
+    def open_reverse_import(self) -> None:
+        """Abre o diálogo de importação reversa de referências bibliográficas via Nous."""
+        from src.views.reverse_import_modal import ReverseImportModalDialog
+
+        def on_import_success(count: int) -> None:
+            if count > 0:
+                if hasattr(self, "navigate"):
+                    self.navigate("Acervo")
+                if hasattr(self, "show_message"):
+                    self.show_message(
+                        f"{count} {'obra importada' if count == 1 else 'obras importadas'} com sucesso pelo Nous!",
+                        self.view_config.colors["gold"],
+                    )
+
+        def on_open_nous_settings() -> None:
+            if hasattr(self, "navigate"):
+                self.navigate("Nous")
+
+        dialog = ReverseImportModalDialog(
+            page=self.page,
+            config=self.view_config,
+            nous_service=getattr(self, "nous_service", None),
+            work_service=getattr(self, "service", None),
+            form_service=getattr(self, "form_service", None),
+            on_success=on_import_success,
+            on_open_nous_settings=on_open_nous_settings,
+        )
+        dialog.show()
+
     def _on_metadata_imported(self, metadata) -> None:
         """Abre o formulário de cadastro pré-preenchido com os metadados importados."""
         parent_id = getattr(metadata, "parent_work_id", None)
@@ -441,6 +470,45 @@ class WorkControllerMixin:
         else:
             message = f'{removed} de {len(resources)} obras excluídas. Veja o log para os erros.'
         self.show_message(message, self.view_config.colors['gold'])
+
+    def delete_magazine_cascade(self, resource) -> None:
+        """Remove um periódico e em cascata todos os artigos vinculados."""
+        try:
+            removed_children = self.service.remove_magazine_cascade(resource.id)
+        except Exception as error:
+            log_exception("Falha ao excluir periódico em cascata", error)
+            self.show_message(
+                f'Não foi possível excluir o periódico.\n\n{error}',
+                self.view_config.colors['text']
+            )
+            return
+
+        self.navigate('Acervo', push_history=False)
+        msg = (
+            f"Periódico e {removed_children} artigo(s) excluídos do acervo."
+            if removed_children > 0 else "Periódico excluído do acervo."
+        )
+        self.show_message(msg, self.view_config.colors['gold'])
+
+    def update_magazine(
+        self, resource_id: int, title: str, publication_place: str
+    ) -> None:
+        """Atualiza metadados do periódico e sincroniza artigos."""
+        try:
+            self.service.update_magazine(resource_id, title, publication_place)
+        except Exception as error:
+            log_exception("Falha ao atualizar periódico", error)
+            self.show_message(
+                f'Não foi possível atualizar o periódico.\n\n{error}',
+                self.view_config.colors['text']
+            )
+            return
+
+        self.navigate('Acervo', push_history=False)
+        self.show_message(
+            "Periódico atualizado com sucesso.",
+            self.view_config.colors['gold']
+        )
 
     def search_authors(self, query: str) -> list[AuthorSearchResult]:
         """Retorna autores existentes para a busca do modal."""

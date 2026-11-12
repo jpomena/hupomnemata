@@ -67,12 +67,16 @@ WORK_TYPES: tuple[WorkTypeSpec, ...] = (
     AUDIO_SPEC,
     CORRESPONDENCE_MONOGRAPH_SPEC,
     PERIODICAL_COLLECTION_SPEC,
-    MAGAZINE_SPEC,
     PATENT_SPEC,
     MUSICAL_SCORE_SPEC,
     VISUAL_SPEC,
     CARTOGRAPHIC_SPEC,
     THREE_DIMENSIONAL_SPEC,
+)
+
+ALL_WORK_TYPES: tuple[WorkTypeSpec, ...] = (
+    *WORK_TYPES,
+    MAGAZINE_SPEC,
 )
 
 __all__ = [
@@ -97,5 +101,7 @@ __all__ = [
     "PARENT_WORK_TYPES",
     "DEFAULTED_FIELDS",
     "WORK_TYPES",
+    "ALL_WORK_TYPES",
+    "MAGAZINE_SPEC",
     "_spec",
 ]

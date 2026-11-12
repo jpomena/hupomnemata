@@ -120,6 +120,9 @@ class CoreComposer:
         get_dashboard_data: Callable[[], dict] | None = None,
         compilation_work_references: Callable[[list[int]], dict] | None = None,
         on_import_work: Callable[[], None] | None = None,
+        on_reverse_import: Callable[[], None] | None = None,
+        on_update_magazine: Callable[[int, str, str], None] | None = None,
+        on_delete_magazine: Callable[[int], None] | None = None,
     ):
         self.page = page
         self.scale = scale
@@ -198,7 +201,11 @@ class CoreComposer:
         self.get_dashboard_data = get_dashboard_data
         self.compilation_work_references = compilation_work_references
         self.on_import_work = on_import_work
+        self.on_reverse_import = on_reverse_import
+        self.on_update_magazine = on_update_magazine
+        self.on_delete_magazine = on_delete_magazine
         self.fragment_dialog_composer: FragmentsComposer | None = None
+        self.sidebar_compilations_expanded: bool = True
 
     # ── shell: barra de título, sidebar, breadcrumb ────────
 
@@ -344,6 +351,8 @@ class CoreComposer:
         return next((name for cid, name in data.compilations if cid == compilation_id), None)
 
     def _compose_sidebar(self) -> ft.Container:
+        if self.current_destination.startswith("compilacao:"):
+            self.sidebar_compilations_expanded = True
         return SidebarComposer(
             scale=self.scale,
             config=self.config,
@@ -354,7 +363,18 @@ class CoreComposer:
             on_new_work=lambda: self.on_navigate("work_insert"),
             on_new_compilation=self.on_new_compilation,
             on_toggle_theme=self.on_toggle_theme,
+            compilations_expanded=self.sidebar_compilations_expanded,
+            on_toggle_compilations=self._on_toggle_sidebar_compilations,
         ).compose()
+
+    def _on_toggle_sidebar_compilations(self, expanded: bool) -> None:
+        self.sidebar_compilations_expanded = expanded
+        if getattr(self, "sidebar_host", None) is not None:
+            self.sidebar_host.content = self._compose_sidebar()
+            try:
+                self.sidebar_host.update()
+            except Exception:
+                pass
 
     def set_history_state(self, can_back: bool, can_forward: bool) -> None:
         self.can_go_back = can_back
@@ -489,6 +509,7 @@ class CoreComposer:
             actions=[
                 ("plus", "Inserir nova obra", "⌘N", lambda: self.on_navigate("work_insert")),
                 ("file-import", "Importar obra (DOI, ISBN, ISSN)", "⌘I", lambda: self.on_import_work() if self.on_import_work else None),
+                ("file-lines", "Importar por referências (texto / Nous)", "⌘R", lambda: self.on_reverse_import() if self.on_reverse_import else None),
                 ("circle-half-stroke", "Alternar tema", None, lambda: self.on_toggle_theme() if self.on_toggle_theme else None),
                 ("book", "Ir para Acervo", None, lambda: self.on_navigate("Acervo")),
                 ("quote-left", "Ir para Fragmentos", None, lambda: self.on_navigate("Fragmentos")),
@@ -513,6 +534,7 @@ class CoreComposer:
             on_new_fragment=self.open_fragment_create,
             on_open_palette=self.open_palette,
             on_import_work=getattr(self, "on_import_work", None),
+            on_reverse_import=getattr(self, "on_reverse_import", None),
         ).compose()
 
     def open_fragment_create(self) -> None:
@@ -621,6 +643,8 @@ class CoreComposer:
             on_delete_works=getattr(self, "on_delete_works", None),
             nous_service=getattr(self, "nous_service", None),
             on_import_work=getattr(self, "on_import_work", None),
+            on_update_magazine=getattr(self, "on_update_magazine", None),
+            on_delete_magazine=getattr(self, "on_delete_magazine", None),
         )
         return self.works_composer.compose()
 
