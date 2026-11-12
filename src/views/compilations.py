@@ -157,6 +157,23 @@ class CompilationsComposer:
         self.page.show_dialog(self.create_dialog)
         return self.create_dialog
 
+    def _close_create_dialog(self) -> None:
+        """Fecha o diálogo de criação de compilação com segurança garantida."""
+        if hasattr(self, 'create_dialog') and self.create_dialog is not None:
+            self.create_dialog.open = False
+            try:
+                self.create_dialog.update()
+            except Exception:
+                pass
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
     def _create(self) -> None:
         name = (self.new_name.value or '').strip()
         if not name:
@@ -166,13 +183,21 @@ class CompilationsComposer:
             except Exception:
                 pass
             return
+
+        # Fecha o diálogo ANTES do on_create, impedindo que o toast sobreponha a pilha de modais
+        self._close_create_dialog()
+
         compilation_id = self.on_create({
             'name': name,
             'description': self.new_description.value,
         })
         if compilation_id is None:
+            # Se a criação falhou, reabre o modal com a mensagem
+            if hasattr(self, 'create_dialog') and self.create_dialog is not None:
+                self.create_dialog.open = True
+                self.page.show_dialog(self.create_dialog)
             return
-        self.page.pop_dialog()
+
         self.new_name.value = ''
         self.new_description.value = ''
         self.compilations = self.refresh_compilations()
@@ -183,7 +208,7 @@ class CompilationsComposer:
         self.page.update()
 
     def _cancel_create(self) -> None:
-        self.page.pop_dialog()
+        self._close_create_dialog()
         self.new_name.value = ''
         self.new_description.value = ''
 

@@ -17,7 +17,7 @@ from src.utils.display_dates import format_date
 from src.utils.fragment_reference import fragment_abnt_notation
 from src.utils.types import ReferencePart, ViewConfig, ViewReference
 from src.views import ui_kit as ui
-from src.views.ui_kit import W500, W600, s
+from src.views.ui_kit import W500, W600, W700, s
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
@@ -585,12 +585,12 @@ class FragmentsComposer:
         byline = ' · '.join(
             part for part in (first.get('citation_author'), first.get('display_year')) if part
         )
-        title_text = ui.ui_text(c, title, size=13, weight=W600)
+        title_text = ui.serif_text(c, title, size=18.5, weight=W700)
         title_text.expand = True
         title_text.expand_loose = True
         title_line: list[ft.Control] = [title_text]
         if byline:
-            title_line.append(ui.ui_text(c, byline, size=12, color=colors['faint']))
+            title_line.append(ui.ui_text(c, byline, size=12.5, color=colors['faint']))
         head_controls: list[ft.Control] = [
             ui.icon_button(
                 c,

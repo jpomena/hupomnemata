@@ -46,6 +46,8 @@ class SidebarComposer:
         on_new_work: Callable[[], None] | None = None,
         on_new_compilation: Callable[[], None] | None = None,
         on_toggle_theme: Callable[[], None] | None = None,
+        compilations_expanded: bool = True,
+        on_toggle_compilations: Callable[[bool], None] | None = None,
     ) -> None:
         self.scale = scale
         self.config = config
@@ -56,6 +58,15 @@ class SidebarComposer:
         self.on_new_work = on_new_work
         self.on_new_compilation = on_new_compilation
         self.on_toggle_theme = on_toggle_theme
+        self.compilations_expanded = compilations_expanded
+        if self.current.startswith("compilacao:"):
+            self.compilations_expanded = True
+        self.on_toggle_compilations = on_toggle_compilations
+
+    def _toggle_compilations(self) -> None:
+        self.compilations_expanded = not self.compilations_expanded
+        if self.on_toggle_compilations is not None:
+            self.on_toggle_compilations(self.compilations_expanded)
 
     # ── peças ──────────────────────────────────────────────
 
@@ -66,6 +77,8 @@ class SidebarComposer:
         label: str,
         count: int | None = None,
         leading: ft.Control | None = None,
+        indent: float = 0,
+        trailing: ft.Control | None = None,
     ) -> ft.Container:
         c = self.config
         active = self.current == destination
@@ -74,12 +87,15 @@ class SidebarComposer:
             size=s(13),
             color=c.colors["gold"] if active else c.colors["faint"],
         )
-        label_text = ui.ui_text(
-            c, label, size=13,
-            weight=ui.W600 if active else ui.W500,
+        label_text = ui.serif_text(
+            c, label, size=16 if indent > 0 else 17,
+            weight=ui.W700 if active else ui.W600,
             color=c.colors["text"] if active else c.colors["muted"],
+            max_lines=1,
+            no_wrap=True,
             expand=True,
         )
+        label_text.tooltip = label
         controls: list[ft.Control] = [
             ft.Container(glyph, width=s(18), alignment=ft.Alignment.CENTER),
             label_text,
@@ -88,6 +104,8 @@ class SidebarComposer:
         if count is not None:
             count_ctrl = ui.ui_text(c, str(count), size=12, color=c.colors["faint"], tabular=True)
             controls.append(count_ctrl)
+        if trailing is not None:
+            controls.append(trailing)
 
         active_border = ft.Border(
             left=ft.BorderSide(s(3), c.colors["gold"]),
@@ -121,11 +139,11 @@ class SidebarComposer:
 
         item = ui.hover_surface(
             c,
-            ft.Row(controls, spacing=s(10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row(controls, spacing=s(8 if indent > 0 else 10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
             on_click=lambda _e: self.on_navigate(destination),
             selected=active,
-            padding=ft.Padding.symmetric(horizontal=s(8)),
-            height=s(30),
+            padding=ft.Padding.only(left=s(8 + indent), right=s(6 if trailing else 8)),
+            height=s(32 if indent > 0 else 34),
             radius=item_radius,
             border=active_border if active else None,
             hover_border=hover_border,
@@ -149,7 +167,7 @@ class SidebarComposer:
     def _compose_top(self) -> ft.Container:
         c = self.config
         search_icon = fa_icon("magnifying-glass", size=s(12), color=c.colors["faint"])
-        search_label = ui.ui_text(c, "Buscar", size=13, color=c.colors["faint"], expand=True)
+        search_label = ui.serif_text(c, "Buscar no gabinete...", size=15.5, weight=ui.W600, color=c.colors["faint"], max_lines=1, no_wrap=True, expand=True)
 
         def _on_hover_search(hovering: bool) -> None:
             search_icon.color = c.colors["gold"] if hovering else c.colors["faint"]
@@ -169,7 +187,7 @@ class SidebarComposer:
             ),
             on_click=lambda _e: self.on_search() if self.on_search else None,
             padding=ft.Padding.only(left=s(8), right=s(6)),
-            height=s(32),
+            height=s(34),
             base=c.colors["bg"],
             on_hover=_on_hover_search,
         )
@@ -190,6 +208,23 @@ class SidebarComposer:
             on_click=lambda _e: self.on_new_compilation() if self.on_new_compilation else self.on_navigate("Compilações"),
             tooltip="Nova compilação", size=22,
         )
+
+        chevron_btn = ui.icon_button(
+            c,
+            "chevron-down" if self.compilations_expanded else "chevron-right",
+            size=22,
+            tooltip="Recolher cadernos" if self.compilations_expanded else "Expandir cadernos",
+            on_click=lambda _e: self._toggle_compilations(),
+        )
+
+        root_comp = self._item(
+            "Compilações",
+            "folder-open",
+            "Todas as compilações",
+            len(self.data.compilations),
+            trailing=chevron_btn,
+        )
+
         projects = []
         for comp_id, name in self.data.compilations:
             destination = f"compilacao:{comp_id}"
@@ -200,8 +235,14 @@ class SidebarComposer:
                 border=ft.Border.all(1.5, c.colors["gold"] if active else c.colors["faint"]),
                 bgcolor=c.colors["gold"] if active else None,
             )
-            projects.append(self._item(destination, None, name, leading=dot))
-        projects.append(self._item("Compilações", "folder-open", "Todas as compilações", len(self.data.compilations)))
+            projects.append(self._item(destination, None, name, leading=dot, indent=14))
+
+        compilations_section: list[ft.Control] = [
+            self._group_head("Compilações", add_comp),
+            root_comp,
+        ]
+        if self.compilations_expanded and projects:
+            compilations_section.extend(projects)
 
         explore = [self._item(dest, ic, label) for dest, ic, label in EXPLORE_ITEMS]
 
@@ -209,7 +250,7 @@ class SidebarComposer:
             content=ft.Column(
                 controls=[
                     ft.Column(main, spacing=s(1), tight=True),
-                    ft.Column([self._group_head("Compilações", add_comp), *projects], spacing=s(1), tight=True),
+                    ft.Column(compilations_section, spacing=s(1), tight=True),
                     ft.Column([self._group_head("Explorar"), *explore], spacing=s(1), tight=True),
                 ],
                 spacing=s(16),

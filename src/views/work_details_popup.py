@@ -424,15 +424,15 @@ class WorkDetailsPopup:
         )
 
         if has_custom:
-            badge_text = "Personalizada pelo Usuário"
+            badge_text = "Síntese pelo Usuário"
             badge_icon = ft.Icons.EDIT_NOTE
             badge_color = "#5A6B7C"
         elif has_llm:
-            badge_text = "Síntese IA (Gemini)"
+            badge_text = "Síntese por LLM"
             badge_icon = ft.Icons.AUTO_AWESOME
             badge_color = self.config.colors["gold"]
         else:
-            badge_text = "Pendente de Síntese"
+            badge_text = "Pendente"
             badge_icon = ft.Icons.HELP_OUTLINE
             badge_color = self.config.colors["muted"]
 
@@ -591,7 +591,7 @@ class WorkDetailsPopup:
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
                 text_widget,
-                ft.Row(controls=buttons, spacing=8) if buttons else ft.Container(),
+                ft.Row(controls=buttons, spacing=8, alignment=ft.MainAxisAlignment.SPACE_BETWEEN) if buttons else ft.Container(),
             ],
             spacing=10,
         )

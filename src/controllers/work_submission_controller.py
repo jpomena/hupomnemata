@@ -10,10 +10,10 @@ from src.utils.error_log import log_exception
 from src.utils.types import ViewConfig
 from src.views.core_composer import CoreComposer
 from src.views.work_insert_specs import (
+    ALL_WORK_TYPES,
     ALWAYS_PARTIAL_TYPES,
     DEFAULTED_FIELDS,
     PARTIAL_FORM_FIELDS,
-    WORK_TYPES,
 )
 
 
@@ -85,7 +85,7 @@ class WorkSubmissionController:
     ) -> list[str]:
         work_type = str(form_data.get('work_type', ''))
         spec = next(
-            (item for item in WORK_TYPES if item.key == work_type),
+            (item for item in ALL_WORK_TYPES if item.key == work_type),
             None,
         )
         if spec is None:

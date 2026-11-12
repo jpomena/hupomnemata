@@ -70,6 +70,7 @@ class NousComposer:
             "Conexão Ativa" if self.has_key else "Chave Não Configurada",
             size=11 * self.scale,
             weight=ft.FontWeight.W_600,
+            font_family=self.config.font_families["montserrat"],
             color=self.config.colors["gold"] if self.has_key else self.config.colors["muted"],
         )
 
@@ -91,7 +92,7 @@ class NousComposer:
         self.status_feedback = ft.Text(
             "",
             size=12 * self.scale,
-            italic=True,
+            font_family=self.config.font_families["montserrat"],
             color=self.config.colors["muted"],
         )
 
@@ -106,7 +107,8 @@ class NousComposer:
 
         self.batch_progress_text = ft.Text(
             "",
-            size=11 * self.scale,
+            size=12 * self.scale,
+            font_family=self.config.font_families["montserrat"],
             visible=False,
             color=self.config.colors["muted"],
         )
@@ -119,7 +121,7 @@ class NousComposer:
             on_change=self._handle_search_filter,
             border_radius=8,
             height=38 * self.scale,
-            text_size=12 * self.scale,
+            text_size=13 * self.scale,
             border_color=self.config.colors["border"],
             bgcolor=self.config.colors["surface"],
             width=360 * self.scale,
@@ -127,10 +129,10 @@ class NousComposer:
         )
 
         # Contadores de métricas
-        self.stat_total = ft.Text("0", size=18 * self.scale, weight=ft.FontWeight.W_700, color=self.config.colors["text"])
-        self.stat_with_ai = ft.Text("0", size=18 * self.scale, weight=ft.FontWeight.W_700, color=self.config.colors["gold"])
-        self.stat_custom = ft.Text("0", size=18 * self.scale, weight=ft.FontWeight.W_700, color="#5A6B7C")
-        self.stat_pending = ft.Text("0", size=18 * self.scale, weight=ft.FontWeight.W_700, color=self.config.colors["muted"])
+        self.stat_total = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["text"])
+        self.stat_with_ai = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["gold"])
+        self.stat_custom = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color="#5A6B7C")
+        self.stat_pending = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["muted"])
 
     def compose(self) -> ft.Control:
         """Monta e retorna a visão completa do Menu Nous."""
@@ -300,9 +302,9 @@ class NousComposer:
                             ft.Icon(ft.Icons.KEY, size=18 * self.scale, color=self.config.colors["gold"]),
                             ft.Text(
                                 "Configuração BYOK (Bring Your Own Key)",
-                                size=self.config.font_sizes["cormorant_medium"] * self.scale,
-                                font_family=self.config.font_families["cormorant"],
-                                weight=self.config.font_weights["cormorant_semibold"],
+                                size=15 * self.scale,
+                                font_family=self.config.font_families["montserrat"],
+                                weight=ft.FontWeight.W_700,
                                 color=self.config.colors["gold"],
                             ),
                         ],
@@ -368,8 +370,11 @@ class NousComposer:
                     ft.Text(
                         "As sínteses epistemológicas contextualizam as teses fundamentais de cada obra e "
                         "posicionam os nós na Constelação 3D. Você pode gerar com IA e sobrepor com suas próprias anotações a qualquer momento.",
-                        size=12 * self.scale,
-                        color=self.config.colors["muted"],
+                        size=15 * self.scale,
+                        font_family=self.config.font_families["cormorant"],
+                        weight=ft.FontWeight.W_600,
+                        color=self.config.colors["text"],
+                        style=ft.TextStyle(height=1.4),
                     ),
                     self.metrics_row,
                     ft.Divider(color=self.config.colors["border"], height=10 * self.scale),
@@ -392,7 +397,13 @@ class NousComposer:
             padding=ft.Padding(16 * self.scale, 10 * self.scale, 16 * self.scale, 10 * self.scale),
             content=ft.Column(
                 controls=[
-                    ft.Text(label.upper(), size=9 * self.scale, weight=ft.FontWeight.W_700, color=self.config.colors["muted"]),
+                    ft.Text(
+                        label.upper(),
+                        size=10 * self.scale,
+                        font_family=self.config.font_families["montserrat"],
+                        weight=ft.FontWeight.W_600,
+                        color=self.config.colors["muted"],
+                    ),
                     value_ctrl,
                 ],
                 spacing=2 * self.scale,
@@ -437,7 +448,8 @@ class NousComposer:
                                 ),
                                 ft.Text(
                                     "Consultando Nous... gerando síntese conceitual",
-                                    size=11 * self.scale,
+                                    size=12 * self.scale,
+                                    font_family=self.config.font_families["montserrat"],
                                     weight=ft.FontWeight.W_600,
                                     color=self.config.colors["text"],
                                 ),
@@ -493,7 +505,8 @@ class NousComposer:
                     padding=20 * self.scale,
                     content=ft.Text(
                         "Nenhuma obra encontrada no acervo.",
-                        size=12 * self.scale,
+                        size=14 * self.scale,
+                        font_family=self.config.font_families["montserrat"],
                         color=self.config.colors["muted"],
                     ),
                 )
@@ -508,9 +521,16 @@ class NousComposer:
             status_label = w["status_label"]
             status_color = w["status_color"]
             snippet = w["snippet"] or "Sem síntese cadastrada."
+            has_snippet = bool(w["snippet"])
 
             status_badge = ft.Container(
-                content=ft.Text(status_label.upper(), size=9 * self.scale, weight=ft.FontWeight.W_700, color=status_color),
+                content=ft.Text(
+                    status_label.upper(),
+                    size=10 * self.scale,
+                    weight=ft.FontWeight.W_600,
+                    font_family=self.config.font_families["montserrat"],
+                    color=status_color,
+                ),
                 bgcolor=self.config.colors["surface"],
                 border=ft.Border.all(1, status_color),
                 border_radius=4,
@@ -525,18 +545,21 @@ class NousComposer:
 
             snippet_text = ft.Text(
                 snippet,
-                size=12 * self.scale,
-                italic=True,
+                size=16 * self.scale,
                 font_family=self.config.font_families["cormorant"],
-                color=self.config.colors["text"],
+                weight=ft.FontWeight.W_600 if has_snippet else ft.FontWeight.W_500,
+                color=self.config.colors["text"] if has_snippet else self.config.colors["muted"],
+                italic=not has_snippet,
+                style=ft.TextStyle(height=1.45),
+                selectable=True,
             )
             self.work_snippet_texts[w_id] = snippet_text
 
             snippet_box = ft.Container(
                 bgcolor=self.config.colors["surface"],
-                border=ft.Border(left=ft.BorderSide(2 * self.scale, status_color)),
+                border=ft.Border(left=ft.BorderSide(3 * self.scale, status_color)),
                 border_radius=4,
-                padding=8 * self.scale,
+                padding=ft.Padding(12 * self.scale, 10 * self.scale, 12 * self.scale, 10 * self.scale),
                 content=snippet_text,
             )
 
@@ -553,14 +576,16 @@ class NousComposer:
                                     controls=[
                                         ft.Text(
                                             title,
-                                            size=14 * self.scale,
+                                            size=18.5 * self.scale,
                                             font_family=self.config.font_families["cormorant"],
-                                            weight=self.config.font_weights["cormorant_semibold"],
+                                            weight=ft.FontWeight.W_700,
                                             color=self.config.colors["gold"],
                                         ),
                                         ft.Text(
                                             f"{authors} • {year or 's.d.'}",
-                                            size=11 * self.scale,
+                                            size=12 * self.scale,
+                                            font_family=self.config.font_families["montserrat"],
+                                            weight=ft.FontWeight.W_500,
                                             color=self.config.colors["muted"],
                                         ),
                                     ],
@@ -708,8 +733,9 @@ class NousComposer:
                     if badge_box is not None:
                         badge_box.content = ft.Text(
                             updated_item["status_label"].upper(),
-                            size=9 * self.scale,
-                            weight=ft.FontWeight.W_700,
+                            size=10 * self.scale,
+                            weight=ft.FontWeight.W_600,
+                            font_family=self.config.font_families["montserrat"],
                             color=updated_item["status_color"],
                         )
                         badge_box.bgcolor = self.config.colors["surface"]
@@ -722,7 +748,11 @@ class NousComposer:
                     # Atualiza snippet de texto do card
                     snip_box = self.work_snippet_texts.get(work_id)
                     if snip_box is not None:
+                        has_snip = bool(updated_item["snippet"])
                         snip_box.value = updated_item["snippet"] or "Sem síntese cadastrada."
+                        snip_box.italic = not has_snip
+                        snip_box.weight = ft.FontWeight.W_600 if has_snip else ft.FontWeight.W_500
+                        snip_box.color = self.config.colors["text"] if has_snip else self.config.colors["muted"]
                         try:
                             snip_box.update()
                         except Exception:
@@ -812,7 +842,14 @@ class NousComposer:
             multiline=True,
             min_lines=6,
             max_lines=12,
-            text_size=12 * self.scale,
+            text_size=16 * self.scale,
+            text_style=ft.TextStyle(
+                font_family=self.config.font_families["cormorant"],
+                size=16 * self.scale,
+                weight=ft.FontWeight.W_600,
+                color=self.config.colors["text"],
+                height=1.45,
+            ),
             border_color=self.config.colors["border"],
             bgcolor=self.config.colors["surface"],
         )
@@ -835,8 +872,9 @@ class NousComposer:
         dialog = ft.AlertDialog(
             title=ft.Text(
                 f"Personalizar Síntese: {title}",
-                size=self.config.font_sizes["cormorant_medium"] * self.scale,
+                size=20 * self.scale,
                 font_family=self.config.font_families["cormorant"],
+                weight=ft.FontWeight.W_700,
                 color=self.config.colors["gold"],
             ),
             content=ft.Container(
@@ -845,7 +883,8 @@ class NousComposer:
                     controls=[
                         ft.Text(
                             "O texto inserido aqui sobrepõe qualquer síntese gerada por IA e passará a orientar a posição da obra na Constelação 3D.",
-                            size=11 * self.scale,
+                            size=12 * self.scale,
+                            font_family=self.config.font_families["montserrat"],
                             color=self.config.colors["muted"],
                         ),
                         text_input,

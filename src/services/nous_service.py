@@ -3,6 +3,8 @@ Integração com Google Gemini (BYOK), descoberta dinâmica de modelos, síntese
 """
 
 from collections.abc import Callable
+import json
+import re
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
@@ -42,6 +44,10 @@ class NousAIService:
         """Recupera a chave de API do Gemini persistida nas configurações."""
         settings = self.settings_service.load_settings()
         return getattr(settings, "gemini_api_key", "") or ""
+
+    def has_api_key(self) -> bool:
+        """Verifica se há chave de API do Gemini cadastrada nas configurações."""
+        return bool(self.get_api_key().strip())
 
     def save_api_key(self, api_key: str) -> bool:
         """Salva a chave de API do Gemini no arquivo de preferências do usuário."""
@@ -186,9 +192,10 @@ class NousAIService:
             authors_str = ", ".join(author_names) if author_names else "Autoria não informada"
 
             prompt = (
-                "Você é um assistente acadêmico e bibliográfico de alta precisão conceitual.\n"
-                "Produza uma síntese conceitual e epistemológica densa, elegante e fluida "
-                "(de 1 a 2 parágrafos em português do Brasil) para a seguinte obra catalogada:\n"
+                "Você é um indexador acadêmico e bibliográfico de alta precisão semântica.\n"
+                "Produza uma síntese analítica e conceitualmente densa (de 1 a 2 parágrafos "
+                "em português do Brasil), otimizada para recuperação de informação e clusterização "
+                "temática, para a seguinte obra:\n"
                 f"- Título: {title}\n"
                 f"- Subtítulo: {subtitle or 'Nenhum'}\n"
                 f"- Autoria: {authors_str}\n"
@@ -196,10 +203,17 @@ class NousAIService:
                 f"- Ano de Publicação: {year or 's.d.'}\n"
                 f"- Resumo/Anotações existentes: {abstract or 'Nenhum'}\n\n"
                 "Diretrizes de elaboração:\n"
-                "1. Destaque os problemas teóricos e filosóficos nucleares investigados na obra.\n"
-                "2. Evidencie os conceitos-chave, teses centrais e implicações metodológicas.\n"
-                "3. Estruture o texto de modo a enriquecer uma malha de conexões conceituais com outros pensadores e fragmentos.\n"
-                "4. Não use introduções descartáveis como 'Esta obra aborda...' ou tópicos em bullet points; escreva uma prosa analítica coesa.\n"
+                "1. Respeite a natureza da obra (teórica, empírica, dogmática, histórica ou técnica), "
+                "sem forçar jargão filosófico ou epistemológico onde não couber.\n"
+                "2. Explicite o objeto central de estudo, o recorte temático, os conceitos-chave, "
+                "a abordagem metodológica e o domínio disciplinar.\n"
+                "3. Mencione tradições teóricas ou outros autores apenas se fizerem parte direta "
+                "do escopo da obra ou das anotações fornecidas, evitando associações especulativas.\n"
+                "4. Caso não haja resumo disponível e a obra não seja amplamente conhecida, "
+                "restrinja-se a desdobrar com precisão semântica os termos do título e subtítulo, "
+                "sem inventar teses ou conclusões.\n"
+                "5. Escreva em prosa direta e substantiva, com alta densidade de termos técnicos da área, "
+                "sem introduções genéricas ('Esta obra aborda...'), adjetivação vazia ou bullet points.\n"
             )
 
             payload = {
@@ -368,3 +382,161 @@ class NousAIService:
             "failed": failed,
             "errors": errors,
         }
+
+    def extract_reference_metadata(
+        self,
+        raw_text: str,
+        target_work_type: Optional[str] = None,
+    ) -> Tuple[bool, Dict[str, Any], str]:
+        """Extrai metadados estruturados de uma referência bibliográfica via IA do Nous (Gemini).
+
+        Requer chave de API ativa. Caso ausente, recusa a operação e solicita a chave.
+        """
+        key = self.get_api_key().strip()
+        if not key:
+            return (
+                False,
+                {},
+                "Nenhuma chave de API do Nous (Google Gemini) configurada. "
+                "Cadastre sua chave no Menu Nous (BYOK) para utilizar a importação reversa.",
+            )
+
+        clean_ref = raw_text.strip()
+        if not clean_ref:
+            return False, {}, "Texto da referência está vazio."
+
+        work_type = target_work_type or "editorial_monograph"
+
+        prompt = (
+            "Você é o mecanismo cognitivo NOUS do software bibliográfico Hupomnemata.\n"
+            "Analise a referência bibliográfica abaixo e extraia seus componentes em formato JSON estrito.\n\n"
+            f"Tipo de obra alvo selecionado: {work_type}\n"
+            f"Referência bibliográfica:\n\"\"\"{clean_ref}\"\"\"\n\n"
+            "Regras e esquema JSON esperado:\n"
+            "Retorne EXCLUSIVAMENTE um objeto JSON (sem markdown, sem introdução, sem explicações), com os seguintes campos:\n"
+            "{\n"
+            '  "title": "Título principal da obra (sem subtítulo, obrigatório)",\n'
+            '  "subtitle": "Subtítulo da obra após dois-pontos ou travessão (se houver, senão null)",\n'
+            '  "authors": [{"name": "Sobrenome, Prenomes ou Nome Completo", "corporation": false}],\n'
+            '  "date_anchor": "Ano de publicação (ex: \'2014\'; obrigatório)",\n'
+            '  "publisher": "Editora (se não houver no texto use \'[s.n.]\')",\n'
+            '  "publication_place": "Local/Cidade de publicação (se não houver use \'[s.l.]\')",\n'
+            '  "edition": "Número da edição se houver (ex: 2)",\n'
+            '  "journal_title": "Título do periódico/revista (se journal_article ou newspaper_article)",\n'
+            '  "volume": "Volume da revista/livro se houver",\n'
+            '  "number": "Número do fascículo se houver (para journal_article padrão 1 se não houver)",\n'
+            '  "part_start_page": "Página inicial se houver",\n'
+            '  "part_end_page": "Página final se houver",\n'
+            '  "doi": "DOI se houver no texto",\n'
+            '  "isbn": "ISBN se houver",\n'
+            '  "issn": "ISSN se houver",\n'
+            '  "url": "URL se houver"\n'
+            "}\n"
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 800,
+            },
+        }
+
+        candidates = self.get_candidate_models(key)
+        if self.preferred_model in candidates:
+            models_to_try = [self.preferred_model] + [m for m in candidates if m != self.preferred_model]
+        else:
+            models_to_try = candidates
+
+        last_err = ""
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.post(url, json=payload)
+                    if response.status_code == 200:
+                        data = response.json()
+                        candidates_data = data.get("candidates", [])
+                        if not candidates_data:
+                            continue
+                        parts = candidates_data[0].get("content", {}).get("parts", [])
+                        if not parts or "text" not in parts[0]:
+                            continue
+                        raw_json_str = parts[0]["text"].strip()
+                        # Remove possíveis fences de código ```json ... ```
+                        if raw_json_str.startswith("```"):
+                            raw_json_str = re.sub(r"^```(?:json)?\s*", "", raw_json_str)
+                            raw_json_str = re.sub(r"\s*```$", "", raw_json_str)
+
+                        extracted = json.loads(raw_json_str)
+                        if not isinstance(extracted, dict):
+                            continue
+
+                        # Normalização e complementação de defaults
+                        extracted["work_type"] = work_type
+                        if not extracted.get("title"):
+                            extracted["title"] = clean_ref[:60]
+                        if not extracted.get("publication_place"):
+                            extracted["publication_place"] = "[s.l.]"
+                        if not extracted.get("publisher"):
+                            extracted["publisher"] = "[s.n.]"
+                        if not extracted.get("date_anchor"):
+                            year_match = re.search(r"\b(19\d\d|20\d\d)\b", clean_ref)
+                            extracted["date_anchor"] = year_match.group(1) if year_match else "2024"
+
+                        if work_type == "journal_article":
+                            if not extracted.get("number"):
+                                extracted["number"] = 1
+                            extracted["is_partial"] = True
+                            raw_anchor = str(extracted.get("date_anchor", "2024")).strip()
+                            if "/" not in raw_anchor and len(raw_anchor) == 4 and raw_anchor.isdigit():
+                                extracted["date_anchor"] = f"01/{raw_anchor}"
+
+                        self.preferred_model = model
+                        return True, extracted, "Metadados extraídos com sucesso pelo Nous."
+                    elif response.status_code == 404:
+                        last_err = f"Modelo {model} retornou 404."
+                        continue
+                    else:
+                        try:
+                            msg = response.json().get("error", {}).get("message", response.text)
+                        except Exception:
+                            msg = response.text
+                        return False, {}, f"Erro da API Gemini (HTTP {response.status_code}): {msg}"
+            except json.JSONDecodeError as exc:
+                log_exception("NousAIService.extract_reference_metadata - JSONDecodeError", exc)
+                return False, {}, f"Falha ao interpretar resposta estruturada do Nous: {exc}"
+            except Exception as exc:
+                log_exception("NousAIService.extract_reference_metadata", exc)
+                return False, {}, f"Falha na comunicação com o Nous: {exc}"
+
+        return False, {}, last_err or "Não foi possível obter resposta dos modelos Gemini disponíveis."
+
+    def batch_extract_references(
+        self,
+        items: List[Tuple[str, str]],
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Processa sequencialmente uma lista de workloads (texto_bruto, tipo_obra) no Nous."""
+        total = len(items)
+        results = []
+        for idx, (raw_text, work_type) in enumerate(items, 1):
+            snippet = (raw_text[:40] + "...") if len(raw_text) > 40 else raw_text
+            if on_progress:
+                on_progress(idx, total, snippet)
+            ok, meta, msg = self.extract_reference_metadata(raw_text, work_type)
+            results.append({
+                "index": idx,
+                "raw_text": raw_text,
+                "work_type": work_type,
+                "success": ok,
+                "metadata": meta,
+                "error": msg if not ok else None,
+            })
+        return results

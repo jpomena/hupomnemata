@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime
+from sqlalchemy.inspection import inspect as sa_inspect
 
 from src.domains import (
     AcademicMonograph,
@@ -196,6 +197,12 @@ class WorkFormService:
             for key in self.PARTIAL_KEYS
             if key in converted
         })
+        model_columns = set(sa_inspect(model).columns.keys())
+        work_data = {
+            key: value
+            for key, value in work_data.items()
+            if key in model_columns
+        }
         return {
             'work_model': model,
             'relationship_name': model.__tablename__.removesuffix('s'),

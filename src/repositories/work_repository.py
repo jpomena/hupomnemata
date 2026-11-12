@@ -530,6 +530,7 @@ class WorkRepository:
             if (
                 work is not None
                 and (work_model is None or type(work) is work_model)
+                and (work_model is not None or not resource.is_magazine)
                 and (
                     include_partial
                     or not getattr(work, 'is_partial', False)
@@ -600,3 +601,49 @@ class WorkRepository:
             log_exception("Falha ao excluir obra e autores órfãos", error)
             self.session.rollback()
             raise
+
+    def remove_magazine_cascade(
+        self, magazine_resource: BibliographicResource
+    ) -> int:
+        """Exclui a revista e em cascata todos os artigos/coleções vinculados."""
+        child_res_ids: set[int] = set()
+        for model in (JournalArticle, PeriodicalCollection):
+            stmt = select(model.bib_res_id).where(
+                model.parent_bibliographic_resource_id == magazine_resource.id
+            )
+            child_res_ids.update(self.session.scalars(stmt))
+
+        deleted_count = len(child_res_ids)
+        for child_id in child_res_ids:
+            child = self.session.get(BibliographicResource, child_id)
+            if child is not None:
+                self.remove_work(child)
+
+        self.remove_work(magazine_resource)
+        return deleted_count
+
+    def update_magazine(
+        self, resource_id: int, title: str, publication_place: str
+    ) -> None:
+        """Atualiza metadados da Revista e sincroniza seus artigos filhos."""
+        resource = self.session.get(BibliographicResource, resource_id)
+        if resource is None:
+            raise ValueError('Revista não encontrada.')
+        mag = resource.specific_work
+        if mag is None or getattr(mag, '__tablename__', '') != 'magazines':
+            raise ValueError('O recurso não é uma Revista.')
+
+        clean_title = title.strip()
+        clean_place = publication_place.strip() or '[s.l.]'
+        mag.title = clean_title
+        mag.publication_place = clean_place
+
+        for model in (JournalArticle, PeriodicalCollection):
+            stmt = select(model).where(
+                model.parent_bibliographic_resource_id == resource_id
+            )
+            for child in self.session.scalars(stmt):
+                child.journal_title = clean_title
+                child.publication_place = clean_place
+
+        self.session.commit()

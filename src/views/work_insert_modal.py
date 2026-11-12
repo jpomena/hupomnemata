@@ -27,6 +27,7 @@ from src.views.work_insert_modal_author import AuthorSearchMixin
 from src.views.work_insert_modal_fields import FieldBuilderMixin
 from src.views.work_insert_modal_render import PARENT_KEY, RenderMixin
 from src.views.work_insert_specs import (
+    ALL_WORK_TYPES,
     ALWAYS_PARTIAL_TYPES,
     MAGAZINE_PARENT_TYPES,
     WORK_TYPES,
@@ -216,7 +217,7 @@ class WorkInsertModalComposer(
 
     def _initial_spec(self) -> WorkTypeSpec:
         return next(
-            (spec for spec in WORK_TYPES if spec.key == self.initial_work_type),
+            (spec for spec in ALL_WORK_TYPES if spec.key == self.initial_work_type),
             WORK_TYPES[0],
         )
 
@@ -863,7 +864,7 @@ class WorkInsertModalComposer(
     def apply_imported_metadata(self, metadata) -> None:
         """Aplica os metadados importados aos campos do modal e re-renderiza."""
         target_spec = next(
-            (spec for spec in WORK_TYPES if spec.key == metadata.work_type),
+            (spec for spec in ALL_WORK_TYPES if spec.key == metadata.work_type),
             None,
         )
         if target_spec is not None:
@@ -940,7 +941,7 @@ class WorkInsertModalComposer(
         return ft.Container(
             content=ft.Row(
                 [
-                    ui.ui_text(c, self.title, size=15, weight=ui.W600, expand=True),
+                    ui.serif_text(c, self.title, size=20, weight=ui.W700, expand=True),
                     *actions,
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,

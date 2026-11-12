@@ -264,6 +264,17 @@ class BibliographicResource(Base):
             return (getattr(sw, 'abstract', '') or getattr(sw, 'subtitle', '') or '').strip()
         return ""
 
+    @property
+    def is_magazine(self) -> bool:
+        """Indica se o recurso bibliográfico é uma Revista (contêiner estruturante)."""
+        sw = self.specific_work
+        if sw is not None:
+            return (
+                getattr(sw, '__tablename__', '') == 'magazines'
+                or sw.__class__.__name__ == 'Magazine'
+            )
+        return False
+
 
 class PartialWorkMixin:
     __abstract__ = True

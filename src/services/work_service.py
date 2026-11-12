@@ -4,6 +4,7 @@ from typing import Literal, TypedDict
 from src.db.db import SessionLocal
 from src.domains import (
     Author,
+    BibliographicResource,
     DatePrecision,
     WorkMixin,
 )
@@ -100,6 +101,23 @@ class WorkService:
     def remove_work(self, resource):
         with SessionLocal() as session:
             WorkRepository(session, self.normalizer).remove_work(resource)
+
+    def remove_magazine_cascade(self, resource_id: int) -> int:
+        with SessionLocal() as session:
+            resource = session.get(BibliographicResource, resource_id)
+            if resource is None:
+                return 0
+            return WorkRepository(session, self.normalizer).remove_magazine_cascade(
+                resource
+            )
+
+    def update_magazine(
+        self, resource_id: int, title: str, publication_place: str
+    ) -> None:
+        with SessionLocal() as session:
+            WorkRepository(session, self.normalizer).update_magazine(
+                resource_id, title, publication_place
+            )
 
     def resolve_and_create(
         self,

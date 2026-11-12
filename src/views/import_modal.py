@@ -89,7 +89,7 @@ class ImportModalDialog:
                     fa_icon("file-import", size=s(16), color=c.colors["gold"]),
                     ft.Column(
                         [
-                            ui.ui_text(c, "Importar Metadados", size=15, weight=ui.W600),
+                            ui.serif_text(c, "Importar Obra", size=20, weight=ui.W700),
                             ui.ui_text(c, "Informe um DOI, ISBN ou ISSN para preencher automaticamente os dados da obra.", size=12, color=c.colors["muted"]),
                         ],
                         spacing=s(2),
