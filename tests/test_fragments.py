@@ -400,8 +400,33 @@ def test_fragment_form_applies_location_rules():
         assert label in form_texts
     assert composer.form_title.value == 'Novo fragmento'
     assert composer.modal.content is composer.form
+    foot_container = composer.form.content.controls[2]
+    assert foot_container.bgcolor == COLORS_LIGHT['surface']
     assert composer.save_button.data['variant'] == 'primary'
     assert composer.cancel_button.data['variant'] == 'ghost'
+
+    # alturas padronizadas e alinhamento horizontal
+    assert (
+        composer.work_search.height
+        == composer.location_type.height
+        == composer.location_value.height
+        == 48
+    )
+    assert composer.location_value.counter == ''
+    assert (
+        composer.work_search_group.horizontal_alignment
+        == ft.CrossAxisAlignment.STRETCH
+    )
+    top_row = composer.form_body.controls[0]
+    assert isinstance(top_row, ft.Row)
+    assert top_row.controls[0].controls[0].value == 'Obra do acervo'
+    assert top_row.controls[0].expand is True
+    assert top_row.controls[0].horizontal_alignment == ft.CrossAxisAlignment.STRETCH
+    assert top_row.controls[1].controls[0].value == 'Tipo'
+    assert top_row.controls[1].horizontal_alignment == ft.CrossAxisAlignment.START
+    content_field = composer.form_body.controls[1]
+    assert content_field.controls[0].value == 'Conteúdo'
+    assert content_field.horizontal_alignment == ft.CrossAxisAlignment.STRETCH
 
     composer._search_works(SimpleNamespace(
         control=SimpleNamespace(value='ob')

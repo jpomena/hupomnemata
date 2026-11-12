@@ -1,9 +1,13 @@
 from src.contracts import FragmentRecord
 
 
-def fragment_abnt_notation(fragment: FragmentRecord) -> str:
+def fragment_abnt_notation(
+    fragment: FragmentRecord,
+    display_year_override: str | None = None,
+) -> str:
     author = fragment['citation_author'] or fragment['work_title']
-    citation = f"{author}, {fragment['display_year']}"
+    year = display_year_override or fragment['display_year']
+    citation = f"{author}, {year}"
     location_type = fragment['location_type']
     location_value = fragment['location_value']
     if location_type and location_value:

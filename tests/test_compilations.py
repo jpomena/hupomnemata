@@ -772,6 +772,8 @@ class _Recorder:
             update=lambda: None,
             show_dialog=self.dialogs.append,
             pop_dialog=lambda: None,
+            clipboard=SimpleNamespace(set=self.copy),
+            open=lambda *args, **kwargs: None,
         )
 
     def record(self, name, result=True):
@@ -919,6 +921,8 @@ def test_compilation_page_header_tabs_and_caderno():
         assert badge in header_texts
     assert hub.copy_button.data['label'].value == 'Copiar esqueleto'
     assert hub.copy_button.on_click is not None
+    assert hub.copy_references_button.data['label'].value == 'Copiar Referências do Caderno'
+    assert hub.copy_references_button.on_click is not None
     from src.views.compilation_hub.common import menu_labels
     assert menu_labels(hub.header_menu) == ['Editar detalhes', 'Excluir compilação']
 
@@ -978,6 +982,12 @@ def test_compilation_page_header_tabs_and_caderno():
     assert with_references.endswith(
         '## Referências\n\n1. AUTORA, Ana. Obra existente. São Paulo: Editora, 2024.'
     )
+
+    asyncio.run(hub.copy_references_button.on_click(SimpleNamespace()))
+    assert recorder.copied[-1] == 'AUTORA, Ana. Obra existente. São Paulo: Editora, 2024.'
+
+    hub._select_tab('visao')
+    assert hub.copy_references_button.data['label'].value == 'Copiar Referências da Compilação'
 
 
 def test_compilation_page_section_and_fragment_actions():
@@ -1361,3 +1371,132 @@ def test_compilation_page_fragment_note_footer_and_dialog():
     modal.data['note'].value = '   '
     modal.data['save']()
     assert recorder.named('note')[-1] == (1, 20, None)
+
+
+def test_compilation_copy_references_with_year_disambiguation():
+    import asyncio
+    from types import SimpleNamespace
+    from src.utils.types import ReferencePart, TextStyle, ViewReference
+
+    compilation: CompilationRecord = {
+        'id': 100,
+        'name': 'Projeto Filosofia',
+        'description': 'Estudo',
+        'sections': [
+            {'id': 1, 'title': 'Seção 1', 'central_idea': 'Ideia', 'position': 0},
+        ],
+        'works': [
+            {
+                'id': 10,
+                'title': 'Zebra e mente',
+                'position': 0,
+                'authors': 'Silva, João',
+                'citation_author': 'SILVA',
+                'display_year': '2019',
+                'fragments': [
+                    {
+                        'id': 101,
+                        'fragment_type': 'quote',
+                        'excerpt': 'Excerto sobre mente.',
+                        'bib_res_id': 10,
+                        'work_title': 'Zebra e mente',
+                        'citation_author': 'SILVA',
+                        'display_year': '2019',
+                        'location_type': 'Página',
+                        'location_value': '10',
+                        'created_at': None,
+                        'is_member': True,
+                        'section_id': 1,
+                        'project_position': 0,
+                        'work_note': None,
+                    }
+                ],
+            },
+            {
+                'id': 11,
+                'title': 'Antelope e razão',
+                'position': 1,
+                'authors': 'Silva, João',
+                'citation_author': 'SILVA',
+                'display_year': '2019',
+                'fragments': [
+                    {
+                        'id': 102,
+                        'fragment_type': 'quote',
+                        'excerpt': 'Excerto sobre razão.',
+                        'bib_res_id': 11,
+                        'work_title': 'Antelope e razão',
+                        'citation_author': 'SILVA',
+                        'display_year': '2019',
+                        'location_type': 'Página',
+                        'location_value': '20',
+                        'created_at': None,
+                        'is_member': True,
+                        'section_id': 1,
+                        'project_position': 1,
+                        'work_note': None,
+                    }
+                ],
+            },
+        ],
+    }
+
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compilations = [compilation]
+
+    def references(ids):
+        result = {}
+        if 10 in ids:
+            result[10] = ViewReference(parts=[
+                ReferencePart('SILVA, João. '),
+                ReferencePart('Zebra e mente', TextStyle.BOLD),
+                ReferencePart('. São Paulo: Atlas, 2019.'),
+            ])
+        if 11 in ids:
+            result[11] = ViewReference(parts=[
+                ReferencePart('SILVA, João. '),
+                ReferencePart('Antelope e razão', TextStyle.BOLD),
+                ReferencePart('. São Paulo: Atlas, 2019.'),
+            ])
+        return result
+
+    composer.work_references = references
+    composer.open_compilation_page(100)
+    hub = composer.active_hub
+    assert hub is not None
+
+    # Verifica botão na aba caderno
+    assert hub.copy_references_button.data['label'].value == 'Copiar Referências do Caderno'
+
+    # Copia referências
+    captured_rich = []
+    import src.views.compilation_hub.caderno_mixin as cm
+    original_copy_refs = cm.copy_references
+    cm.copy_references = lambda refs: captured_rich.extend(refs) or True
+    try:
+        asyncio.run(hub.copy_references_button.on_click(SimpleNamespace()))
+    finally:
+        cm.copy_references = original_copy_refs
+
+    assert len(captured_rich) == 2
+    assert captured_rich[0].parts[1].content == 'Antelope e razão'
+    assert captured_rich[0].parts[1].style == TextStyle.BOLD
+    assert '2019a' in captured_rich[0].parts[2].content
+    assert captured_rich[1].parts[1].content == 'Zebra e mente'
+    assert captured_rich[1].parts[1].style == TextStyle.BOLD
+    assert '2019b' in captured_rich[1].parts[2].content
+
+    copied_refs = recorder.copied[-1]
+    lines = copied_refs.split('\n')
+    assert len(lines) == 2
+    # Antelope é '2019a', Zebra é '2019b'
+    assert lines[0] == 'SILVA, João. Antelope e razão. São Paulo: Atlas, 2019a.'
+    assert lines[1] == 'SILVA, João. Zebra e mente. São Paulo: Atlas, 2019b.'
+
+    # Verifica texto do caderno: citações recebem sufixos
+    caderno_text = hub._caderno_text(with_references=True)
+    assert '(SILVA, 2019a, p. 20)' in caderno_text
+    assert '(SILVA, 2019b, p. 10)' in caderno_text
+    assert '1. SILVA, João. Zebra e mente. São Paulo: Atlas, 2019b.' in caderno_text
+    assert '2. SILVA, João. Antelope e razão. São Paulo: Atlas, 2019a.' in caderno_text

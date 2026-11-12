@@ -89,6 +89,9 @@ class CompilationWorkRecord(TypedDict):
     position: int
     fragments: list[CompilationFragmentRecord]
     authors: NotRequired[str]
+    display_year: NotRequired[str]
+    citation_author: NotRequired[str]
+    work_type: NotRequired[str]
 
 
 class CompilationRecord(TypedDict):

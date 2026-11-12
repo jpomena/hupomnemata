@@ -1937,6 +1937,37 @@ def test_natural_name_parser_handles_mononym():
     assert elements.last_name_initial == 'P'
 
 
+def test_natural_name_parser_handles_inverted_and_direct_names():
+    normalizer = CoreNormalizer()
+
+    # Ordem invertida com vírgula (ABNT / bibliográfica)
+    el1 = normalizer.natural_name_parser('FOUCAULT, Michel')
+    assert el1.given_names == 'Michel'
+    assert el1.last_name == 'Foucault'
+    assert el1.given_names_initials == 'M.'
+    assert el1.last_name_initial == 'F'
+
+    el2 = normalizer.natural_name_parser('Pedersen, Rasmus Brun')
+    assert el2.given_names == 'Rasmus Brun'
+    assert el2.last_name == 'Pedersen'
+    assert el2.given_names_initials == 'R. B.'
+    assert el2.last_name_initial == 'P'
+
+    # Ordem direta (Prenome Sobrenome)
+    el3 = normalizer.natural_name_parser('Michel Foucault')
+    assert el3.given_names == 'Michel'
+    assert el3.last_name == 'Foucault'
+    assert el3.given_names_initials == 'M.'
+    assert el3.last_name_initial == 'F'
+
+    # Nome com agnome e vírgula
+    el4 = normalizer.natural_name_parser('SILVA JÚNIOR, João')
+    assert el4.given_names == 'João'
+    assert el4.last_name == 'Silva Júnior'
+    assert el4.given_names_initials == 'J.'
+    assert el4.last_name_initial == 'S'
+
+
 def test_abnt_utils_fmt_authors_handles_mononym():
     author_platao = Author(
         given_names='',

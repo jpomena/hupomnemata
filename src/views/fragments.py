@@ -135,13 +135,25 @@ class FragmentsComposer:
         return ft.TextField(
             hint_text=hint,
             cursor_color=self.config.colors['gold'],
-            counter=ft.Container(width=0, height=0),
+            counter='',
             **{**self._input_style(), **kwargs},
         )
 
-    def _field(self, label: ft.Text | str, control: ft.Control, expand: bool | int | None = None) -> ft.Column:
+    def _field(
+        self,
+        label: ft.Text | str,
+        control: ft.Control,
+        expand: bool | int | None = None,
+        stretch: bool = False,
+    ) -> ft.Column:
         label_control = label if isinstance(label, ft.Text) else self._label(label)
-        return ft.Column([label_control, control], spacing=s(6), tight=True, expand=expand)
+        return ft.Column(
+            [label_control, control],
+            spacing=s(6),
+            tight=True,
+            expand=expand,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH if stretch else ft.CrossAxisAlignment.START,
+        )
 
     def _label(self, value: str) -> ft.Text:
         return ui.ui_text(self.config, value, size=12, weight=W600, color=self.config.colors['muted'])
@@ -161,12 +173,15 @@ class FragmentsComposer:
         self.work_search = self._text_input(
             'Digite parte do título da obra',
             on_change=self._search_works,
+            height=s(48),
+            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
         )
         self.work_results = ft.Column(spacing=0, tight=True, visible=False)
         self.work_search_group = ft.Column(
             controls=[self.work_search, self.work_results],
             spacing=s(4),
             tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
         self.excerpt = self._text_input(
             'Ex.: “A memória também se constrói pelo que preservamos.”',
@@ -182,6 +197,8 @@ class FragmentsComposer:
             ],
             on_select=self._on_location_type_change,
             expand=True,
+            height=s(48),
+            expanded_insets=ft.Padding.all(0),
             text_size=style['text_size'],
             text_style=style['text_style'],
             hint_style=style['hint_style'],
@@ -194,13 +211,18 @@ class FragmentsComposer:
             border_width=1,
             focused_border_width=1,
             border_radius=style['border_radius'],
-            content_padding=style['content_padding'],
+            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
             dense=True,
             trailing_icon=ui.icon(c, 'chevron-down', size=11),
             selected_trailing_icon=ui.icon(c, 'chevron-up', size=11),
         )
         self.location_value_label = self._label('Valor da localização')
-        self.location_value = self._text_input('Obrigatório para citações', max_length=100)
+        self.location_value = self._text_input(
+            'Obrigatório para citações',
+            max_length=100,
+            height=s(48),
+            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
+        )
         self.form_title = ui.ui_text(c, 'Novo fragmento', size=15, weight=W600)
         self.cancel_button = ui.button(c, 'Cancelar', on_click=self._close_modal, variant='ghost')
         self.save_button = ui.button(c, 'Salvar fragmento', icon_name='check', on_click=self._save, variant='primary')
@@ -217,15 +239,21 @@ class FragmentsComposer:
         )
         self.form_body = ft.Column(
             controls=[
-                self._field('Tipo', self.kind_host),
-                self._field('Obra do acervo', self.work_search_group),
-                self._field('Conteúdo', self.excerpt),
                 ft.Row(
                     controls=[
-                        self._field(self.location_type_label, self.location_type, expand=True),
-                        self._field(self.location_value_label, self.location_value, expand=True),
+                        self._field('Obra do acervo', self.work_search_group, expand=True, stretch=True),
+                        self._field('Tipo', self.kind_host),
                     ],
-                    spacing=s(12),
+                    spacing=s(16),
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                self._field('Conteúdo', self.excerpt, stretch=True),
+                ft.Row(
+                    controls=[
+                        self._field(self.location_type_label, self.location_type, expand=True, stretch=True),
+                        self._field(self.location_value_label, self.location_value, expand=True, stretch=True),
+                    ],
+                    spacing=s(16),
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
             ],
@@ -240,7 +268,7 @@ class FragmentsComposer:
                 spacing=s(8),
             ),
             padding=ft.Padding.only(left=s(24), right=s(12), top=s(10), bottom=s(10)),
-            bgcolor=colors['chrome'],
+            bgcolor=colors['surface'],
             border=ft.Border.only(top=ft.BorderSide(1, colors['border'])),
         )
         self.form = ft.Container(
