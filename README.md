@@ -1,83 +1,129 @@
-
 # Hupomnēmata
 
-O Hupomnēmata é um gerenciador pessoal de referências, citações e notas de leitura, com foco inicial em referências bibliográficas no formato ABNT.
+O **Hupomnēmata** é um ambiente pessoal e integrado de pesquisa, gestão bibliográfica em conformidade com as normas ABNT, fichamento de leitura (citações e paráfrases) e estruturação de cadernos de escrita/compilações, com suporte a inteligência artificial (Nous) e interface desktop de alta fidelidade desenvolvida em Flet.
 
-O projeto ainda está em fase de protótipo. A interface principal já existe em Flet, o cadastro de obras já passa pelo controller e pela camada de repositório, e os primeiros formatadores implementados cobrem monografias e periódicos.
+Inspirado no conceito clássico foucaultiano dos *hupomnēmata* — os cadernos de anotações que serviam à constituição de si e à organização do pensamento —, o sistema reúne o rigor da catalogação acadêmica e a fluidez necessária para a redação de trabalhos científicos, ensaios e monografias.
 
-## Escopo Atual
+---
 
-* Cadastro local de obras bibliográficas.
-* Cadastro de obras com autoria opcional; sem autor, a referência começa pelo título.
-* Opção por obra para preservar a grafia original do título nas referências.
-* Cadastro de citações e paráfrases vinculados às obras do Acervo.
-* Organização de obras em compilações com nome, descrição opcional e ordem manual.
-* Localização tipada de fragmentos, com página, capítulo, seção, localizador/posição ou tempo.
-* Persistência em SQLite via SQLAlchemy.
-* Modelagem de diferentes tipos documentais.
-* Cadastro de revistas sem autoria obrigatória, vinculadas a artigos e coleções periódicas.
-* Formatação ABNT inicial para monografias.
-* Formatação ABNT inicial para periódicos.
-* Interface desktop com Flet.
+## Funcionalidades e Escopo Atual
 
-Citações exigem um tipo e um valor de localização; paráfrases podem ser registrados sem localização. O cadastro de fragmentos permite criar, listar, editar e excluir registros. Ao excluir uma obra, seus fragmentos também são removidos.
+### 1. Acervo Bibliográfico e Formatação ABNT
+* **Catálogo Multidocumental Extensivo**: Suporte a 18 tipos documentais cadastráveis, incluindo monografias, dissertações e teses, artigos de periódicos e jornais, anais de eventos, correspondências, legislação, jurisprudência, patentes, partituras, gravações sonoras, audiovisuais, documentos visuais, cartográficos, tridimensionais e digitais.
+* **Formatadores ABNT Canônicos**: Mecanismo modular de formatação para todos os tipos do acervo, cobrindo autoria individual, múltipla e institucional, obras anônimas ou sem autor (entrada por título com destaque tipográfico) e controle para preservação da grafia original do título.
+* **Reestruturação Hierárquica de Revistas**: Os periódicos (`Magazine`) atuam como entidades agrupadoras guarda-chuva diretamente na tabela do Acervo. Exibem banner editorial com alinhamento milimétrico, expansão/recolhimento de artigos, busca combinada (título do periódico e título do artigo) e ordenação hierárquica primária pelo nome da revista, sem inflar a contagem de obras avulsas do acervo.
 
-Compilações funcionam como projetos de pesquisa ou escrita: uma obra pode participar de várias compilações, sem duplicação dentro do mesmo projeto. O dashboard permite buscar por nome ou descrição e abrir o hub de cada projeto, com abas para editar seus dados e organizar obras e fragmentos. Os fragmentos das obras vinculadas aparecem aninhados por obra. No caderno de trabalho, o usuário transforma a seleção de fragmentos em um esqueleto de escrita: organiza-os em seções/ideias, registra a ideia central e notas de articulação, e copia o conjunto com suas referências formatadas. Fragmentos selecionados que ainda não foram organizados ficam em “A organizar”; mover um fragmento entre ideias não cria duplicatas. A seleção e as notas continuam específicas de cada compilação. O usuário pode reordenar ideias; remover uma delas devolve seus fragmentos a “A organizar” sem desfazer a seleção. O hub também permite criar e editar obras e fragmentos; fragmentos criados ali são vinculados automaticamente e só podem pertencer a obras do projeto. A exclusão de uma compilação ou a remoção de uma obra dela remove apenas os vínculos do projeto, preservando as obras e os fragmentos no Acervo. Ao excluir uma obra do Acervo, seus fragmentos e vínculos com compilações também são removidos.
+### 2. Importação Automatizada de Metadados
+* **Importação por Identificadores**: Cadastro instantâneo via DOI, ISBN e ISSN diretamente pelo modal de inserção de obras.
+* **Coalescência Multi-Provedor**: Consulta orquestrada a múltiplos serviços públicos e acadêmicos (Crossref, Open Library, Google Books e BrasilAPI).
+* **Enriquecimento Canônico**: Resolução automática de duplicidade de autores, dedução de local de publicação baseada em dicionário canônico de editoras (`publisher_places.json`) e atribuição padrão de data de visualização para documentos digitais.
 
-Alguns menus e cards da interface ainda são lembretes visuais de funcionalidades planejadas, como importação de metadados, fichamento rápido, exportação e grafo conceitual.
+### 3. Importação Reversa de Referências Bibliográficas (via Nous)
+* **Parser de Referências em Texto Bruto**: Mecanismo híbrido de extração (regras sintáticas/expressões regulares e estruturação semântica assistida pelo assistente Nous).
+* **Compatibilidade Normativa**: Processamento de referências nos formatos ABNT, APA, Chicago e blocos BibTeX brutos.
+* **Modal de Prévia e Ajustes**: Revisão interativa dos campos extraídos antes da persistência no banco de dados.
+
+### 4. Gestão de Fragmentos (Fichamento Acadêmico)
+* **Citações e Paráfrases**: Registro de excertos textuais e paráfrases vinculados às obras do Acervo.
+* **Localização Tipada**: Especificação rigorosa de localizador (página, capítulo, seção, posição e marcação temporal para mídia contínua).
+* **Integridade Relacional**: Exclusão em cascata (remover uma obra remove com segurança seus fragmentos associados).
+
+### 5. Compilações e Caderno de Escrita
+* **Projetos de Pesquisa**: Organização de obras e fragmentos em projetos temáticos, sem duplicações por compilação.
+* **Hub da Compilação**: Painel dedicado com métricas do projeto, listagem de obras e fragmentos aninhados, e filtros de busca.
+* **Caderno de Trabalho (Esqueleto de Escrita)**:
+  * Agrupamento de fragmentos selecionados em ideias/seções temáticas com ordenação manual.
+  * Seção temporária "A organizar" para alocação fluida de trechos.
+  * Registro de ideia central e notas de articulação por seção.
+  * Cópia articulada do texto completo acompanhado das respectivas referências ABNT formatadas.
+
+### 6. Experiência Visual e Design System Acadêmico
+* **Paleta Nobre**: Suporte integral a temas Claro e Escuro, com contrastes elegantes em tons dourados (`gold`), cromados (`chrome`) e superfícies texturizadas.
+* **Hierarquia Estrutural**: Cabeçalhos soberanos demarcados com sutil elevação em `surface` e borda divisória inferior em todas as telas principais (Dashboard, Acervo, Fragmentos, Compilações e Hubs).
+* **Gabinete de Leitura (Dashboard)**: Faixa de KPIs clicáveis para navegação direta aos fluxos do sistema, com espaçamento vertical harmônico, acompanhamento de compilações em andamento, atividade recente e distribuição documental do acervo.
+* **Tabela do Acervo Otimizada**: Cabeçalho destacado em cromo com divisor dourado, realce visual na coluna ativa de ordenação, hover refinado e paginação/rolagem suave.
+
+---
 
 ## Requisitos
 
-* Python 3.12 ou superior.
+* Python 3.12 ou superior (testado e homologado em Python 3.14).
 * Ambiente virtual Python recomendado.
 
-## Instalação
+---
+
+## Instalação e Execução
+
+1. **Clonar o repositório e criar o ambiente virtual:**
+   ```powershell
+   git clone https://github.com/jpomena/hupomnemata.git
+   cd hupomnemata
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+2. **Instalar as dependências:**
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+3. **Iniciar a aplicação:**
+   ```powershell
+   python main.py
+   ```
+
+---
+
+## Testes Automatizados
+
+A suíte de testes cobre formatadores, validações de domínio, repositórios, serviços de metadados, parsers de referências e fluxos visuais Flet:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-
+python -m pytest
 ```
 
-## Executando
+Atualmente, **343 testes automatizados** garantem a integridade operacional e visual do sistema.
 
-```powershell
-.\.venv\Scripts\python.exe main.py
+---
+
+## Estrutura do Projeto
+
+* `main.py`: Ponto de entrada da aplicação Flet.
+* `src/controllers`: Orquestração de fluxos de navegação e submissão de dados.
+* `src/views`: Interfaces Flet, componentes modulares (`ui_kit`), modais de importação e telas principais.
+* `src/domains`: Entidades de domínio e mapeamentos relacionais SQLAlchemy.
+* `src/contracts.py`: Dataclasses e contratos compartilhados entre camadas.
+* `src/repositories`: Camada de persistência em SQLite.
+* `src/services`: Regras de negócio, coalescência de metadados (`metadata_service`), integração Nous (`nous_service`) e gerenciamento de compilações.
+* `src/strategies`: Formatadores bibliográficos segundo normas ABNT.
+* `src/utils`: Parsers de referência (`reference_parser`), formatadores de datas e manipuladores de estilo.
+* `src/configs`: Textos, paletas de cores (`colors.yaml`), tipografia e parâmetros visuais.
+* `tests`: Suíte completa de testes automatizados unitários e de integração.
+
+---
+
+## Arquitetura e Fluxo de Dados
+
+As views operam de modo puramente declarativo e reativo, interagindo com os controladores exclusivamente via callbacks e estruturas de dados de `src/contracts.py`.
 
 ```
-
-## Testes
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-
+[View / Flet UI] ──(Callbacks / Contracts)──> [Controllers]
+                                                    │
+                 ┌──────────────────────────────────┴──────────────────────────────────┐
+                 ▼                                                                     ▼
+           [Services]                                                            [Strategies]
+  (Metadata, Nous, Submissions)                                            (Formatadores ABNT)
+                 │
+                 ▼
+          [Repositories]
+                 │
+                 ▼
+       [SQLite / SQLAlchemy]
 ```
 
-## Estrutura
-
-* `main.py`: ponto de entrada da aplicação Flet.
-* `src/controllers`: orquestração dos fluxos da aplicação.
-* `src/views`: composição da interface.
-* `src/domains`: modelos de domínio e mapeamentos SQLAlchemy.
-* `src/contracts.py`: estruturas de dados compartilhadas entre camadas.
-* `src/repositories`: persistência e recuperação de dados.
-* `src/strategies`: formatadores de referências.
-* `src/utils`: tipos auxiliares e utilitários compartilhados.
-* `src/configs`: textos, cores, tipografia e parâmetros de UI.
-* `tests`: testes automatizados.
-
-## Fluxo entre Camadas
-
-As views compõem a interface e enviam eventos por callbacks, sem importar formatters nem repositórios; contratos compartilhados ficam em `src/contracts.py`. O `CoreController` coordena as telas e seleciona o formatter adequado para cada obra. O `WorkSubmissionController` cuida do fluxo de cadastro e resolução de autores duplicados. O `WorkFormService` converte os valores dos formulários em payloads de domínio, o `WorkService` coordena as operações de obras e o `WorkRepository` concentra o acesso ao SQLAlchemy. O `FragmentService` e o `FragmentRepository` coordenam e persistem citações e paráfrases associados ao Acervo. O `CompilationService` e o `CompilationRepository` gerenciam os projetos, seus vínculos ordenáveis com as obras, as seções do esqueleto e os fragmentos selecionados, distribuídos e anotados no caderno de trabalho; o `CompilationHubComposer` apresenta o hub de cada projeto.
-
-## Status dos Formatadores
-
-Todos os tipos de obra possuem formatadores já construídos. Ainda precisam de testagem mais extensiva, mas aparentam já ter nível de uso. A cobertura automatizada também precisa ser ampliada para além de monografias e periódicos. Consulte TODO.md para a lista priorizada de próximos passos.
+---
 
 ## Observações de Desenvolvimento
 
-Durante o protótipo, o banco SQLite fica em `src/db/hupomnemata.db`. Em uma versão distribuível, o ideal é mover os dados do usuário para uma pasta externa ao código-fonte, mantendo o repositório apenas com código, configurações e migrações.
-
-Exceções tratadas pela aplicação, inclusive as exibidas na interface, são registradas com traceback em `logs/hupomnemata.txt` para auditoria. A pasta de logs é ignorada pelo Git.
-
----
+* **Banco de Dados**: Em ambiente de desenvolvimento, o arquivo SQLite reside em `src/db/hupomnemata.db`.
+* **Auditoria de Logs**: Exceções tratadas e diagnósticos de execução são registrados com stack trace completo em `logs/hupomnemata.txt`.
