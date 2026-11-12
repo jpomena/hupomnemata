@@ -709,12 +709,13 @@ class WorksComposer:
         rows = self.visible_rows()
         if not rows:
             message = f"Nada corresponde a “{self.query}”." if self.query.strip() else "Nenhuma obra com esses filtros."
+            has_substantive = any(not self._is_magazine(r) for r in self.works)
             body: ft.Control = ft.Container(
                 ui.empty_state(
                     c, "magnifying-glass", "Nenhuma obra encontrada",
                     message + " Busque pelo sobrenome do autor ou pelo ano.",
                     action=ui.button(c, "Limpar filtros", small=True, on_click=lambda _e: self._clear_filters()),
-                ) if self.works else ui.empty_state(
+                ) if has_substantive else ui.empty_state(
                     c, "book-open", "Seu acervo está vazio",
                     "Cadastre a primeira obra para começar a registrar fragmentos.",
                     action=ui.button(c, "Nova obra", variant="primary", icon_name="plus", small=True, on_click=lambda _e: self.on_navigate("work_insert")),
@@ -1298,8 +1299,12 @@ class WorksComposer:
 
     def _compose_body(self) -> ft.Control:
         c = self.config
-        types = {self._type_label(r) for r in self.works if self._type_label(r)}
-        total = len(self.works)
+        total = sum(1 for r in self.works if not self._is_magazine(r))
+        types = {
+            self._type_label(r)
+            for r in self.works
+            if not self._is_magazine(r) and self._type_label(r)
+        }
         description = (
             f"{total} {'obra catalogada' if total == 1 else 'obras catalogadas'} em {len(types)} {'tipo documental' if len(types) == 1 else 'tipos documentais'}."
             if total else "Nenhuma obra cadastrada ainda."

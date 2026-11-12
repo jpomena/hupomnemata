@@ -20,16 +20,16 @@ def reference_text(reference: ViewReference) -> str:
 
 def reference_html(reference: ViewReference) -> str:
     """Converte ReferenceParts em HTML compativel com editores comuns."""
-    spans = []
+    chunks = []
     for part in reference.parts:
-        styles = []
+        text = html.escape(part.content).replace("\n", "<br>")
         if part.style == TextStyle.BOLD:
-            styles.append("font-weight:700")
-        if part.style == TextStyle.ITALIC:
-            styles.append("font-style:italic")
-        style = f' style="{";".join(styles)}"' if styles else ""
-        spans.append(f"<span{style}>{html.escape(part.content)}</span>")
-    return "".join(spans)
+            chunks.append(f'<b style="font-weight:bold">{text}</b>')
+        elif part.style == TextStyle.ITALIC:
+            chunks.append(f'<i style="font-style:italic">{text}</i>')
+        else:
+            chunks.append(text)
+    return "".join(chunks)
 
 
 def _copy_plain_text_to_system_clipboard(text: str) -> bool:
@@ -70,14 +70,11 @@ def _copy_plain_text_to_system_clipboard(text: str) -> bool:
         return False
 
 
-def copy_reference(reference: ViewReference) -> bool:
-    """Copia HTML em Windows e texto puro em plataformas Unix-like."""
-    plain_text = reference_text(reference)
-
+def _copy_html_to_windows_clipboard(fragment: str, plain_text: str) -> bool:
+    """Copia fragmento HTML e texto puro para o clipboard do Windows."""
     if os.name != "nt":
-        return _copy_plain_text_to_system_clipboard(plain_text)
+        return False
 
-    fragment = reference_html(reference)
     html_document = (
         "<html><body><!--StartFragment-->"
         f"{fragment}"
@@ -93,45 +90,78 @@ def copy_reference(reference: ViewReference) -> bool:
         "StartFragment:{:010d}\r\n"
         "EndFragment:{:010d}\r\n"
     )
-    header = header_template.format(0, 0, 0, 0).encode("ascii")
-    start_fragment = len(header) + html_bytes.index(marker_start)
-    start_fragment += len(marker_start)
-    end_fragment = len(header) + html_bytes.index(marker_end)
-    end_html = len(header) + len(html_bytes)
+    dummy_header = header_template.format(0, 0, 0, 0).encode("ascii")
+    header_len = len(dummy_header)
+    start_fragment = header_len + html_bytes.index(marker_start) + len(marker_start)
+    end_fragment = header_len + html_bytes.index(marker_end)
+    end_html = header_len + len(html_bytes)
     header = header_template.format(
-        len(header), end_html, start_fragment, end_fragment
+        header_len, end_html, start_fragment, end_fragment
     ).encode("ascii")
-
-    user32 = ctypes.windll.user32
-    kernel32 = ctypes.windll.kernel32
-    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
-    kernel32.GlobalAlloc.restype = ctypes.c_void_p
-    kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
-    kernel32.GlobalLock.restype = ctypes.c_void_p
-    kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
-    kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
-    user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
-    user32.RegisterClipboardFormatW.restype = wintypes.UINT
-    user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
-    user32.SetClipboardData.restype = ctypes.c_void_p
-    html_format = user32.RegisterClipboardFormatW("HTML Format")
-    if not user32.OpenClipboard(None):
-        return False
+    full_html = header + html_bytes + b"\0"
 
     try:
-        user32.EmptyClipboard()
-        if not _set_clipboard_data(
-            kernel32, user32, html_format, header + html_bytes
-        ):
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        kernel32.GlobalAlloc.restype = ctypes.c_void_p
+        kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+        kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+        user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
+        user32.RegisterClipboardFormatW.restype = wintypes.UINT
+        user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
+        user32.SetClipboardData.restype = ctypes.c_void_p
+        html_format = user32.RegisterClipboardFormatW("HTML Format")
+        if not user32.OpenClipboard(None):
             return False
-        return _set_clipboard_data(
-            kernel32,
-            user32,
-            13,
-            (plain_text + "\0").encode("utf-16-le"),
-        )
-    finally:
-        user32.CloseClipboard()
+
+        try:
+            user32.EmptyClipboard()
+            if not _set_clipboard_data(
+                kernel32, user32, html_format, full_html
+            ):
+                return False
+            return _set_clipboard_data(
+                kernel32,
+                user32,
+                13,
+                (plain_text + "\0").encode("utf-16-le"),
+            )
+        finally:
+            user32.CloseClipboard()
+    except Exception as error:
+        log_exception("Falha ao copiar HTML para o clipboard do Windows", error)
+        return False
+
+
+def copy_reference(reference: ViewReference) -> bool:
+    """Copia HTML em Windows e texto puro em plataformas Unix-like."""
+    plain_text = reference_text(reference)
+
+    if os.name != "nt":
+        return _copy_plain_text_to_system_clipboard(plain_text)
+
+    fragment = reference_html(reference)
+    return _copy_html_to_windows_clipboard(fragment, plain_text)
+
+
+def copy_references(references: list[ViewReference]) -> bool:
+    """Copia uma lista de referências com formatação ABNT para o clipboard."""
+    if not references:
+        return False
+
+    plain_text = "\n".join(reference_text(ref) for ref in references)
+    if os.name != "nt":
+        return _copy_plain_text_to_system_clipboard(plain_text)
+
+    paragraphs = [
+        f'<p style="margin:0 0 1em 0;">{reference_html(ref)}</p>'
+        for ref in references
+    ]
+    fragment = "\n".join(paragraphs)
+    return _copy_html_to_windows_clipboard(fragment, plain_text)
 
 
 def _set_clipboard_data(kernel32, user32, format_id: int, data: bytes) -> bool:

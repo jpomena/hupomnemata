@@ -182,6 +182,29 @@ class CompilationHubComposer(
             disabled=not self._has_caderno_content(),
             tooltip='Copia o roteiro com as ideias, os fragmentos e as notas',
         )
+        is_caderno = self.selected_tab == 'caderno'
+        has_refs = bool(
+            self._used_works() if is_caderno else compilation['works']
+        )
+        refs_label = (
+            'Copiar Referências do Caderno'
+            if is_caderno
+            else 'Copiar Referências da Compilação'
+        )
+        refs_tooltip = (
+            'Copia as referências das obras utilizadas no caderno em ordem alfabética'
+            if is_caderno
+            else 'Copia todas as referências da compilação em ordem alfabética'
+        )
+        self.copy_references_button = ui.button(
+            c,
+            refs_label,
+            on_click=self._copy_references,
+            icon_name='book-bookmark',
+            icon_style='solid',
+            disabled=not has_refs,
+            tooltip=refs_tooltip,
+        )
         menu_items = [('pen', 'Editar detalhes', self._open_details_dialog, False)]
         if self.on_delete is not None:
             menu_items += [None, ('trash-can', 'Excluir compilação', self._confirm_delete, True)]
@@ -190,7 +213,7 @@ class CompilationHubComposer(
             c,
             compilation['name'],
             compilation['description'],
-            actions=[self.copy_button, self.header_menu],
+            actions=[self.copy_button, self.copy_references_button, self.header_menu],
             meta=meta,
         )
 

@@ -133,6 +133,13 @@ def test_works_count_and_sidebar_exclude_magazines(clean_db, view_config):
     # O contador do Acervo deve acusar estritamente 3 obras (1 livro + 2 artigos), ignorando a revista!
     assert composer._count_label() == "3 obras"
 
+    # O cabeçalho da página Acervo deve contabilizar estritamente as 3 obras substantivas e 2 tipos
+    body = composer._compose_body()
+    header_container = body.controls[0]
+    left_col = header_container.content.controls[0]
+    description_text = left_col.controls[1].value
+    assert description_text == "3 obras catalogadas em 2 tipos documentais."
+
     # O menu de filtro por tipo não deve ter "Revista"
     type_menu = composer._type_menu()
     assert type_menu is not None

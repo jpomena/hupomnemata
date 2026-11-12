@@ -417,7 +417,7 @@ class NousAIService:
             "{\n"
             '  "title": "Título principal da obra (sem subtítulo, obrigatório)",\n'
             '  "subtitle": "Subtítulo da obra após dois-pontos ou travessão (se houver, senão null)",\n'
-            '  "authors": [{"name": "Sobrenome, Prenomes ou Nome Completo", "corporation": false}],\n'
+            '  "authors": [{"name": "Prenome Sobrenome (ou Sobrenome, Prenomes se ABNT)", "corporation": false}],\n'
             '  "date_anchor": "Ano de publicação (ex: \'2014\'; obrigatório)",\n'
             '  "publisher": "Editora (se não houver no texto use \'[s.n.]\')",\n'
             '  "publication_place": "Local/Cidade de publicação (se não houver use \'[s.l.]\')",\n'

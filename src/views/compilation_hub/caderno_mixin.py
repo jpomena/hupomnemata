@@ -23,8 +23,17 @@ from src.contracts import (
     CompilationSectionRecord,
     CompilationWorkRecord,
 )
+from src.utils.clipboard import copy_references
 from src.utils.fa import fa_icon
 from src.utils.fragment_reference import fragment_abnt_notation
+from src.utils.reference_disambiguation import (
+    apply_year_suffix_to_view_reference,
+    build_disambiguated_references,
+    build_disambiguated_view_references,
+    compute_year_suffixes,
+    extract_work_year,
+    reference_plain_text,
+)
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from .common import (
@@ -34,7 +43,6 @@ from .common import (
     max_width_box,
     more_menu,
     plural,
-    reference_plain,
     reference_text,
     text_input,
 )
@@ -256,8 +264,17 @@ class CompilationHubCadernoMixin:
             on_undo=lambda: self._set_fragment_destination(fragment['id'], previous),
         )
 
+    def _year_suffixes(self) -> dict[int, str]:
+        is_caderno = getattr(self, 'selected_tab', 'caderno') == 'caderno'
+        works = self._used_works() if is_caderno else self.compilation['works']
+        return compute_year_suffixes(works)
+
     async def _copy_fragment(self, fragment: CompilationFragmentRecord) -> None:
-        text = f"{quoted(fragment['excerpt']) if fragment['fragment_type'] == 'quote' else fragment['excerpt']} {fragment_abnt_notation(fragment)}"
+        year_override = self._year_suffixes().get(fragment['bib_res_id'])
+        notation = fragment_abnt_notation(
+            fragment, display_year_override=year_override
+        )
+        text = f"{quoted(fragment['excerpt']) if fragment['fragment_type'] == 'quote' else fragment['excerpt']} {notation}"
         try:
             await self.page.clipboard.set(text)
         except Exception:
@@ -359,14 +376,19 @@ class CompilationHubCadernoMixin:
 
     def _caderno_text(self, with_references: bool = False) -> str:
         lines = [self.compilation['name']]
+        year_suffixes = self._year_suffixes()
         for section in self._sorted_sections():
             lines.extend(('', f"## {section['title']}", ''))
             if section['central_idea']:
                 lines.extend((section['central_idea'], ''))
             for fragment in self._section_fragments(section['id']):
+                year_override = year_suffixes.get(fragment['bib_res_id'])
+                notation = fragment_abnt_notation(
+                    fragment, display_year_override=year_override
+                )
                 lines.extend((
                     f"{kind_label(fragment)}: {fragment['excerpt']}",
-                    fragment_abnt_notation(fragment),
+                    notation,
                 ))
                 if fragment['work_note']:
                     lines.append(f"Nota de articulação: {fragment['work_note']}")
@@ -375,10 +397,14 @@ class CompilationHubCadernoMixin:
         if unassigned:
             lines.extend(('', '## A organizar', ''))
             for work, fragment in unassigned:
+                year_override = year_suffixes.get(fragment['bib_res_id'])
+                notation = fragment_abnt_notation(
+                    fragment, display_year_override=year_override
+                )
                 lines.extend((
                     f"### {work['title']}",
                     f"{fragment['excerpt']}",
-                    fragment_abnt_notation(fragment),
+                    notation,
                 ))
                 if fragment['work_note']:
                     lines.append(f"Nota de articulação: {fragment['work_note']}")
@@ -388,8 +414,8 @@ class CompilationHubCadernoMixin:
             if used:
                 references = self._work_references([work['id'] for work in used])
                 lines.extend(('', '## Referências', ''))
-                for position, work in enumerate(used, start=1):
-                    text = reference_plain(references.get(work['id'])) or work['title']
+                disambiguated = build_disambiguated_references(used, references)
+                for position, text in enumerate(disambiguated, start=1):
                     lines.append(f'{position}. {text}')
         return '\n'.join(lines).strip()
 
@@ -404,6 +430,27 @@ class CompilationHubCadernoMixin:
         if not self._has_caderno_content():
             return
         await self.on_copy_caderno(self._caderno_text(with_references=True))
+
+    async def _copy_references(self, event=None) -> None:
+        del event
+        is_caderno = getattr(self, 'selected_tab', 'caderno') == 'caderno'
+        works = self._used_works() if is_caderno else self.compilation['works']
+        if not works:
+            return
+        references = self._work_references([work['id'] for work in works])
+        disambiguated = build_disambiguated_view_references(works, references)
+        disambiguated.sort(key=lambda ref: reference_plain_text(ref).casefold())
+        text = '\n'.join(reference_plain_text(ref) for ref in disambiguated)
+
+        copied = copy_references(disambiguated)
+        if not copied or not isinstance(self.page, ft.Page):
+            try:
+                if hasattr(self.page, 'clipboard') and self.page.clipboard:
+                    await self.page.clipboard.set(text)
+            except Exception:
+                if not copied:
+                    return
+        ui.toast(self.page, self.config, 'Referências copiadas.', icon_name='book-bookmark')
 
     # ── coluna 1: roteiro ──────────────────────────────────
 
@@ -588,9 +635,19 @@ class CompilationHubCadernoMixin:
             padding=ft.Padding.only(left=s(8), right=s(6)),
             border=ft.Border.only(bottom=ft.BorderSide(1, c.colors['border'])),
         )
+        year_override = self._year_suffixes().get(fragment['bib_res_id'])
         body = ft.Container(
             content=ft.Column(
-                [self._fragment_body(fragment), ui.meta_text(c, fragment_abnt_notation(fragment), max_lines=2)],
+                [
+                    self._fragment_body(fragment),
+                    ui.meta_text(
+                        c,
+                        fragment_abnt_notation(
+                            fragment, display_year_override=year_override
+                        ),
+                        max_lines=2,
+                    ),
+                ],
                 spacing=s(8),
                 tight=True,
             ),
@@ -750,13 +807,34 @@ class CompilationHubCadernoMixin:
         c = self.config
         used = self._used_works()
         references = self._work_references([work['id'] for work in used])
+        year_suffixes = self._year_suffixes()
         reference_rows: list[ft.Control] = []
         for position, work in enumerate(used, start=1):
             reference = references.get(work['id'])
-            text = reference_text(c, reference) if reference is not None else ui.ui_text(c, work['title'], size=12, color=c.colors['muted'], max_lines=None)
+            if reference is not None and work['id'] in year_suffixes:
+                orig_year = extract_work_year(work)
+                if orig_year:
+                    reference = apply_year_suffix_to_view_reference(
+                        reference, orig_year, year_suffixes[work['id']]
+                    )
+            text = (
+                reference_text(c, reference)
+                if reference is not None
+                else ui.ui_text(
+                    c, work['title'], size=12, color=c.colors['muted'], max_lines=None
+                )
+            )
             reference_rows.append(
                 ft.Row(
-                    [ft.Container(ui.ui_text(c, f'{position}.', size=12, color=c.colors['faint'], tabular=True), width=s(18)), ft.Container(text, expand=True)],
+                    [
+                        ft.Container(
+                            ui.ui_text(
+                                c, f'{position}.', size=12, color=c.colors['faint'], tabular=True
+                            ),
+                            width=s(18),
+                        ),
+                        ft.Container(text, expand=True),
+                    ],
                     spacing=s(6),
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 )

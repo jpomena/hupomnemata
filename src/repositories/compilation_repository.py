@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -18,6 +20,7 @@ from src.domains import (
     Fragment,
 )
 from src.repositories.fragment_repository import FragmentRepository
+from src.utils.abnt import ABNTUtils
 
 
 class CompilationRepository:
@@ -104,6 +107,13 @@ class CompilationRepository:
                     'authors': self._authors_line(
                         item.bibliographic_resource
                     ),
+                    'display_year': getattr(work, 'display_year', '[s.d.]') or '[s.d.]',
+                    'citation_author': self._citation_author(
+                        item.bibliographic_resource, work
+                    ),
+                    'work_type': getattr(
+                        work, 'work_type', getattr(item.bibliographic_resource, 'type', '')
+                    ),
                 })
             records.append({
                 'id': compilation.id,
@@ -135,6 +145,51 @@ class CompilationRepository:
                     ' '.join(filter(None, (author.given_names, author.last_name)))
                 )
         return ', '.join(name for name in names if name)
+
+    @staticmethod
+    def _citation_name(value: str) -> str:
+        value = value.strip()
+        if not value:
+            return value
+        return value[0].upper() + value[1:].lower()
+
+    @classmethod
+    def _citation_author(
+        cls,
+        resource: BibliographicResource,
+        work: Any,
+    ) -> str:
+        authors = getattr(resource, 'authors', None) or []
+        citation_author = '; '.join(
+            (
+                cls._citation_name(author.last_name)
+                if not author.corporation
+                else (
+                    cls._citation_name(
+                        author.jurisdiction.given_names
+                    )
+                    + '. '
+                    + cls._citation_name(author.given_names)
+                    if getattr(author, 'jurisdiction', None) is not None
+                    else (
+                        cls._citation_name(author.corporation_acronym)
+                        if getattr(author, 'corporation_acronym', None)
+                        else cls._citation_name(author.given_names)
+                    )
+                )
+            )
+            for author in authors
+        )
+        if not citation_author and work is not None:
+            citation_author = ABNTUtils.format_title_without_author(
+                work.title,
+                preserve_title_spelling=getattr(
+                    work, 'preserve_title_spelling', False
+                ),
+            )
+            if not getattr(work, 'preserve_title_spelling', False):
+                citation_author = cls._citation_name(citation_author)
+        return citation_author
 
     def create(self, payload: CompilationPayload) -> int:
         name, description = self._validated_values(payload)
