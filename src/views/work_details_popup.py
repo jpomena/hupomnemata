@@ -14,6 +14,7 @@ from src.domains import (
 )
 from src.utils import ABNTUtils
 from src.utils.types import ViewConfig, WORK_TYPE_LABELS
+from src.views import ui_kit as ui
 
 
 class WorkDetailsPopup:
@@ -110,12 +111,16 @@ class WorkDetailsPopup:
         on_close: Callable[[], None],
         page: ft.Page | None = None,
         nous_service: object | None = None,
+        on_open_pdf: Callable[[int], None] | None = None,
+        on_attach_pdf: Callable[[BibliographicResource], None] | None = None,
     ) -> None:
         self.resource = resource
         self.config = config
         self.on_close = on_close
         self.page = page
         self.nous_service = nous_service
+        self.on_open_pdf = on_open_pdf
+        self.on_attach_pdf = on_attach_pdf
         self._is_generating = False
         self.synthesis_container = None
 
@@ -153,6 +158,11 @@ class WorkDetailsPopup:
             )
             overview_controls.append(
                 self._detail_row("Revista", magazine_name)
+            )
+        if getattr(self.resource, "pdf_path", None):
+            pdf_info_str = f"{self.resource.pdf_filename or 'Anexo'} ({self.resource.pdf_page_count or '?'} pág.)"
+            overview_controls.append(
+                self._detail_row("Documento PDF", pdf_info_str)
             )
         detail_controls.append(self._section_title("Visão geral"))
         detail_controls.append(
@@ -196,6 +206,23 @@ class WorkDetailsPopup:
             ),
             bgcolor=self.config.colors["bg"],
             actions=[
+                *([
+                    ft.ElevatedButton(
+                        content=ft.Text("Ler PDF", font_family=self.config.font_families["montserrat"], weight=ui.W600),
+                        icon=ft.Icons.BOOK_ROUNDED,
+                        bgcolor=self.config.colors["gold"],
+                        color=self.config.colors["bg"],
+                        on_click=lambda _e: self._open_reader(),
+                    )
+                ] if getattr(self.resource, "pdf_path", None) else [
+                    ft.ElevatedButton(
+                        content=ft.Text("Anexar PDF", font_family=self.config.font_families["montserrat"], weight=ui.W600),
+                        icon=ft.Icons.ATTACH_FILE_ROUNDED,
+                        bgcolor=self.config.colors["surface"],
+                        color=self.config.colors["text"],
+                        on_click=lambda _e: self._attach_pdf(),
+                    )
+                ] if self.on_attach_pdf else []),
                 ft.TextButton(
                     content=ft.Text(
                         "Fechar",
@@ -205,6 +232,16 @@ class WorkDetailsPopup:
                 )
             ],
         )
+
+    def _attach_pdf(self) -> None:
+        self.on_close()
+        if self.on_attach_pdf:
+            self.on_attach_pdf(self.resource)
+
+    def _open_reader(self) -> None:
+        self.on_close()
+        if self.on_open_pdf:
+            self.on_open_pdf(self.resource.id)
 
     def _section(
         self,

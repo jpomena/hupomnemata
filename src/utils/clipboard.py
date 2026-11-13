@@ -61,11 +61,13 @@ def _copy_plain_text_to_system_clipboard(text: str) -> bool:
             command,
             input=text,
             text=True,
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             check=False,
+            timeout=2,
         )
         return result.returncode == 0
-    except (FileNotFoundError, OSError) as error:
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as error:
         log_exception("Falha ao acessar o clipboard do sistema", error)
         return False
 

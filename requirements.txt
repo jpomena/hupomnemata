@@ -21,6 +21,8 @@ pluggy==1.7.0
 pycodestyle==2.15.0
 pyflakes==4.1.0
 Pygments==2.21.0
+pymupdf==2.1
+pypdf==7.0.1
 pytest==9.1.1
 PyYAML==6.0.3
 repath==0.9.0

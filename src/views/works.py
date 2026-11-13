@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import flet as ft
 
 from src.domains import BibliographicResource, WorkMixin
+from src.utils.error_log import log_exception
 from src.utils.fa import fa_icon
 from src.utils.types import (
     ReferencePart,
@@ -663,6 +664,15 @@ class WorksComposer:
         if work.title:
             title_text.tooltip = work.title
         title_parts.append(title_text)
+        if getattr(resource, "pdf_path", None):
+            title_parts.append(
+                ft.Container(
+                    content=ui.badge(c, "PDF", icon_name="file-pdf", variant="gold"),
+                    on_click=lambda _e, res=resource: self._open_pdf_reader(res),
+                    tooltip="Abrir no Leitor de PDF",
+                    ink=True,
+                )
+            )
         subtitle = getattr(work, "subtitle", None)
         if subtitle:
             sub_text = ui.serif_text(c, subtitle, size=14, weight=ui.W600, color=c.colors["faint"], italic=True, max_lines=1, expand=True)
@@ -1059,7 +1069,15 @@ class WorksComposer:
     def _details_helper(self, resource):
         from src.views.work_details_popup import WorkDetailsPopup
 
-        return WorkDetailsPopup(resource=resource, config=self.config, on_close=lambda: None, page=self.page, nous_service=self.nous_service)
+        return WorkDetailsPopup(
+            resource=resource,
+            config=self.config,
+            on_close=lambda: None,
+            page=self.page,
+            nous_service=self.nous_service,
+            on_open_pdf=lambda _rid, res=resource: self._open_pdf_reader(res),
+            on_attach_pdf=lambda res: self._open_attach_pdf_picker(res),
+        )
 
     def _reference_text(self, resource) -> ft.Control:
         c = self.config
@@ -1116,24 +1134,37 @@ class WorksComposer:
             header.append(ui.ui_text(c, work.subtitle, size=13, color=c.colors["muted"], max_lines=3))
         year = getattr(work, "display_year", "") or ""
         header.append(ui.ui_text(c, " · ".join(filter(None, [author_names(resource) or "Sem autoria", str(year)])), size=13, color=c.colors["muted"], max_lines=2))
+        has_pdf = bool(getattr(resource, "pdf_path", None))
+        pdf_action = (
+            (("book-open", "solid"), "Abrir no Leitor de PDF", None, lambda _e, res=resource: self._open_pdf_reader(res))
+            if has_pdf
+            else (("paperclip", "solid"), "Anexar arquivo PDF", None, lambda _e, res=resource: self._open_attach_pdf_picker(res))
+        )
         more = self._popup(
             ui.icon_button(c, "ellipsis", boxed=True, tooltip="Mais ações"),
             None,
             [
                 (("copy", "regular"), "Copiar referência", "⌘C", lambda _e: self._copy_reference(resource)),
+                pdf_action,
                 *[(("folder", "regular"), f"Adicionar a {name}", None, (lambda _e, cid=cid: self._add_one_to(cid, resource))) for cid, name in self.context.compilations if cid not in {x for x, _ in self.context.compilations_by_work.get(resource.id, [])}],
                 (None, "", None, None),
                 (("trash-can", "regular"), "Excluir obra", None, lambda _e: self._confirm_delete([resource])),
             ],
         )
+        action_buttons = []
+        if has_pdf:
+            action_buttons.append(
+                ui.button(c, "Ler PDF", icon_name="book-open", variant="primary", small=True, on_click=lambda _e, res=resource: self._open_pdf_reader(res))
+            )
+        action_buttons.extend([
+            ui.button(c, "Editar", icon_name="pen", small=True, on_click=lambda _e: self.on_edit_work(resource)),
+            ui.button(c, "Ver ficha completa", icon_name="up-right-from-square", small=True, on_click=lambda _e: self.on_work_click(resource)),
+            more,
+        ])
         header.append(
             ft.Container(
                 ft.Row(
-                    [
-                        ui.button(c, "Editar", icon_name="pen", small=True, on_click=lambda _e: self.on_edit_work(resource)),
-                        ui.button(c, "Ver ficha completa", icon_name="up-right-from-square", small=True, on_click=lambda _e: self.on_work_click(resource)),
-                        more,
-                    ],
+                    action_buttons,
                     spacing=s(8),
                 ),
                 margin=ft.Margin.only(top=s(12)),
@@ -1165,6 +1196,55 @@ class WorksComposer:
     def _set_inspector_tab(self, key: str) -> None:
         self.inspector_tab = key
         self._refresh()
+
+    def _open_pdf_reader(self, resource: BibliographicResource) -> None:
+        """Abre o leitor imersivo de PDF em janela dedicada independente."""
+        from src.views.pdf_reader.standalone import open_pdf_standalone_window
+
+        work = getattr(resource, "specific_work", None)
+        title = (
+            getattr(work, "title", None) if work else None
+        ) or getattr(resource, "pdf_filename", None) or "documento"
+
+        opened = open_pdf_standalone_window(
+            resource_id=resource.id,
+            page=self.page,
+            config=self.config,
+            work_title=title,
+        )
+        if not opened:
+            self.on_navigate(f"pdf_reader:{resource.id}")
+
+    def _open_attach_pdf_picker(self, resource: BibliographicResource) -> None:
+        """Abre seletor de arquivos para vincular um PDF a esta obra."""
+        if not self.page:
+            return
+
+        from src.services.pdf_service import PdfService
+        from src.utils.file_picker import pick_file
+
+        async def _pick():
+            try:
+                selected_path = await pick_file(
+                    page=self.page,
+                    dialog_title="Selecionar PDF para a obra",
+                    allowed_extensions=["pdf"],
+                )
+                if selected_path:
+                    svc = PdfService()
+                    info = svc.attach_pdf(resource.id, selected_path)
+                    resource.pdf_path = info["pdf_path"]
+                    resource.pdf_filename = info["pdf_filename"]
+                    resource.pdf_page_count = info["pdf_page_count"]
+                    if self.page:
+                        ui.toast(self.page, self.config, f"PDF anexado: {info['pdf_filename']}")
+                    self._refresh()
+            except Exception as err:
+                log_exception("Falha ao anexar PDF via picker", err)
+                if self.page:
+                    ui.toast(self.page, self.config, f"Erro ao anexar PDF: {err}")
+
+        self.page.run_task(_pick)
 
     def _add_one_to(self, compilation_id: int, resource) -> None:
         if self.on_add_to_compilation is None:

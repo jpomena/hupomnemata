@@ -149,12 +149,22 @@ class WorkControllerMixin:
         self.page.show_dialog(modal)
 
     def open_work_details(self, resource) -> None:
+        def _on_open_pdf(wid: int) -> None:
+            from src.views.pdf_reader.standalone import open_pdf_standalone_window
+
+            opened = open_pdf_standalone_window(
+                wid, page=self.page, config=self.view_config
+            )
+            if not opened:
+                self.navigate_with(f"pdf_reader:{wid}")
+
         modal = CoreComposer.compose_work_details_popup(
             resource=resource,
             config=self.view_config,
             on_close=lambda: self.close_dialog(modal),
             page=self.page,
             nous_service=getattr(self, "nous_service", None),
+            on_open_pdf=_on_open_pdf,
         )
         self.page.show_dialog(modal)
 

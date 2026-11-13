@@ -81,6 +81,12 @@ def _cleanup_duplicate_specific_works() -> None:
                         text(f"DELETE FROM {table_name} WHERE id = :row_id"),
                         {'row_id': row_id},
                     )
+                conn.execute(
+                    text(
+                        f"DELETE FROM {table_name} WHERE bib_res_id NOT IN "
+                        "(SELECT id FROM bibliographic_resources)"
+                    )
+                )
             except Exception as error:
                 log_exception(
                     f"Falha ao limpar duplicatas da tabela {table_name}",
@@ -242,6 +248,18 @@ def _ensure_legacy_columns() -> None:
             if 'custom_description' not in br_columns:
                 conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN custom_description TEXT'))
                 br_columns.add('custom_description')
+            if 'pdf_filename' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_filename VARCHAR(255)'))
+                br_columns.add('pdf_filename')
+            if 'pdf_path' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_path VARCHAR(500)'))
+                br_columns.add('pdf_path')
+            if 'pdf_sha256' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_sha256 VARCHAR(64)'))
+                br_columns.add('pdf_sha256')
+            if 'pdf_page_count' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_page_count INTEGER'))
+                br_columns.add('pdf_page_count')
 
         if 'fragments' in table_columns:
             fragment_columns = table_columns['fragments']

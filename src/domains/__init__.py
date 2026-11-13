@@ -26,6 +26,7 @@ from .proceedings import MonographicProceedings, PeriodicalProceedings
 from .patent import Patent
 from .legal_documents import Statute, CaseLaw
 from .multimedia import AudiovisualDocument, AudioDocument, VisualDocument, ThreeDimensionalDocument, CartographicDocument, MusicalScore  # noqa: E501
+from .pdf_annotation import PdfAnnotation
 from .knowledge import (
     KnowledgeEmbedding,
     KnowledgeCluster,
@@ -36,6 +37,7 @@ from .knowledge import (
 __all__ = [
     'DatePrecision',
     'BibliographicResource',
+    'PdfAnnotation',
     'WorkMixin',
     'Author',
     'Authorship',
