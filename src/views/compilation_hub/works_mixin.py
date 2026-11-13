@@ -142,9 +142,9 @@ class CompilationHubWorksMixin:
             on_change=lambda event, current_id=fragment['id']: self._toggle_membership(current_id, bool(event.control.value)),
         )
         if fragment['fragment_type'] == 'quote':
-            body = ui.serif_text(c, quoted(fragment['excerpt']), size=17, max_lines=3, height=1.45)
+            body = ui.serif_text(c, quoted(fragment['excerpt']), size=17, max_lines=3, height=1.45, align=ft.TextAlign.JUSTIFY)
         else:
-            body = ui.ui_text(c, fragment['excerpt'], size=13, color=c.colors['muted'], max_lines=3)
+            body = ui.ui_text(c, fragment['excerpt'], size=13, color=c.colors['muted'], max_lines=3, align=ft.TextAlign.JUSTIFY)
         meta = [fragment_abnt_notation(fragment)]
         if fragment.get('work_note'):
             meta.append('com nota de articulação')

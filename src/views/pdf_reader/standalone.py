@@ -5,6 +5,7 @@ operacional, garantindo que a janela principal do Hupomnemata permaneça intacta
 com seu estado de navegação, filtros e contexto preservados.
 """
 
+import inspect
 import os
 import sys
 from pathlib import Path
@@ -56,7 +57,9 @@ def open_pdf_standalone_window(
     root_dir = str(Path(__file__).resolve().parent.parent.parent.parent)
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
-        f"{root_dir}:{existing_pythonpath}" if existing_pythonpath else root_dir
+        os.pathsep.join(filter(None, [root_dir, existing_pythonpath]))
+        if existing_pythonpath
+        else root_dir
     )
 
     try:
@@ -118,18 +121,46 @@ def run_standalone_reader(resource_id: int) -> None:
         page.window.height = 860
         page.window.min_width = 750
         page.window.min_height = 550
-        page.window.center()
+        try:
+            window = getattr(page, "window", None)
+            if window is not None and hasattr(window, "center"):
+                center_fn = window.center
+                run_task = getattr(page, "run_task", None)
+                if run_task is not None:
+                    run_task(center_fn)
+                elif not inspect.iscoroutinefunction(center_fn):
+                    center_fn()
+        except Exception:
+            pass
 
         if hasattr(page, "theme_mode"):
             page.theme_mode = (
                 ft.ThemeMode.DARK if effective_theme == "dark" else ft.ThemeMode.LIGHT
             )
 
+        reader_ref: list[PdfReaderView] = []
+
         def close_window() -> None:
+            if reader_ref:
+                reader_ref[0].close()
             try:
                 page.window.close()
             except Exception:
                 pass
+
+        def on_window_event(e: ft.WindowEvent) -> None:
+            if getattr(e, "type", None) == ft.WindowEventType.CLOSE and reader_ref:
+                reader_ref[0].close()
+            elif reader_ref and hasattr(reader_ref[0], "handle_window_event"):
+                reader_ref[0].handle_window_event(e)
+
+        page.window.on_event = on_window_event
+
+        def on_page_resize(e: ft.ControlEvent) -> None:
+            if reader_ref and hasattr(reader_ref[0], "handle_page_resize"):
+                reader_ref[0].handle_page_resize(e)
+
+        page.on_resize = on_page_resize
 
         with SessionLocal() as inner_session:
             fresh_resource = inner_session.get(BibliographicResource, resource_id)
@@ -152,9 +183,13 @@ def run_standalone_reader(resource_id: int) -> None:
                 on_back=close_window,
                 pdf_service=pdf_service,
                 page=page,
+                show_back_button=False,
             )
+            reader_ref.append(reader_view)
 
         def on_keyboard(event: ft.KeyboardEvent) -> None:
+            if reader_ref and getattr(reader_ref[0], "is_modal_open", False):
+                return
             is_mod = bool(event.ctrl or event.meta or event.alt)
             reader_view.handle_key(event.key, is_mod)
 

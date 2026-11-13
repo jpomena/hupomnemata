@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, cast
 from sqlalchemy import (
     Boolean,
+    Integer,
     String,
     Text,
     Enum,
@@ -206,6 +207,9 @@ class BibliographicResource(Base):
     pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     pdf_page_count: Mapped[int | None] = mapped_column(nullable=True)
+    pdf_page_offset: Mapped[int] = mapped_column(
+        Integer, default=0, server_default='0', nullable=False
+    )
     pdf_annotations: Mapped[list['PdfAnnotation']] = relationship(
         'PdfAnnotation',
         back_populates='bibliographic_resource',

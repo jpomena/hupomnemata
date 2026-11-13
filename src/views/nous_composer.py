@@ -239,7 +239,7 @@ class NousComposer:
                         font_family=self.config.font_families['montserrat'],
                     ),
                     ft.Text(
-                        "3. Copie a chave (começa com 'AIzaSy...'), cole no campo abaixo e clique em 'Salvar e Testar Conexão'². Sua chave é gravada localmente de forma privada.",
+                        "3. Copie a chave, cole no campo abaixo e clique em 'Salvar e Testar Conexão'². Sua chave é gravada localmente de forma privada.",
                         size=12 * self.scale,
                         color=self.config.colors["text"],
                         font_family=self.config.font_families['montserrat'],
@@ -552,6 +552,7 @@ class NousComposer:
                 italic=not has_snippet,
                 style=ft.TextStyle(height=1.45),
                 selectable=True,
+                text_align=ft.TextAlign.JUSTIFY if has_snippet else None,
             )
             self.work_snippet_texts[w_id] = snippet_text
 
@@ -852,6 +853,7 @@ class NousComposer:
             ),
             border_color=self.config.colors["border"],
             bgcolor=self.config.colors["surface"],
+            text_align=ft.TextAlign.JUSTIFY,
         )
 
         def save_override(_):

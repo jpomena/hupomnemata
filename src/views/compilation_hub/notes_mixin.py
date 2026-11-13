@@ -36,7 +36,7 @@ class CompilationHubNotesMixin:
             autofocus=True,
         )
         excerpt = ft.Container(
-            content=ui.serif_text(c, fragment.get('excerpt', ''), size=16, max_lines=5, color=c.colors['muted']),
+            content=ui.serif_text(c, fragment.get('excerpt', ''), size=16, max_lines=5, color=c.colors['muted'], align=ft.TextAlign.JUSTIFY),
             padding=ft.Padding.symmetric(horizontal=s(12), vertical=s(10)),
             bgcolor=c.colors['bg'],
             border=ft.Border.all(1, c.colors['border']),
@@ -84,6 +84,7 @@ class CompilationHubNotesMixin:
             max_lines=None,
             expand=True,
             selectable=bool(note),
+            align=ft.TextAlign.JUSTIFY if note else None,
         )
         action = ui.button(
             c,

@@ -1,16 +1,41 @@
-"""Operacoes de clipboard para referencias bibliograficas."""
+"""Operacoes de clipboard para referencias bibliograficas e textos do sistema."""
 
 import html
 import os
 import shutil
 import subprocess
 
-from src.utils.types import TextStyle, ViewReference
 from src.utils.error_log import log_exception
+from src.utils.types import TextStyle, ViewReference
 
 if os.name == "nt":
     import ctypes
     from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = ctypes.c_void_p
+    kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalUnlock.restype = wintypes.BOOL
+    kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalFree.restype = ctypes.c_void_p
+
+    user32.OpenClipboard.argtypes = [wintypes.HWND]
+    user32.OpenClipboard.restype = wintypes.BOOL
+    user32.CloseClipboard.argtypes = []
+    user32.CloseClipboard.restype = wintypes.BOOL
+    user32.EmptyClipboard.argtypes = []
+    user32.EmptyClipboard.restype = wintypes.BOOL
+    user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
+    user32.SetClipboardData.restype = ctypes.c_void_p
+    user32.GetClipboardData.argtypes = [wintypes.UINT]
+    user32.GetClipboardData.restype = ctypes.c_void_p
+    user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
+    user32.RegisterClipboardFormatW.restype = wintypes.UINT
 
 
 def reference_text(reference: ViewReference) -> str:
@@ -32,16 +57,71 @@ def reference_html(reference: ViewReference) -> str:
     return "".join(chunks)
 
 
+def _copy_plain_text_to_windows_clipboard(text: str) -> bool:
+    """Copia texto puro com codificação UTF-16 Unicode nativa para o clipboard do Windows."""
+    if os.name != "nt":
+        return False
+
+    try:
+        if not user32.OpenClipboard(None):
+            return False
+        try:
+            user32.EmptyClipboard()
+            data = (text + "\0").encode("utf-16-le")
+            return _set_clipboard_data(kernel32, user32, 13, data)  # CF_UNICODETEXT = 13
+        finally:
+            user32.CloseClipboard()
+    except Exception as error:
+        log_exception("Falha ao copiar texto puro para o clipboard do Windows via Win32", error)
+        return False
+
+
+def get_system_clipboard_text() -> str:
+    """Recupera o texto puro atualmente armazenado na área de transferência do sistema."""
+    if os.name == "nt":
+        try:
+            if not user32.OpenClipboard(None):
+                return ""
+            try:
+                handle = user32.GetClipboardData(13)  # CF_UNICODETEXT
+                if not handle:
+                    return ""
+                ptr = kernel32.GlobalLock(handle)
+                if not ptr:
+                    return ""
+                try:
+                    return ctypes.c_wchar_p(ptr).value or ""
+                finally:
+                    kernel32.GlobalUnlock(handle)
+            finally:
+                user32.CloseClipboard()
+        except Exception as error:
+            log_exception("Falha ao ler texto do clipboard do Windows", error)
+            return ""
+    elif os.name == "posix":
+        cmd: list[str] = []
+        if shutil.which("wl-paste"):
+            cmd = ["wl-paste", "--no-newline"]
+        elif shutil.which("xclip"):
+            cmd = ["xclip", "-selection", "clipboard", "-out"]
+        elif shutil.which("xsel"):
+            cmd = ["xsel", "--clipboard", "--output"]
+        elif shutil.which("pbpaste"):
+            cmd = ["pbpaste"]
+        else:
+            return ""
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=False)
+            return res.stdout if res.returncode == 0 else ""
+        except Exception:
+            return ""
+    return ""
+
+
 def _copy_plain_text_to_system_clipboard(text: str) -> bool:
     """Copia texto puro usando ferramentas nativas do sistema operacional."""
     if os.name == "nt":
-        command = [
-            "powershell",
-            "-NoLogo",
-            "-NoProfile",
-            "-Command",
-            "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
-        ]
+        return _copy_plain_text_to_windows_clipboard(text)
     elif os.name == "posix":
         if shutil.which("wl-copy"):
             command = ["wl-copy"]
@@ -103,18 +183,6 @@ def _copy_html_to_windows_clipboard(fragment: str, plain_text: str) -> bool:
     full_html = header + html_bytes + b"\0"
 
     try:
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-        kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
-        kernel32.GlobalAlloc.restype = ctypes.c_void_p
-        kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
-        kernel32.GlobalLock.restype = ctypes.c_void_p
-        kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
-        kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
-        user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
-        user32.RegisterClipboardFormatW.restype = wintypes.UINT
-        user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
-        user32.SetClipboardData.restype = ctypes.c_void_p
         html_format = user32.RegisterClipboardFormatW("HTML Format")
         if not user32.OpenClipboard(None):
             return False
@@ -166,17 +234,17 @@ def copy_references(references: list[ViewReference]) -> bool:
     return _copy_html_to_windows_clipboard(fragment, plain_text)
 
 
-def _set_clipboard_data(kernel32, user32, format_id: int, data: bytes) -> bool:
-    handle = kernel32.GlobalAlloc(0x0002, len(data))
+def _set_clipboard_data(k32, u32, format_id: int, data: bytes) -> bool:
+    handle = k32.GlobalAlloc(0x0002, len(data))
     if not handle:
         return False
-    pointer = kernel32.GlobalLock(handle)
+    pointer = k32.GlobalLock(handle)
     if not pointer:
-        kernel32.GlobalFree(handle)
+        k32.GlobalFree(handle)
         return False
     ctypes.memmove(pointer, data, len(data))
-    kernel32.GlobalUnlock(handle)
-    if not user32.SetClipboardData(format_id, handle):
-        kernel32.GlobalFree(handle)
+    k32.GlobalUnlock(handle)
+    if not u32.SetClipboardData(format_id, handle):
+        k32.GlobalFree(handle)
         return False
     return True

@@ -26,6 +26,7 @@ from src.domains import (
     PeriodicalCollection,
     PeriodicalProceedings,
     MusicalScore,
+    PdfAnnotation,
     WorkMixin,
 )
 from src.utils.error_log import log_exception
@@ -561,6 +562,7 @@ class WorkRepository:
                 )
             )
         )
+        pdf_path_to_clean = getattr(work, 'pdf_path', None)
 
         try:
             fragment_ids = select(Fragment.id).where(
@@ -580,6 +582,13 @@ class WorkRepository:
                 )
             )
             self.session.execute(
+                delete(PdfAnnotation).where(
+                    PdfAnnotation.bib_res_id == work.id
+                )
+            )
+            if work.specific_work is not None:
+                self.session.delete(work.specific_work)
+            self.session.execute(
                 delete(BibliographicResource).where(
                     BibliographicResource.id == work.id
                 )
@@ -595,6 +604,25 @@ class WorkRepository:
                     self.session.execute(
                         delete(Author).where(Author.id == author_id)
                     )
+
+            # Verifica se o arquivo PDF associado ficou órfão e deve ser apagado
+            if pdf_path_to_clean:
+                other_using_pdf = self.session.scalar(
+                    select(BibliographicResource.id)
+                    .where(
+                        BibliographicResource.id != work.id,
+                        BibliographicResource.pdf_path == pdf_path_to_clean,
+                    )
+                    .limit(1)
+                )
+                if other_using_pdf is None:
+                    from src.services.pdf_service import PdfService
+                    try:
+                        target_file = PdfService().resolve_path(pdf_path_to_clean)
+                        if target_file.exists() and target_file.is_file():
+                            target_file.unlink()
+                    except Exception as pdf_err:
+                        log_exception("Falha ao remover arquivo PDF órfão após exclusão da obra", pdf_err)
 
             self.session.commit()
         except Exception as error:

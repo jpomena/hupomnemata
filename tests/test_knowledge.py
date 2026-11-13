@@ -906,6 +906,14 @@ def test_work_fragments_wired_to_side_panel_on_selection():
     page.height = 1080.0
 
     ctrl = CoreController(page=page)
+    ctrl.knowledge_service.get_work_fragments = MagicMock(return_value=[
+        {
+            "id": 1,
+            "type": "quote",
+            "excerpt": "A justiça é a virtude da alma.",
+            "location": "página 82",
+        }
+    ])
     composer = ctrl.create_composer()
     assert composer.get_knowledge_work_fragments is not None
 

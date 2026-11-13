@@ -364,12 +364,21 @@ class WorkDetailsPopup:
                 ],
             )
         else:
+            is_long = full_width or label in {
+                "abstract",
+                "translation_notes",
+                "additional_notes",
+                "responsibilities",
+                "part_responsibilities",
+                "notes",
+            }
             value_control = ft.Text(
                 text_value,
                 size=self.config.font_sizes["montserrat_small"],
                 color=self.config.colors["text"],
                 font_family=self.config.font_families["montserrat"],
                 selectable=True,
+                text_align=ft.TextAlign.JUSTIFY if is_long else None,
             )
 
         return ft.Container(
@@ -381,7 +390,6 @@ class WorkDetailsPopup:
                         weight=self.config.font_weights["montserrat_semibold"],
                         color=self.config.colors["muted"],
                         font_family=self.config.font_families["montserrat"],
-                        text_align=ft.TextAlign.JUSTIFY,
                     ),
                     value_control,
                 ],
@@ -489,6 +497,7 @@ class WorkDetailsPopup:
             font_family=self.config.font_families["montserrat"],
             italic=not has_any_text,
             selectable=True,
+            text_align=ft.TextAlign.JUSTIFY if has_any_text else None,
         )
 
         badge_control = ft.Container(
@@ -697,6 +706,7 @@ class WorkDetailsPopup:
             border_color=self.config.colors["border"],
             bgcolor=self.config.colors["surface"],
             hint_text="Redija sua síntese ou interpretação particular da obra...",
+            text_align=ft.TextAlign.JUSTIFY,
         )
 
         def save_edit(_):

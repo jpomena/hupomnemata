@@ -519,7 +519,11 @@ class CoreComposer:
             if self.page:
                 ui.toast(self.page, self.config, f"Carregando leitor: {work_title}...", icon_name="book-open")
 
+            reader_holder: list[PdfReaderView] = []
+
             def on_back():
+                if reader_holder:
+                    reader_holder[0].close()
                 self.on_navigate_with("Acervo", focus_work_id=work_id)
 
             reader_view = PdfReaderView(
@@ -529,6 +533,7 @@ class CoreComposer:
                 pdf_service=pdf_service,
                 page=self.page,
             )
+            reader_holder.append(reader_view)
             self.pdf_reader_view = reader_view
             return reader_view
 
