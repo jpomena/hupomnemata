@@ -775,9 +775,15 @@ def input_field(
     on_submit: Callable | None = None,
     prefix_icon: str | None = None,
     autofocus: bool = False,
+    text_align: ft.TextAlign | None = None,
 ) -> ft.TextField:
     """Campo de texto do padrão v2 (sem rótulo flutuante; use ``form_field``)."""
     colors = c.colors
+    resolved_align = (
+        text_align
+        if text_align is not None
+        else (ft.TextAlign.JUSTIFY if multiline else ft.TextAlign.START)
+    )
     text_style = ft.TextStyle(
         font_family=c.font_families["cormorant"],
         color=colors["text"],
@@ -827,6 +833,7 @@ def input_field(
         focused_border_width=1,
         border_radius=ft.BorderRadius.all(s(6)),
         cursor_color=colors["gold"],
+        text_align=resolved_align,
     )
 
 

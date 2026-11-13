@@ -95,9 +95,15 @@ def text_input(
     max_length: int | None = None,
     autofocus: bool = False,
     on_submit: Callable | None = None,
+    text_align: ft.TextAlign | None = None,
 ) -> ft.TextField:
     """Campo de texto do kit: fundo do canvas, borda de 1 px, foco dourado."""
     colors = c.colors
+    resolved_align = (
+        text_align
+        if text_align is not None
+        else (ft.TextAlign.JUSTIFY if multiline else ft.TextAlign.START)
+    )
     return ft.TextField(
         value=value,
         hint_text=hint,
@@ -123,6 +129,7 @@ def text_input(
         focused_border_width=1,
         border_radius=ft.BorderRadius.all(s(6)),
         cursor_color=colors['gold'],
+        text_align=resolved_align,
     )
 
 

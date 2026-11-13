@@ -480,9 +480,9 @@ class FragmentsComposer:
             ]))
 
         if is_quote:
-            body = ui.serif_text(c, quoted(fragment['excerpt']), size=18, selectable=True)
+            body = ui.serif_text(c, quoted(fragment['excerpt']), size=18, selectable=True, align=ft.TextAlign.JUSTIFY)
         else:
-            body = ui.ui_text(c, fragment['excerpt'], size=13, color=colors['muted'], max_lines=None, selectable=True)
+            body = ui.ui_text(c, fragment['excerpt'], size=13, color=colors['muted'], max_lines=None, selectable=True, align=ft.TextAlign.JUSTIFY)
             body.style = ft.TextStyle(letter_spacing=ui.UI_TRACKING, height=1.6)
 
         meta: list[ft.Control] = [ui.ui_text(c, KIND_LABELS.get(fragment['fragment_type'], 'Fragmento'), size=12, weight=W600, color=colors['muted'])]

@@ -77,6 +77,7 @@ class KnowledgePanel:
             weight=ft.FontWeight.W_500,
             color=self.config.colors["text"],
             selectable=True,
+            text_align=ft.TextAlign.JUSTIFY,
         )
 
         self.excerpt_container = ft.Container(
@@ -365,6 +366,7 @@ class KnowledgePanel:
                         font_family=self.config.font_families["montserrat"],
                         max_lines=3,
                         overflow=ft.TextOverflow.ELLIPSIS,
+                        text_align=ft.TextAlign.JUSTIFY,
                     ),
                 ],
                 spacing=4 * self.scale,

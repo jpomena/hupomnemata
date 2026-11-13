@@ -122,7 +122,7 @@ class PdfService:
             }
 
     def detach_pdf(self, bib_res_id: int, delete_file: bool = True) -> bool:
-        """Desvincula o PDF da obra e opcionalmente apaga o arquivo do repositório."""
+        """Desvincula o PDF da obra e opcionalmente apaga o arquivo do repositório se for órfão."""
         with SessionLocal() as session:
             resource = session.get(BibliographicResource, bib_res_id)
             if resource is None:
@@ -131,20 +131,63 @@ class PdfService:
             if not resource.pdf_path:
                 return False
 
+            old_pdf_path = resource.pdf_path
+
             if delete_file:
-                target_file = self.resolve_path(resource.pdf_path)
-                if target_file.exists() and target_file.is_file():
-                    try:
-                        target_file.unlink()
-                    except Exception as err:
-                        log_exception(f'Falha ao deletar PDF físico {target_file}', err)
+                other = (
+                    session.query(BibliographicResource.id)
+                    .filter(
+                        BibliographicResource.id != bib_res_id,
+                        BibliographicResource.pdf_path == old_pdf_path,
+                    )
+                    .first()
+                )
+                if not other:
+                    target_file = self.resolve_path(old_pdf_path)
+                    if target_file.exists() and target_file.is_file():
+                        try:
+                            target_file.unlink()
+                        except Exception as err:
+                            log_exception(f'Falha ao deletar PDF físico {target_file}', err)
+
+            # Remove anotações do PDF desanexado
+            for ann in list(resource.pdf_annotations or []):
+                session.delete(ann)
 
             resource.pdf_filename = None
             resource.pdf_path = None
             resource.pdf_sha256 = None
             resource.pdf_page_count = None
+            resource.pdf_page_offset = 0
             session.commit()
             return True
+
+    def cleanup_orphan_files(self) -> int:
+        """Varre o diretório de armazenamento e remove PDFs órfãos não vinculados a nenhuma obra."""
+        removed_count = 0
+        if not self.storage_dir.exists():
+            return 0
+
+        with SessionLocal() as session:
+            active_paths = set(
+                session.scalars(
+                    select(BibliographicResource.pdf_path).where(
+                        BibliographicResource.pdf_path.is_not(None)
+                    )
+                )
+            )
+
+        active_filenames = {Path(p).name for p in active_paths if p}
+
+        for file_path in self.storage_dir.glob('*.pdf'):
+            if file_path.is_file() and file_path.name not in active_filenames:
+                try:
+                    file_path.unlink()
+                    removed_count += 1
+                except Exception as err:
+                    log_exception(f'Falha ao limpar PDF órfão {file_path}', err)
+
+        return removed_count
 
     def get_pdf_info(self, bib_res_id: int) -> dict[str, Any] | None:
         """Retorna os metadados do PDF vinculado à obra."""
@@ -161,8 +204,19 @@ class PdfService:
                 'pdf_absolute_path': str(abs_path),
                 'pdf_sha256': resource.pdf_sha256,
                 'pdf_page_count': resource.pdf_page_count,
+                'pdf_page_offset': getattr(resource, 'pdf_page_offset', 0) or 0,
                 'file_exists': abs_path.exists(),
             }
+
+    def update_page_offset(self, bib_res_id: int, offset: int) -> int:
+        """Atualiza o offset de sincronização de página do PDF com a obra física."""
+        with SessionLocal() as session:
+            resource = session.get(BibliographicResource, bib_res_id)
+            if resource is None:
+                raise ValueError(f'Obra bibliográfica {bib_res_id} não encontrada.')
+            resource.pdf_page_offset = int(offset)
+            session.commit()
+            return resource.pdf_page_offset
 
     # ── Gestão de Anotações e Grifos ─────────────────────────────
 
@@ -256,14 +310,18 @@ class PdfService:
             if annotation is None:
                 raise ValueError(f'Anotação {annotation_id} não encontrada.')
 
+            resource = session.get(BibliographicResource, annotation.bib_res_id)
+            offset = getattr(resource, 'pdf_page_offset', 0) or 0 if resource else 0
+            work_page = annotation.page_number + offset
+
             fragment = Fragment(
                 bib_res_id=annotation.bib_res_id,
                 excerpt=annotation.selected_text,
                 fragment_type=fragment_type,
                 location_type='Página',
-                location_value=str(annotation.page_number),
-                start_page=annotation.page_number,
-                end_page=annotation.page_number,
+                location_value=str(work_page),
+                start_page=work_page if work_page > 0 else annotation.page_number,
+                end_page=work_page if work_page > 0 else annotation.page_number,
             )
             session.add(fragment)
             session.flush()

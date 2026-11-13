@@ -182,6 +182,20 @@ class WorksComposer:
             return False
         return getattr(resource, "is_magazine", False)
 
+    @staticmethod
+    def _work_has_pdf(resource: BibliographicResource | None) -> bool:
+        """Verifica se o recurso possui PDF vinculado e com arquivo existente em disco."""
+        if resource is None:
+            return False
+        pdf_rel = getattr(resource, "pdf_path", None)
+        if not pdf_rel:
+            return False
+        from src.services.pdf_service import PdfService
+        try:
+            return PdfService().resolve_path(pdf_rel).is_file()
+        except Exception:
+            return False
+
     def _parent_id(self, resource) -> int | None:
         work = self._get_specific_work(resource)
         return getattr(work, "parent_bibliographic_resource_id", None) if work is not None else None
@@ -659,12 +673,12 @@ class WorksComposer:
         title_parts: list[ft.Control] = []
         if level:
             title_parts.append(ft.Container(fa_icon("turn-up", size=s(9), color=c.colors["border_strong"]), rotate=ft.Rotate(1.5708), width=s(16), margin=ft.Margin.only(left=s(4 + 12 * (level - 1)))))
-        title_text = ui.serif_text(c, work.title or "", size=16.5, weight=ui.W700, color=c.colors["gold"] if selected else c.colors["text"], max_lines=1, expand=True)
+        title_text = ui.serif_text(c, work.title or "", size=16.5, weight=ui.W500, color=c.colors["gold"] if selected else c.colors["text"], max_lines=1, expand=True,)
         title_text.expand_loose = True
         if work.title:
             title_text.tooltip = work.title
         title_parts.append(title_text)
-        if getattr(resource, "pdf_path", None):
+        if self._work_has_pdf(resource):
             title_parts.append(
                 ft.Container(
                     content=ui.badge(c, "PDF", icon_name="file-pdf", variant="gold"),
@@ -819,7 +833,7 @@ class WorksComposer:
         )
 
         title_text = ui.serif_text(
-            c, mag_title, size=16.5, weight=ui.W700, color=c.colors["text"], max_lines=1, expand=True
+            c, mag_title, size=16.5, weight=ui.W500, color=c.colors["text"], max_lines=1, expand=True
         )
         title_text.expand_loose = True
         title_parts: list[ft.Control] = [title_text]
@@ -1134,38 +1148,49 @@ class WorksComposer:
             header.append(ui.ui_text(c, work.subtitle, size=13, color=c.colors["muted"], max_lines=3))
         year = getattr(work, "display_year", "") or ""
         header.append(ui.ui_text(c, " · ".join(filter(None, [author_names(resource) or "Sem autoria", str(year)])), size=13, color=c.colors["muted"], max_lines=2))
-        has_pdf = bool(getattr(resource, "pdf_path", None))
-        pdf_action = (
-            (("book-open", "solid"), "Abrir no Leitor de PDF", None, lambda _e, res=resource: self._open_pdf_reader(res))
-            if has_pdf
-            else (("paperclip", "solid"), "Anexar arquivo PDF", None, lambda _e, res=resource: self._open_attach_pdf_picker(res))
-        )
+        has_pdf = self._work_has_pdf(resource)
+        more_items = [
+            (("copy", "regular"), "Copiar referência", "⌘C", lambda _e: self._copy_reference(resource)),
+        ]
+        if not has_pdf:
+            more_items.append(
+                (("paperclip", "solid"), "Anexar arquivo PDF", None, lambda _e, res=resource: self._open_attach_pdf_picker(res))
+            )
+        else:
+            more_items.append(
+                (("link-slash", "solid"), "Desanexar PDF / excluir arquivo", None, lambda _e, res=resource: self._confirm_detach_pdf(res))
+            )
+        more_items.extend([
+            *[(("folder", "regular"), f"Adicionar a {name}", None, (lambda _e, cid=cid: self._add_one_to(cid, resource))) for cid, name in self.context.compilations if cid not in {x for x, _ in self.context.compilations_by_work.get(resource.id, [])}],
+            (None, "", None, None),
+            (("trash-can", "regular"), "Excluir obra", None, lambda _e: self._confirm_delete([resource])),
+        ])
         more = self._popup(
             ui.icon_button(c, "ellipsis", boxed=True, tooltip="Mais ações"),
             None,
-            [
-                (("copy", "regular"), "Copiar referência", "⌘C", lambda _e: self._copy_reference(resource)),
-                pdf_action,
-                *[(("folder", "regular"), f"Adicionar a {name}", None, (lambda _e, cid=cid: self._add_one_to(cid, resource))) for cid, name in self.context.compilations if cid not in {x for x, _ in self.context.compilations_by_work.get(resource.id, [])}],
-                (None, "", None, None),
-                (("trash-can", "regular"), "Excluir obra", None, lambda _e: self._confirm_delete([resource])),
-            ],
+            more_items,
         )
         action_buttons = []
         if has_pdf:
             action_buttons.append(
                 ui.button(c, "Ler PDF", icon_name="book-open", variant="primary", small=True, on_click=lambda _e, res=resource: self._open_pdf_reader(res))
             )
+        else:
+            action_buttons.append(
+                ui.button(c, "Anexar PDF", icon_name="paperclip", variant="default", small=True, tooltip="Vincular arquivo PDF a esta obra", on_click=lambda _e, res=resource: self._open_attach_pdf_picker(res))
+            )
         action_buttons.extend([
             ui.button(c, "Editar", icon_name="pen", small=True, on_click=lambda _e: self.on_edit_work(resource)),
-            ui.button(c, "Ver ficha completa", icon_name="up-right-from-square", small=True, on_click=lambda _e: self.on_work_click(resource)),
+            ui.button(c, "Ver ficha", icon_name="up-right-from-square", small=True, tooltip="Ver ficha completa", on_click=lambda _e: self.on_work_click(resource)),
             more,
         ])
         header.append(
             ft.Container(
                 ft.Row(
                     action_buttons,
-                    spacing=s(8),
+                    spacing=s(6),
+                    wrap=True,
+                    run_spacing=s(6),
                 ),
                 margin=ft.Margin.only(top=s(12)),
             )
@@ -1246,6 +1271,54 @@ class WorksComposer:
 
         self.page.run_task(_pick)
 
+    def _confirm_detach_pdf(self, resource: BibliographicResource) -> None:
+        """Pede confirmação para desanexar o PDF e excluir o arquivo físico do repositório local."""
+        if not resource or self.page is None:
+            return
+        c = self.config
+        work = self._get_specific_work(resource)
+        work_title = getattr(work, "title", "esta obra") or "esta obra"
+        title = f"Desanexar PDF de “{work_title}”?"
+        detail = "O arquivo PDF será desvinculado desta obra e removido do repositório local. Fragmentos já criados serão mantidos no Acervo."
+
+        def close(_e=None):
+            self.page.pop_dialog()
+
+        def confirm(_e=None):
+            close()
+            from src.services.pdf_service import PdfService
+            try:
+                svc = PdfService()
+                svc.detach_pdf(resource.id, delete_file=True)
+                resource.pdf_path = None
+                resource.pdf_filename = None
+                resource.pdf_page_count = None
+                resource.pdf_page_offset = 0
+                if self.page:
+                    ui.toast(self.page, self.config, "PDF desanexado com sucesso.", icon_name="check")
+                self._refresh()
+            except Exception as err:
+                log_exception("Falha ao desanexar PDF", err)
+                if self.page:
+                    ui.toast(self.page, self.config, f"Erro ao desanexar PDF: {err}")
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ui.serif_text(c, title, size=18, weight=ui.W700, color=c.colors["text"]),
+            content=ft.Container(
+                content=ui.ui_text(c, detail, size=13, color=c.colors["muted"]),
+                width=s(400),
+            ),
+            actions=[
+                ui.button(c, "Cancelar", variant="default", small=True, on_click=close),
+                ui.button(c, "Desanexar e excluir", variant="danger", small=True, on_click=confirm),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=c.colors["surface"],
+            shape=ft.RoundedRectangleBorder(radius=s(8)),
+        )
+        self.page.show_dialog(dialog)
+
     def _add_one_to(self, compilation_id: int, resource) -> None:
         if self.on_add_to_compilation is None:
             return
@@ -1314,7 +1387,7 @@ class WorksComposer:
 
         abstract = getattr(work, "abstract", None)
         if abstract:
-            sections.append(self._section("Resumo", [ui.serif_text(c, abstract, size=16, selectable=True)]))
+            sections.append(self._section("Resumo", [ui.serif_text(c, abstract, size=16, selectable=True, align=ft.TextAlign.JUSTIFY)]))
         try:
             synthesis = helper._compose_synthesis_section()
             sections.append(ft.Container(synthesis, padding=ft.Padding.symmetric(horizontal=s(24), vertical=s(16))))
@@ -1345,7 +1418,7 @@ class WorksComposer:
                         ft.Column(
                             [
                                 ui.meta_text(c, " · ".join(meta)),
-                                ui.serif_text(c, text, size=16, max_lines=4) if is_quote else ui.ui_text(c, text, size=13, color=c.colors["muted"], max_lines=4),
+                                ui.serif_text(c, text, size=16, max_lines=4, align=ft.TextAlign.JUSTIFY) if is_quote else ui.ui_text(c, text, size=13, color=c.colors["muted"], max_lines=4, align=ft.TextAlign.JUSTIFY),
                             ],
                             spacing=s(4), expand=True, tight=True,
                         ),

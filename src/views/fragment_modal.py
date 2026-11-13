@@ -125,6 +125,7 @@ class FragmentModal:
             'border_radius': ft.BorderRadius.all(s(6)),
             'content_padding': padding,
             'dense': True,
+            'text_align': ft.TextAlign.JUSTIFY if multiline else ft.TextAlign.START,
         }
 
     def _text_input(self, hint: str, multiline: bool = False, **kwargs) -> ft.TextField:
@@ -277,7 +278,7 @@ class FragmentModal:
             width=s(640),
         )
         self.modal = ft.AlertDialog(
-            modal=False,
+            modal=True,
             bgcolor=colors['surface'],
             content=self.form,
             content_padding=0,

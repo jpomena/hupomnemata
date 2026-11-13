@@ -605,8 +605,8 @@ class CompilationHubCadernoMixin:
     def _fragment_body(self, fragment: CompilationFragmentRecord, size: float = 18) -> ft.Text:
         c = self.config
         if fragment['fragment_type'] == 'quote':
-            return ui.serif_text(c, quoted(fragment['excerpt']), size=size, selectable=True)
-        return ui.ui_text(c, fragment['excerpt'], size=13, color=c.colors['muted'], max_lines=None, selectable=True)
+            return ui.serif_text(c, quoted(fragment['excerpt']), size=size, selectable=True, align=ft.TextAlign.JUSTIFY)
+        return ui.ui_text(c, fragment['excerpt'], size=13, color=c.colors['muted'], max_lines=None, selectable=True, align=ft.TextAlign.JUSTIFY)
 
     def _compose_fragment_block(
         self,
@@ -699,7 +699,7 @@ class CompilationHubCadernoMixin:
                     content=ft.Row(
                         [
                             ft.Container(ui.ui_text(c, 'Ideia central', size=13, color=c.colors['faint']), width=s(104)),
-                            ui.ui_text(c, section['central_idea'], size=13, max_lines=None, expand=True, selectable=True),
+                            ui.ui_text(c, section['central_idea'], size=13, max_lines=None, expand=True, selectable=True, align=ft.TextAlign.JUSTIFY),
                         ],
                         spacing=s(12),
                         vertical_alignment=ft.CrossAxisAlignment.START,

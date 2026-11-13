@@ -260,6 +260,9 @@ def _ensure_legacy_columns() -> None:
             if 'pdf_page_count' not in br_columns:
                 conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_page_count INTEGER'))
                 br_columns.add('pdf_page_count')
+            if 'pdf_page_offset' not in br_columns:
+                conn.execute(text('ALTER TABLE "bibliographic_resources" ADD COLUMN pdf_page_offset INTEGER NOT NULL DEFAULT 0'))
+                br_columns.add('pdf_page_offset')
 
         if 'fragments' in table_columns:
             fragment_columns = table_columns['fragments']
