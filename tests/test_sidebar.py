@@ -1,39 +1,9 @@
 """Testes unitários para o SidebarComposer e delimitação de espaço na barra lateral."""
 
 import flet as ft
-import pytest
 
-from src.configs.settings import (
-    COLORS_LIGHT,
-    CORE_MENUS,
-    FONT_FAMILIES,
-    FONT_SIZES,
-    FONT_WEIGHTS,
-    ICON_SIZES,
-    MAIN_VIEW_CARDS,
-    PAGE_FONTS,
-    TEXTS,
-    UI,
-)
-from src.utils.types import ViewConfig
 from src.views.sidebar import SidebarComposer, SidebarData
 from src.views.ui_kit import s
-
-
-@pytest.fixture
-def view_config():
-    return ViewConfig(
-        colors=COLORS_LIGHT,
-        page_fonts=PAGE_FONTS,
-        font_families=FONT_FAMILIES,
-        font_sizes=FONT_SIZES,
-        icon_sizes=ICON_SIZES,
-        font_weights=FONT_WEIGHTS,
-        ui=UI,
-        texts=TEXTS,
-        core_menus=CORE_MENUS,
-        main_view_cards=MAIN_VIEW_CARDS,
-    )
 
 
 def _walk(control):

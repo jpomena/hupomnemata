@@ -169,18 +169,19 @@ def test_choosing_a_type_rebuilds_intro_and_sections():
 
 
 @pytest.mark.parametrize('colors', [COLORS_DARK, COLORS_LIGHT])
-@pytest.mark.parametrize('work_type', [spec.key for spec in WORK_TYPES])
-def test_every_type_composes_in_both_themes(work_type, colors):
-    composer = make_composer(colors=colors, initial_work_type=work_type)
-    assert composer.selected.key == work_type
-    assert composer.section_keys[0] == 'identificacao' or (
-        work_type == 'periodical_collection'
-    )
-    # Todo campo obrigatório visível leva o asterisco dourado.
-    for key, wrapper in composer.field_wrappers.items():
-        label = wrapper.controls[0] if isinstance(wrapper, ft.Column) else None
-        if isinstance(label, ft.Text) and label.spans:
-            assert label.spans[0].style.color == colors['gold'], key
+def test_every_type_composes_in_both_themes(colors):
+    for spec in WORK_TYPES:
+        work_type = spec.key
+        composer = make_composer(colors=colors, initial_work_type=work_type)
+        assert composer.selected.key == work_type
+        assert composer.section_keys[0] == 'identificacao' or (
+            work_type == 'periodical_collection'
+        )
+        # Todo campo obrigatório visível leva o asterisco dourado.
+        for key, wrapper in composer.field_wrappers.items():
+            label = wrapper.controls[0] if isinstance(wrapper, ft.Column) else None
+            if isinstance(label, ft.Text) and label.spans:
+                assert label.spans[0].style.color == colors['gold'], key
 
 
 # ── prévia ao vivo ─────────────────────────────────────────

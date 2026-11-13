@@ -3,59 +3,16 @@
 from unittest.mock import MagicMock, patch
 
 import flet as ft
-import pytest
 
-from src.configs.settings import (
-    COLORS_LIGHT,
-    CORE_MENUS,
-    FONT_FAMILIES,
-    FONT_SIZES,
-    FONT_WEIGHTS,
-    ICON_SIZES,
-    MAIN_VIEW_CARDS,
-    PAGE_FONTS,
-    TEXTS,
-    UI,
-)
 from src.domains import AcademicMonograph, EditorialMonograph, JournalArticle
 from src.services.nous_service import NousAIService
 from src.services.settings_service import SettingsService
 from src.services.work_form_service import WorkFormService
 from src.services.work_service import WorkService
-from src.utils.types import ViewConfig
 from src.views.reverse_import_modal import (
     ReverseImportModalDialog,
     sanitize_work_metadata,
 )
-
-
-@pytest.fixture
-def clean_db(tmp_path):
-    from sqlalchemy import create_engine
-    from src.db import db as db_module
-    engine = create_engine(f"sqlite:///{(tmp_path / 'reverse_test.db').as_posix()}")
-    db_module.engine = engine
-    db_module.SessionLocal.configure(bind=engine)
-    db_module.Base.metadata.create_all(bind=engine)
-    yield
-    db_module.Base.metadata.drop_all(bind=engine)
-    engine.dispose()
-
-
-@pytest.fixture
-def view_config():
-    return ViewConfig(
-        colors=COLORS_LIGHT,
-        page_fonts=PAGE_FONTS,
-        font_families=FONT_FAMILIES,
-        font_sizes=FONT_SIZES,
-        icon_sizes=ICON_SIZES,
-        font_weights=FONT_WEIGHTS,
-        ui=UI,
-        texts=TEXTS,
-        core_menus=CORE_MENUS,
-        main_view_cards=MAIN_VIEW_CARDS,
-    )
 
 
 def test_nous_extract_without_api_key():

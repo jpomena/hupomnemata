@@ -1,17 +1,6 @@
 from unittest.mock import MagicMock
 import flet as ft
 
-from src.configs.settings import (
-    COLORS_LIGHT,
-    FONT_FAMILIES,
-    FONT_SIZES,
-    FONT_WEIGHTS,
-    ICON_SIZES,
-    MAIN_VIEW_CARDS,
-    PAGE_FONTS,
-    TEXTS,
-    UI,
-)
 from src.utils.types import ReferencePart, ViewConfig, ViewReference
 from src.views import ui_kit as ui
 from src.views.compilation_hub import common
@@ -23,23 +12,8 @@ from src.views.work_details_popup import WorkDetailsPopup
 from src.views.works import WorksComposer
 
 
-def _view_config() -> ViewConfig:
-    return ViewConfig(
-        colors=COLORS_LIGHT,
-        page_fonts=PAGE_FONTS,
-        font_families=FONT_FAMILIES,
-        font_sizes=FONT_SIZES,
-        icon_sizes=ICON_SIZES,
-        font_weights=FONT_WEIGHTS,
-        ui=UI,
-        texts=TEXTS,
-        core_menus={},
-        main_view_cards=MAIN_VIEW_CARDS,
-    )
-
-
-def test_ui_kit_input_field_justification():
-    cfg = _view_config()
+def test_ui_kit_input_field_justification(view_config: ViewConfig):
+    cfg = view_config
     # Multiline must be JUSTIFY
     field_ml = ui.input_field(cfg, multiline=True)
     assert field_ml.text_align == ft.TextAlign.JUSTIFY
@@ -53,8 +27,8 @@ def test_ui_kit_input_field_justification():
     assert field_custom.text_align == ft.TextAlign.RIGHT
 
 
-def test_compilation_common_text_input_justification():
-    cfg = _view_config()
+def test_compilation_common_text_input_justification(view_config: ViewConfig):
+    cfg = view_config
     # Multiline must be JUSTIFY
     inp_ml = common.text_input(cfg, multiline=True)
     assert inp_ml.text_align == ft.TextAlign.JUSTIFY
@@ -64,8 +38,8 @@ def test_compilation_common_text_input_justification():
     assert inp_single.text_align == ft.TextAlign.START
 
 
-def test_fragment_modal_excerpt_is_justified():
-    cfg = _view_config()
+def test_fragment_modal_excerpt_is_justified(view_config: ViewConfig):
+    cfg = view_config
     modal = FragmentModal(
         page=MagicMock(),
         config=cfg,
@@ -75,9 +49,9 @@ def test_fragment_modal_excerpt_is_justified():
     assert modal.excerpt.text_align == ft.TextAlign.JUSTIFY
 
 
-def test_references_are_strictly_not_justified():
+def test_references_are_strictly_not_justified(view_config: ViewConfig):
     """ABNT mandates formatted references must remain left aligned (not justified)."""
-    cfg = _view_config()
+    cfg = view_config
     sample_ref = ViewReference(parts=[
         ReferencePart("SOBRENOME, Nome. "),
         ReferencePart("Título da Obra"),
@@ -108,8 +82,8 @@ def test_references_are_strictly_not_justified():
     assert ctrl.text_align != ft.TextAlign.JUSTIFY
 
 
-def test_fragments_screen_rows_are_justified():
-    cfg = _view_config()
+def test_fragments_screen_rows_are_justified(view_config: ViewConfig):
+    cfg = view_config
     composer = FragmentsComposer(
         page=MagicMock(),
         config=cfg,
@@ -153,8 +127,8 @@ def test_fragments_screen_rows_are_justified():
     assert body_p.text_align == ft.TextAlign.JUSTIFY
 
 
-def test_works_inspector_fragments_and_resumo_are_justified():
-    cfg = _view_config()
+def test_works_inspector_fragments_and_resumo_are_justified(view_config: ViewConfig):
+    cfg = view_config
     composer = WorksComposer(
         scale=1.0,
         config=cfg,
@@ -178,8 +152,8 @@ def test_works_inspector_fragments_and_resumo_are_justified():
     assert card2_text.text_align == ft.TextAlign.JUSTIFY
 
 
-def test_compilation_hub_caderno_and_notes_are_justified():
-    cfg = _view_config()
+def test_compilation_hub_caderno_and_notes_are_justified(view_config: ViewConfig):
+    cfg = view_config
     hub = CompilationHubComposer(
         page=MagicMock(),
         config=cfg,
@@ -220,8 +194,8 @@ def test_compilation_hub_caderno_and_notes_are_justified():
     assert text_in_footer.text_align == ft.TextAlign.JUSTIFY
 
 
-def test_work_details_popup_synthesis_is_justified():
-    cfg = _view_config()
+def test_work_details_popup_synthesis_is_justified(view_config: ViewConfig):
+    cfg = view_config
     res = MagicMock()
     res.id = 1
     res.effective_description = "Esta é uma síntese epistemológica gerada pela mente racional."
@@ -243,8 +217,8 @@ def test_work_details_popup_synthesis_is_justified():
     assert text_widget.text_align == ft.TextAlign.JUSTIFY
 
 
-def test_nous_and_knowledge_panel_justification():
-    cfg = _view_config()
+def test_nous_and_knowledge_panel_justification(view_config: ViewConfig):
+    cfg = view_config
     panel = KnowledgePanel(
         config=cfg,
         scale=1.0,
