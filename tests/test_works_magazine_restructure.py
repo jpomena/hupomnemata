@@ -2,20 +2,6 @@
 
 from datetime import date
 
-import pytest
-
-from src.configs.settings import (
-    COLORS_LIGHT,
-    CORE_MENUS,
-    FONT_FAMILIES,
-    FONT_SIZES,
-    FONT_WEIGHTS,
-    ICON_SIZES,
-    MAIN_VIEW_CARDS,
-    PAGE_FONTS,
-    TEXTS,
-    UI,
-)
 from src.domains import (
     BibliographicResource,
     EditorialMonograph,
@@ -24,40 +10,8 @@ from src.domains import (
 )
 from src.services.work_form_service import WorkFormService
 from src.services.work_service import WorkService
-from src.utils.types import ViewConfig
 from src.views.work_insert_specs.catalog import TYPE_GROUPS
 from src.views.works import WorksComposer
-
-
-@pytest.fixture
-def clean_db(tmp_path):
-    from sqlalchemy import create_engine
-    from src.db import db as db_module
-    engine = create_engine(
-        f"sqlite:///{(tmp_path / 'mag_test.db').as_posix()}"
-    )
-    db_module.engine = engine
-    db_module.SessionLocal.configure(bind=engine)
-    db_module.Base.metadata.create_all(bind=engine)
-    yield
-    db_module.Base.metadata.drop_all(bind=engine)
-    engine.dispose()
-
-
-@pytest.fixture
-def view_config():
-    return ViewConfig(
-        colors=COLORS_LIGHT,
-        page_fonts=PAGE_FONTS,
-        font_families=FONT_FAMILIES,
-        font_sizes=FONT_SIZES,
-        icon_sizes=ICON_SIZES,
-        font_weights=FONT_WEIGHTS,
-        ui=UI,
-        texts=TEXTS,
-        core_menus=CORE_MENUS,
-        main_view_cards=MAIN_VIEW_CARDS,
-    )
 
 
 def test_catalog_excludes_standalone_magazine():

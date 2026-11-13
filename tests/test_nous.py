@@ -32,9 +32,13 @@ from src.views.work_details_popup import WorkDetailsPopup
 
 
 @pytest.fixture(autouse=True)
-def clean_test_db(tmp_path):
-    db_file = tmp_path / "nous_test.db"
-    engine = create_engine(f"sqlite:///{db_file.as_posix()}")
+def clean_test_db():
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     old_engine = db_module.engine
     db_module.engine = engine
     db_module.SessionLocal.configure(bind=engine)

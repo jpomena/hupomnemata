@@ -56,9 +56,13 @@ from src.utils import error_log
 
 
 @pytest.fixture(autouse=True)
-def clean_test_db(tmp_path):
-    db_file = tmp_path / 'hupomnemata_test.db'
-    engine = create_engine(f'sqlite:///{db_file.as_posix()}')
+def clean_test_db():
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        'sqlite://',
+        connect_args={'check_same_thread': False},
+        poolclass=StaticPool,
+    )
     db_module.engine = engine
     db_module.SessionLocal.configure(bind=engine)
     db_module.Base.metadata.create_all(bind=engine)
