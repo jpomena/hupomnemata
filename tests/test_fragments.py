@@ -34,6 +34,7 @@ from src.utils.clipboard import reference_text
 
 @pytest.fixture
 def fragment_database(tmp_path, monkeypatch):
+    orig_engine = db_module.engine
     engine = create_engine(
         f"sqlite:///{(tmp_path / 'fragments.db').as_posix()}"
     )
@@ -43,6 +44,7 @@ def fragment_database(tmp_path, monkeypatch):
     yield engine
     db_module.Base.metadata.drop_all(bind=engine)
     engine.dispose()
+    db_module.SessionLocal.configure(bind=orig_engine)
 
 
 def create_work(title: str = 'Obra de teste') -> int:
@@ -412,7 +414,13 @@ def test_fragment_form_applies_location_rules():
         == composer.location_value.height
         == 48
     )
-    assert composer.location_value.counter == ''
+    assert composer.location_value.counter is None
+    assert composer.work_search.content_padding.top == 18
+    assert composer.work_search.content_padding.bottom == 16
+    assert composer.location_value.content_padding.top == 18
+    assert composer.location_value.content_padding.bottom == 16
+    assert composer.excerpt.content_padding.top == 10
+    assert composer.excerpt.content_padding.bottom == 10
     assert (
         composer.work_search_group.horizontal_alignment
         == ft.CrossAxisAlignment.STRETCH
@@ -427,6 +435,13 @@ def test_fragment_form_applies_location_rules():
     content_field = composer.form_body.controls[1]
     assert content_field.controls[0].value == 'Conteúdo'
     assert content_field.horizontal_alignment == ft.CrossAxisAlignment.STRETCH
+    location_row = composer.form_body.controls[2]
+    assert isinstance(location_row, ft.Row)
+    assert location_row.controls[0].controls[1] is composer.location_type
+    assert location_row.controls[1].controls[1] is composer.location_value
+    assert location_row.controls[0].expand is True
+    assert location_row.controls[1].expand is True
+    assert location_row.vertical_alignment == ft.CrossAxisAlignment.START
 
     composer._search_works(SimpleNamespace(
         control=SimpleNamespace(value='ob')
@@ -459,6 +474,12 @@ def test_fragment_form_applies_location_rules():
     composer._on_location_type_change(SimpleNamespace(
         control=SimpleNamespace(value='Página')
     ))
+    assert composer.location_value.max_length == 5
+    composer.location_value.value = '123456789'
+    composer._on_location_value_change(SimpleNamespace(
+        control=composer.location_value
+    ))
+    assert composer.location_value.value == '12345'
 
     composer._set_fragment_type('comment')
     assert composer.fragment_type_value == 'comment'
@@ -494,6 +515,12 @@ def test_fragment_form_saves_and_edits_through_callbacks():
     composer._on_location_type_change(SimpleNamespace(
         control=SimpleNamespace(value='Página')
     ))
+    assert composer.location_value.max_length == 5
+    composer.location_value.value = '123456789'
+    composer._on_location_value_change(SimpleNamespace(
+        control=composer.location_value
+    ))
+    assert composer.location_value.value == '12345'
     composer.location_value.value = '42'
     composer.save_button.on_click(SimpleNamespace())
     assert saved == [(None, {

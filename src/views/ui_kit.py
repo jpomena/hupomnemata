@@ -224,13 +224,16 @@ def icon_button(
     style: str = "solid",
     disabled: bool = False,
     hover_color: str | None = None,
+    small: bool = False,
 ) -> ft.Container:
     colors = c.colors
-    glyph = fa_icon(icon_name, size=s(13), color=color or colors["faint"], style=style)
+    btn_size = 22 if small else size
+    glyph_size = 11 if small else 13
+    glyph = fa_icon(icon_name, size=s(glyph_size), color=color or colors["faint"], style=style)
     box = ft.Container(
         content=glyph,
-        width=s(size),
-        height=s(size),
+        width=s(btn_size),
+        height=s(btn_size),
         alignment=ft.Alignment.CENTER,
         border_radius=ft.BorderRadius.all(s(6)),
         border=ft.Border.all(1, colors["border_strong"]) if boxed else None,
@@ -280,21 +283,30 @@ def link_button(c: ViewConfig, label: str, on_click: Callable | None = None, tra
 # ── peças de layout ────────────────────────────────────────
 
 
-def badge(c: ViewConfig, label: str, icon_name: str | None = None, accent: bool = False) -> ft.Container:
+def badge(
+    c: ViewConfig,
+    label: str,
+    icon_name: str | None = None,
+    accent: bool = False,
+    variant: str = "default",
+) -> ft.Container:
     colors = c.colors
-    fg = colors["gold"] if accent else colors["muted"]
+    is_accent = accent or variant in ("gold", "accent", "primary")
+    fg = colors["gold"] if is_accent else colors["muted"]
     controls: list[ft.Control] = []
     if icon_name:
         controls.append(fa_icon(icon_name, size=s(10), color=fg, style="regular"))
     controls.append(ui_text(c, label, size=11, weight=W600, color=fg, tabular=True))
-    return ft.Container(
+    box = ft.Container(
         content=ft.Row(controls, spacing=s(4), tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         height=s(20),
         padding=ft.Padding.symmetric(horizontal=s(7)),
         border_radius=ft.BorderRadius.all(s(4)),
-        bgcolor=alpha(colors["gold"], 0.12) if accent else colors["bg"],
-        border=ft.Border.all(1, alpha(colors["gold"], 0.12) if accent else colors["border_strong"]),
+        bgcolor=alpha(colors["gold"], 0.12) if is_accent else colors["bg"],
+        border=ft.Border.all(1, alpha(colors["gold"], 0.12) if is_accent else colors["border_strong"]),
     )
+    box.data = {"label": label, "variant": variant, "accent": is_accent}
+    return box
 
 
 def kbd(c: ViewConfig, label: str) -> ft.Container:

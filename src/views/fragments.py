@@ -12,12 +12,13 @@ from typing import TypeVar
 
 import flet as ft
 
-from src.contracts import FRAGMENT_LOCATION_TYPES, FragmentRecord
+from src.contracts import FragmentRecord
 from src.utils.display_dates import format_date
 from src.utils.fragment_reference import fragment_abnt_notation
 from src.utils.types import ReferencePart, ViewConfig, ViewReference
 from src.views import ui_kit as ui
-from src.views.ui_kit import W500, W600, W700, s
+from src.views.fragment_modal import FragmentModal, LocationValueField
+from src.views.ui_kit import W600, W700, s
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
@@ -104,206 +105,14 @@ class FragmentsComposer:
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        # estado do formulário
-        self.editing_id: int | None = None
-        self.selected_work_id: int | None = None
-        self.fragment_type_value = 'quote'
-        self._build_form()
-
-    # ── formulário ─────────────────────────────────────────
-
-    def _input_style(self) -> dict:
-        c = self.config
-        colors = c.colors
-        family = c.font_families['montserrat']
-        return {
-            'text_size': s(13),
-            'text_style': ft.TextStyle(font_family=family, color=colors['text'], weight=W500),
-            'hint_style': ft.TextStyle(font_family=family, color=colors['faint'], weight=W500),
-            'color': colors['text'],
-            'bgcolor': colors['bg'],
-            'border_color': colors['border_strong'],
-            'focused_border_color': colors['gold'],
-            'border_width': 1,
-            'focused_border_width': 1,
-            'border_radius': ft.BorderRadius.all(s(6)),
-            'content_padding': ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
-            'dense': True,
-        }
-
-    def _text_input(self, hint: str, **kwargs) -> ft.TextField:
-        return ft.TextField(
-            hint_text=hint,
-            cursor_color=self.config.colors['gold'],
-            counter='',
-            **{**self._input_style(), **kwargs},
+        # componente padronizado do formulário/modal
+        self.modal_component = FragmentModal(
+            page=self.page,
+            config=self.config,
+            on_save=self.on_save,
+            search_works=self.search_works,
+            allowed_work_ids=self.allowed_work_ids,
         )
-
-    def _field(
-        self,
-        label: ft.Text | str,
-        control: ft.Control,
-        expand: bool | int | None = None,
-        stretch: bool = False,
-    ) -> ft.Column:
-        label_control = label if isinstance(label, ft.Text) else self._label(label)
-        return ft.Column(
-            [label_control, control],
-            spacing=s(6),
-            tight=True,
-            expand=expand,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH if stretch else ft.CrossAxisAlignment.START,
-        )
-
-    def _label(self, value: str) -> ft.Text:
-        return ui.ui_text(self.config, value, size=12, weight=W600, color=self.config.colors['muted'])
-
-    def _dropdown_option(self, key: str, text: str) -> ft.dropdown.Option:
-        return ft.dropdown.Option(
-            key=key,
-            text=text,
-            content=ui.ui_text(self.config, text, size=13),
-        )
-
-    def _build_form(self) -> None:
-        c = self.config
-        colors = c.colors
-        style = self._input_style()
-        self.kind_host = ft.Container()
-        self.work_search = self._text_input(
-            'Digite parte do título da obra',
-            on_change=self._search_works,
-            height=s(48),
-            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
-        )
-        self.work_results = ft.Column(spacing=0, tight=True, visible=False)
-        self.work_search_group = ft.Column(
-            controls=[self.work_search, self.work_results],
-            spacing=s(4),
-            tight=True,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-        self.excerpt = self._text_input(
-            'Ex.: “A memória também se constrói pelo que preservamos.”',
-            multiline=True,
-            min_lines=4,
-            max_lines=10,
-        )
-        self.location_type_label = self._label('Tipo de localização')
-        self.location_type = ft.Dropdown(
-            options=[
-                self._dropdown_option(NO_LOCATION, 'Sem localização'),
-                *[self._dropdown_option(value, value) for value in FRAGMENT_LOCATION_TYPES],
-            ],
-            on_select=self._on_location_type_change,
-            expand=True,
-            height=s(48),
-            expanded_insets=ft.Padding.all(0),
-            text_size=style['text_size'],
-            text_style=style['text_style'],
-            hint_style=style['hint_style'],
-            color=colors['text'],
-            bgcolor=colors['surface'],
-            fill_color=colors['bg'],
-            filled=True,
-            border_color=colors['border_strong'],
-            focused_border_color=colors['gold'],
-            border_width=1,
-            focused_border_width=1,
-            border_radius=style['border_radius'],
-            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
-            dense=True,
-            trailing_icon=ui.icon(c, 'chevron-down', size=11),
-            selected_trailing_icon=ui.icon(c, 'chevron-up', size=11),
-        )
-        self.location_value_label = self._label('Valor da localização')
-        self.location_value = self._text_input(
-            'Obrigatório para citações',
-            max_length=100,
-            height=s(48),
-            content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
-        )
-        self.form_title = ui.ui_text(c, 'Novo fragmento', size=15, weight=W600)
-        self.cancel_button = ui.button(c, 'Cancelar', on_click=self._close_modal, variant='ghost')
-        self.save_button = ui.button(c, 'Salvar fragmento', icon_name='check', on_click=self._save, variant='primary')
-
-        head = ft.Container(
-            content=ft.Row(
-                [self.form_title, ui.icon_button(c, 'xmark', on_click=self._close_modal, tooltip='Fechar')],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            height=s(52),
-            padding=ft.Padding.only(left=s(24), right=s(12)),
-            border=ft.Border.only(bottom=ft.BorderSide(1, colors['border'])),
-        )
-        self.form_body = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        self._field('Obra do acervo', self.work_search_group, expand=True, stretch=True),
-                        self._field('Tipo', self.kind_host),
-                    ],
-                    spacing=s(16),
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                ),
-                self._field('Conteúdo', self.excerpt, stretch=True),
-                ft.Row(
-                    controls=[
-                        self._field(self.location_type_label, self.location_type, expand=True, stretch=True),
-                        self._field(self.location_value_label, self.location_value, expand=True, stretch=True),
-                    ],
-                    spacing=s(16),
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                ),
-            ],
-            spacing=s(16),
-            tight=True,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-        foot = ft.Container(
-            content=ft.Row(
-                [self.cancel_button, self.save_button],
-                alignment=ft.MainAxisAlignment.END,
-                spacing=s(8),
-            ),
-            padding=ft.Padding.only(left=s(24), right=s(12), top=s(10), bottom=s(10)),
-            bgcolor=colors['surface'],
-            border=ft.Border.only(top=ft.BorderSide(1, colors['border'])),
-        )
-        self.form = ft.Container(
-            content=ft.Column(
-                [head, ft.Container(self.form_body, padding=s(24)), foot],
-                spacing=0,
-                tight=True,
-            ),
-            width=s(640),
-        )
-        self.modal = ft.AlertDialog(
-            modal=False,
-            bgcolor=colors['surface'],
-            content=self.form,
-            content_padding=0,
-            inset_padding=s(24),
-            shape=ft.RoundedRectangleBorder(radius=s(10)),
-            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-        )
-        self._render_kind_selector()
-        self._update_location_fields()
-
-    def _render_kind_selector(self) -> None:
-        self.kind_host.content = ui.segmented(
-            self.config,
-            [('quote', 'Citação', None), ('comment', 'Paráfrase', None)],
-            self.fragment_type_value,
-            self._set_fragment_type,
-        )
-
-    def _set_fragment_type(self, kind: str) -> None:
-        self.fragment_type_value = kind
-        self._render_kind_selector()
-        self._update_location_fields()
-        self.update()
 
     @staticmethod
     def _run_click_action(
@@ -313,164 +122,150 @@ class FragmentsComposer:
         del event
         action()
 
+    # ── delegação do formulário para FragmentModal ─────────
+
+    @property
+    def editing_id(self) -> int | None:
+        return self.modal_component.editing_id
+
+    @editing_id.setter
+    def editing_id(self, value: int | None) -> None:
+        self.modal_component.editing_id = value
+
+    @property
+    def selected_work_id(self) -> int | None:
+        return self.modal_component.selected_work_id
+
+    @selected_work_id.setter
+    def selected_work_id(self, value: int | None) -> None:
+        self.modal_component.selected_work_id = value
+
+    @property
+    def fragment_type_value(self) -> str:
+        return self.modal_component.fragment_type_value
+
+    @fragment_type_value.setter
+    def fragment_type_value(self, value: str) -> None:
+        self.modal_component.fragment_type_value = value
+
+    @property
+    def work_search(self) -> ft.TextField:
+        return self.modal_component.work_search
+
+    @property
+    def work_results(self) -> ft.Column:
+        return self.modal_component.work_results
+
+    @property
+    def work_search_group(self) -> ft.Column:
+        return self.modal_component.work_search_group
+
+    @property
+    def excerpt(self) -> ft.TextField:
+        return self.modal_component.excerpt
+
+    @property
+    def location_type_label(self) -> ft.Text:
+        return self.modal_component.location_type_label
+
+    @property
+    def location_type(self) -> ft.Dropdown:
+        return self.modal_component.location_type
+
+    @property
+    def location_value_label(self) -> ft.Text:
+        return self.modal_component.location_value_label
+
+    @property
+    def location_value(self) -> LocationValueField:
+        return self.modal_component.location_value
+
+    @property
+    def form_title(self) -> ft.Text:
+        return self.modal_component.form_title
+
+    @property
+    def cancel_button(self) -> ft.Control:
+        return self.modal_component.cancel_button
+
+    @property
+    def save_button(self) -> ft.Control:
+        return self.modal_component.save_button
+
+    @property
+    def form_body(self) -> ft.Column:
+        return self.modal_component.form_body
+
+    @property
+    def form(self) -> ft.Container:
+        return self.modal_component.form
+
+    @property
+    def modal(self) -> ft.AlertDialog:
+        return self.modal_component.modal
+
+    @property
+    def kind_host(self) -> ft.Container:
+        return self.modal_component.kind_host
+
+    def _render_kind_selector(self) -> None:
+        self.modal_component._render_kind_selector()
+
+    def _set_fragment_type(self, kind: str) -> None:
+        self.modal_component._set_fragment_type(kind)
+
     def _update_location_fields(self) -> None:
-        is_quote = self.fragment_type_value == 'quote'
-        self.excerpt.hint_text = (
-            'Ex.: “A memória também se constrói pelo que preservamos.”'
-            if is_quote
-            else 'Ex.: O autor relaciona a memória à construção da identidade.'
-        )
-        self.location_type.hint_text = (
-            'Obrigatório para citações' if is_quote else 'Opcional'
-        )
-        if self.location_type.value == 'Página':
-            value_label = 'Página (máximo de 5 caracteres)'
-        elif self.location_type.value == 'Outros':
-            value_label = 'Localização (ex.: Jo 1: 32-33)'
-        else:
-            value_label = 'Valor da localização'
-        self.location_value_label.value = value_label
-        self.location_value.hint_text = (
-            'Ex.: Jo 1: 32-33'
-            if self.location_type.value == 'Outros'
-            else 'Obrigatório para citações' if is_quote else 'Opcional'
-        )
+        self.modal_component._update_location_fields()
+
+    def _on_location_value_change(self, event: ft.Event[ft.TextField]) -> None:
+        self.modal_component._on_location_value_change(event)
 
     def _on_location_type_change(self, event: ft.Event[ft.Dropdown]) -> None:
-        selected_location = (
-            None if event.control.value == NO_LOCATION else event.control.value
-        )
-        self.location_type.value = selected_location
-        if selected_location is None:
-            self.location_value.value = ''
-        self.location_value.max_length = 5 if selected_location == 'Página' else 100
-        self._update_location_fields()
-        self.update()
+        self.modal_component._on_location_type_change(event)
 
     def _search_works(self, event: ft.Event[ft.TextField]) -> None:
-        query = (event.control.value or '').strip()
-        self.selected_work_id = None
-        if len(query) < 2:
-            self.work_results.controls = []
-            self.work_results.visible = False
-            self.update()
-            return
-
-        matches = self.search_works(query)
-        if self.allowed_work_ids is not None:
-            matches = [match for match in matches if match[0] in self.allowed_work_ids]
-        c = self.config
-        if matches:
-            self.work_results.controls = [
-                ui.hover_surface(
-                    c,
-                    ui.ui_text(c, title, size=13),
-                    on_click=lambda event, resource_id=resource_id, title=title: (
-                        self._run_click_action(
-                            event,
-                            lambda: self._select_work(resource_id, title),
-                        )
-                    ),
-                    padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(8)),
-                )
-                for resource_id, title in matches[:8]
-            ]
-        else:
-            self.work_results.controls = [
-                ft.Container(
-                    ui.ui_text(c, 'Nenhuma obra encontrada.', size=13, color=c.colors['muted']),
-                    padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(8)),
-                )
-            ]
-        self.work_results.visible = True
-        self.update()
+        self.modal_component._search_works(event)
 
     def _select_work(self, resource_id: int, title: str) -> None:
-        self.selected_work_id = resource_id
-        self.work_search.value = title
-        self.work_results.controls = []
-        self.work_results.visible = False
-        self.update()
+        self.modal_component._select_work(resource_id, title)
 
-    def _payload(self) -> dict[str, object]:
-        return {
-            'fragment_type': self.fragment_type_value or '',
-            'excerpt': self.excerpt.value or '',
-            'bib_res_id': self.selected_work_id,
-            'location_type': self.location_type.value,
-            'location_value': self.location_value.value or '',
-        }
-
-    def _save(self, _event: ft.Event[ft.Container] | None = None) -> None:
-        del _event
-        if self.on_save(self.editing_id, self._payload()):
-            self._reset_form()
-            self.modal.open = False
-            self.page.update()
+    def _save(self, event: ft.Event[ft.Container] | None = None) -> None:
+        self.modal_component._save(event)
 
     def _reset_form(self) -> None:
-        self.editing_id = None
-        self.form_title.value = 'Novo fragmento'
-        self.fragment_type_value = 'quote'
-        self.selected_work_id = None
-        self.work_search.value = ''
-        self.work_results.controls = []
-        self.work_results.visible = False
-        self.excerpt.value = ''
-        self.location_type.value = None
-        self.location_value.value = ''
-        self.location_value.max_length = 100
-        self._render_kind_selector()
-        self._update_location_fields()
+        self.modal_component._reset_form()
 
     def _start_edit(self, fragment: FragmentRecord) -> None:
-        self.editing_id = fragment['id']
-        self.form_title.value = 'Editar fragmento'
-        self.fragment_type_value = fragment['fragment_type']
-        self.selected_work_id = fragment['bib_res_id']
-        self.work_search.value = fragment['work_title']
-        self.excerpt.value = fragment['excerpt']
-        self.location_type.value = fragment['location_type']
-        self.location_value.value = fragment['location_value'] or ''
-        self.location_value.max_length = 5 if fragment['location_type'] == 'Página' else 100
-        self._render_kind_selector()
-        self._update_location_fields()
-        self.page.show_dialog(self.modal)
-        self.update()
+        self.modal_component._start_edit(fragment)
 
     def _close_modal(self, event: ft.Event[ft.Container] | None = None) -> None:
-        del event
-        self._reset_form()
-        self.modal.open = False
-        self.page.update()
+        self.modal_component._close_modal(event)
 
     def _open_create_modal(self, event: ft.Event[ft.Container] | None = None) -> None:
-        del event
-        self._reset_form()
-        self.page.show_dialog(self.modal)
+        self.modal_component._open_create_modal(event)
 
     def open_create(self) -> None:
         """Abre o diálogo de novo fragmento (usado pela tela Início)."""
-        self._open_create_modal()
+        self.modal_component.open_create()
 
-    def open_create_for_work(self, bib_res_id: int, title: str) -> None:
-        if (
-            self.allowed_work_ids is not None
-            and bib_res_id not in self.allowed_work_ids
-        ):
-            raise ValueError('A obra do fragmento deve pertencer à compilação.')
-        self._reset_form()
-        self.selected_work_id = bib_res_id
-        self.work_search.value = title
-        self.page.show_dialog(self.modal)
+    def open_create_for_work(
+        self,
+        bib_res_id: int,
+        title: str,
+        initial_location_type: str | None = None,
+        initial_location_value: str | None = None,
+        initial_excerpt: str | None = None,
+    ) -> None:
+        self.modal_component.open_create_for_work(
+            bib_res_id=bib_res_id,
+            title=title,
+            initial_location_type=initial_location_type,
+            initial_location_value=initial_location_value,
+            initial_excerpt=initial_excerpt,
+        )
 
     def open_edit_fragment(self, fragment: FragmentRecord) -> None:
-        if (
-            self.allowed_work_ids is not None
-            and fragment['bib_res_id'] not in self.allowed_work_ids
-        ):
-            raise ValueError('A obra do fragmento deve pertencer à compilação.')
-        self._start_edit(fragment)
+        self.modal_component.open_edit(fragment)
 
     @staticmethod
     def _abnt_notation(fragment: FragmentRecord) -> str:

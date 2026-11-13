@@ -175,6 +175,8 @@ class CoreController(
                 compilations=compilations,
                 **options,
             )
+        elif destination.startswith("pdf_reader:"):
+            self.application.show_view(destination, **options)
         elif destination in {
             "Nous",
             "Configurações",

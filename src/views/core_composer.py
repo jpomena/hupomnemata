@@ -464,6 +464,9 @@ class CoreComposer:
         if destination.startswith("compilacao:"):
             compilation_id = int(destination.split(":", 1)[1])
             view_factory = lambda: self._compose_compilation_page(compilations, compilation_id)
+        elif destination.startswith("pdf_reader:"):
+            work_id = int(destination.split(":", 1)[1])
+            view_factory = lambda: self._compose_pdf_reader(work_id)
         else:
             view_factory = views.get(destination)
         if not view_factory:
@@ -492,6 +495,42 @@ class CoreComposer:
         if self.compilations_composer is not None:
             return self.compilations_composer.open_compilation_page(compilation_id) or control
         return control
+
+    def _compose_pdf_reader(self, work_id: int) -> ft.Control:
+        """Espaço imersivo de leitura e anotação do PDF da obra."""
+        from src.db.db import SessionLocal
+        from src.domains import BibliographicResource
+        from src.services.pdf_service import PdfService
+        from src.views.pdf_reader import PdfReaderView
+
+        pdf_service = PdfService()
+        with SessionLocal() as session:
+            resource = session.get(BibliographicResource, work_id)
+            if resource is None:
+                return ui.empty_state(
+                    self.config,
+                    "triangle-exclamation",
+                    "Obra não encontrada",
+                    "A obra solicitada para leitura não pôde ser localizada.",
+                )
+
+            work = resource.specific_work
+            work_title = (work.title if work else '') or (resource.pdf_filename or 'Obra')
+            if self.page:
+                ui.toast(self.page, self.config, f"Carregando leitor: {work_title}...", icon_name="book-open")
+
+            def on_back():
+                self.on_navigate_with("Acervo", focus_work_id=work_id)
+
+            reader_view = PdfReaderView(
+                config=self.config,
+                resource=resource,
+                on_back=on_back,
+                pdf_service=pdf_service,
+                page=self.page,
+            )
+            self.pdf_reader_view = reader_view
+            return reader_view
 
     # ── paleta ⌘K ──────────────────────────────────────────
 
@@ -649,9 +688,11 @@ class CoreComposer:
         return self.works_composer.compose()
 
     def handle_view_key(self, key: str, mod: bool) -> bool:
-        """Repassa atalhos de teclado para a tela ativa (ex.: tabela do Acervo)."""
+        """Repassa atalhos de teclado para a tela ativa (ex.: tabela do Acervo ou leitor PDF)."""
         if self.current_destination == "Acervo" and getattr(self, "works_composer", None) is not None:
             return self.works_composer.handle_key(key, mod)
+        if self.current_destination.startswith("pdf_reader:") and getattr(self, "pdf_reader_view", None) is not None:
+            return self.pdf_reader_view.handle_key(key, mod)
         return False
 
     def _compose_fragments(
@@ -679,6 +720,14 @@ class CoreComposer:
         control = composer.compose()
         if options.get("create"):
             composer.open_create()
+        elif options.get("open_create_work_id"):
+            composer.open_create_for_work(
+                bib_res_id=int(options["open_create_work_id"]),
+                title=str(options.get("work_title") or ""),
+                initial_location_type=options.get("initial_location_type"),
+                initial_location_value=options.get("initial_location_value"),
+                initial_excerpt=options.get("initial_excerpt"),
+            )
         return control
 
     def _compose_compilations(
@@ -738,6 +787,8 @@ class CoreComposer:
         on_close: Callable[[], None],
         page: ft.Page | None = None,
         nous_service: object | None = None,
+        on_open_pdf: Callable[[int], None] | None = None,
+        on_attach_pdf: Callable[[BibliographicResource], None] | None = None,
     ) -> ft.AlertDialog:
         return WorkDetailsPopup(
             resource=resource,
@@ -745,6 +796,8 @@ class CoreComposer:
             on_close=on_close,
             page=page,
             nous_service=nous_service,
+            on_open_pdf=on_open_pdf,
+            on_attach_pdf=on_attach_pdf,
         ).compose()
 
     @staticmethod

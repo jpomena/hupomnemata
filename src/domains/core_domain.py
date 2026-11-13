@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from .compilations import CompilationFragment, CompilationWork
     from .digital import MiscDigitalDocument
     from .patent import Patent
+    from .pdf_annotation import PdfAnnotation
 
 
 class DatePrecision(enum.Enum):
@@ -198,6 +199,15 @@ class BibliographicResource(Base):
     )
     compilation_items: Mapped[list['CompilationWork']] = relationship(
         'CompilationWork',
+        back_populates='bibliographic_resource',
+        cascade='all, delete-orphan',
+    )
+    pdf_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pdf_page_count: Mapped[int | None] = mapped_column(nullable=True)
+    pdf_annotations: Mapped[list['PdfAnnotation']] = relationship(
+        'PdfAnnotation',
         back_populates='bibliographic_resource',
         cascade='all, delete-orphan',
     )
