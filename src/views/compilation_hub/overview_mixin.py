@@ -5,7 +5,7 @@ import flet as ft
 from src.contracts import CompilationPayload
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
-from .common import dialog, fmt_date, form_field, text_input
+from .common import close_dialog, dialog, fmt_date, form_field, open_dialog, text_input
 
 
 class CompilationHubOverviewMixin:
@@ -47,7 +47,7 @@ class CompilationHubOverviewMixin:
                 except Exception:
                     pass
                 return
-            self.page.pop_dialog()
+            close_dialog(self.page)
             self._save_details(self.name_field.value or '', self.description_field.value)
 
         self.name_field.on_submit = save
@@ -56,12 +56,12 @@ class CompilationHubOverviewMixin:
             'Editar detalhes',
             [form_field(c, 'Nome', self.name_field), form_field(c, 'Descrição (opcional)', self.description_field)],
             [
-                ui.button(c, 'Cancelar', on_click=lambda _e: self.page.pop_dialog(), variant='ghost'),
+                ui.button(c, 'Cancelar', on_click=lambda _e: close_dialog(self.page), variant='ghost'),
                 ui.button(c, 'Salvar', on_click=save, variant='primary'),
             ],
         )
         modal.data = {'save': save}
-        self.page.show_dialog(modal)
+        open_dialog(self.page, modal)
         return modal
 
     def _delete_compilation(self) -> None:
@@ -75,7 +75,7 @@ class CompilationHubOverviewMixin:
         c = self.config
 
         def confirm(_event=None) -> None:
-            self.page.pop_dialog()
+            close_dialog(self.page)
             self._delete_compilation()
 
         modal = dialog(
@@ -91,13 +91,13 @@ class CompilationHubOverviewMixin:
                 )
             ],
             [
-                ui.button(c, 'Cancelar', on_click=lambda _e: self.page.pop_dialog(), variant='ghost'),
+                ui.button(c, 'Cancelar', on_click=lambda _e: close_dialog(self.page), variant='ghost'),
                 ui.button(c, 'Excluir compilação', on_click=confirm, variant='danger', icon_name='trash-can', icon_style='regular'),
             ],
             width=440,
         )
         modal.data = {'confirm': confirm}
-        self.page.show_dialog(modal)
+        open_dialog(self.page, modal)
         return modal
 
     # ── composição ─────────────────────────────────────────

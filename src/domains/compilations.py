@@ -101,6 +101,10 @@ class CompilationSection(Base):
         ForeignKey('compilations.id', ondelete='CASCADE'),
         nullable=False,
     )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey('compilation_sections.id', ondelete='CASCADE'),
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     central_idea: Mapped[str | None] = mapped_column(Text, nullable=True)
     position: Mapped[int] = mapped_column(
@@ -111,6 +115,15 @@ class CompilationSection(Base):
     compilation: Mapped[Compilation] = relationship(
         back_populates='sections',
     )
+    parent: Mapped['CompilationSection | None'] = relationship(
+        remote_side='CompilationSection.id',
+        back_populates='children',
+    )
+    children: Mapped[list['CompilationSection']] = relationship(
+        back_populates='parent',
+        cascade='all, delete-orphan',
+        order_by='CompilationSection.position',
+    )
 
 
 class CompilationFragment(Base):
@@ -118,8 +131,9 @@ class CompilationFragment(Base):
     __table_args__ = (
         UniqueConstraint(
             'compilation_id',
+            'section_id',
             'fragment_id',
-            name='uq_compilation_fragment',
+            name='uq_compilation_section_fragment',
         ),
     )
 

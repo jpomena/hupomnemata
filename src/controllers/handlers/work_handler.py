@@ -59,6 +59,10 @@ class WorkControllerMixin:
     def open_insert_work(self) -> None:
         if self.work_insert_modal is not None:
             self.page.show_dialog(self.work_insert_modal)
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
     def open_import_work(self) -> None:
         """Abre o diálogo de importação automatizada por DOI, ISBN ou ISSN."""
@@ -147,6 +151,10 @@ class WorkControllerMixin:
             on_navigate_to_work=lambda wid: self.navigate_with("Acervo", focus_work_id=wid),
         )
         self.page.show_dialog(modal)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def open_work_details(self, resource) -> None:
         def _on_open_pdf(wid: int) -> None:
@@ -167,6 +175,10 @@ class WorkControllerMixin:
             on_open_pdf=_on_open_pdf,
         )
         self.page.show_dialog(modal)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     @staticmethod
     def format_reference(
@@ -306,6 +318,10 @@ class WorkControllerMixin:
             ),
         )
         self.page.show_dialog(modal)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     @staticmethod
     def _edit_form_values(

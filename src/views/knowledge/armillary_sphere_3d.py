@@ -11,6 +11,7 @@ import flet as ft
 import flet.canvas as cv
 
 from src.utils.types import ViewConfig
+from src.views.ui_kit import alpha
 
 
 class ArmillaryConstellation3D:
@@ -325,12 +326,13 @@ class ArmillaryConstellation3D:
             else:
                 pts_mag3.append((px, py))
 
+        star_dust = self.config.colors.get("star_dust", self.config.colors["text"])
         self._cached_star_shapes = [
             cv.Points(
                 points=pts_mag3,
                 point_mode=cv.PointMode.POINTS,
                 paint=ft.Paint(
-                    color="#FFFFFF40",  # ~25% opacidade
+                    color=alpha(star_dust, 0.25),
                     stroke_width=1.0 * self.scale,
                     stroke_cap=ft.StrokeCap.ROUND,
                 ),
@@ -339,7 +341,7 @@ class ArmillaryConstellation3D:
                 points=pts_mag2,
                 point_mode=cv.PointMode.POINTS,
                 paint=ft.Paint(
-                    color="#FFFFFF80",  # ~50% opacidade
+                    color=alpha(star_dust, 0.50),
                     stroke_width=1.4 * self.scale,
                     stroke_cap=ft.StrokeCap.ROUND,
                 ),
@@ -348,7 +350,7 @@ class ArmillaryConstellation3D:
                 points=pts_mag1,
                 point_mode=cv.PointMode.POINTS,
                 paint=ft.Paint(
-                    color="#FFFFFFD0",  # ~82% opacidade
+                    color=alpha(star_dust, 0.82),
                     stroke_width=1.8 * self.scale,
                     stroke_cap=ft.StrokeCap.ROUND,
                 ),
@@ -561,19 +563,19 @@ class ArmillaryConstellation3D:
 
             # O visor da esfera armilar opera permanentemente no vácuo sideral escuro
             # Paleta de alta luminosidade astronômica e anéis tênues translúcidos
-            ring_color = self.config.colors.get("constellation_ring", "#C5A059")
-            ring_color_back = f"{ring_color[:7]}20" if ring_color.startswith("#") and len(ring_color) >= 7 else "#C5A05920"
-            ring_color_front = f"{ring_color[:7]}35" if ring_color.startswith("#") and len(ring_color) >= 7 else "#C5A05935"
+            ring_color = self.config.colors.get("constellation_ring", self.config.colors.get("gold", "#C5A059"))
+            ring_color_back = alpha(ring_color, 0.125)
+            ring_color_front = alpha(ring_color, 0.22)
 
-            grid_color = self.config.colors.get("constellation_grid", "#A89260")
-            grid_color_subtle = f"{grid_color[:7]}18" if grid_color.startswith("#") and len(grid_color) >= 7 else "#A8926018"
-            grid_tick_color = self.config.colors.get("constellation_grid_tick", "#C5A059")
-            grid_tick_subtle = f"{grid_tick_color[:7]}28" if grid_tick_color.startswith("#") and len(grid_tick_color) >= 7 else "#C5A05928"
+            grid_color = self.config.colors.get("constellation_grid", self.config.colors.get("muted", "#A89260"))
+            grid_color_subtle = alpha(grid_color, 0.10)
+            grid_tick_color = self.config.colors.get("constellation_grid_tick", self.config.colors.get("gold", "#C5A059"))
+            grid_tick_subtle = alpha(grid_tick_color, 0.16)
 
-            work_node_color = self.config.colors.get("constellation_node_work", "#E5C158")
-            frag_node_color = self.config.colors.get("constellation_node_fragment", "#7E9DB5")
-            text_color = "#E2E1E8"
-            sel_text_color = "#FFE296"
+            work_node_color = self.config.colors.get("constellation_node_work", self.config.colors.get("gold", "#E5C158"))
+            frag_node_color = self.config.colors.get("constellation_node_fragment", self.config.colors.get("faint", self.config.colors.get("muted", "#7E9DB5")))
+            text_color = self.config.colors.get("text", "#E2E1E8")
+            sel_text_color = self.config.colors.get("gold", "#FFE296")
 
             shapes: list[cv.Shape] = []
 
@@ -687,11 +689,7 @@ class ArmillaryConstellation3D:
                     if is_dimmed:
                         # Nó desvinculado da seleção: Translúcido e discreto, eliminando poluição visual
                         core_r = 5.0 * depth_scale * self.scale
-                        dimmed_color = (
-                            f"{node_color[:7]}20"
-                            if node_color.startswith("#") and len(node_color) >= 7
-                            else ft.Colors.with_opacity(0.12, node_color)
-                        )
+                        dimmed_color = alpha(node_color, 0.12)
                         shapes.append(
                             cv.Circle(
                                 x=sx,
@@ -708,9 +706,9 @@ class ArmillaryConstellation3D:
 
                         # Auréola de corona nobre
                         corona_color = (
-                            f"{ring_color}45"
+                            alpha(ring_color, 0.28)
                             if is_selected
-                            else (f"{node_color}35" if is_connected else f"{node_color}30")
+                            else (alpha(node_color, 0.22) if is_connected else alpha(node_color, 0.18))
                         )
                         shapes.append(
                             cv.Circle(
@@ -753,11 +751,7 @@ class ArmillaryConstellation3D:
                     node_color = node.get("color") or frag_node_color
                     if is_dimmed:
                         core_r = 3.0 * depth_scale * self.scale
-                        dimmed_color = (
-                            f"{node_color[:7]}18"
-                            if node_color.startswith("#") and len(node_color) >= 7
-                            else ft.Colors.with_opacity(0.10, node_color)
-                        )
+                        dimmed_color = alpha(node_color, 0.10)
                         shapes.append(
                             cv.Circle(
                                 x=sx,
@@ -775,7 +769,7 @@ class ArmillaryConstellation3D:
                                     x=sx,
                                     y=sy,
                                     radius=core_r * 2.2,
-                                    paint=ft.Paint(color=f"{frag_node_color}45"),
+                                    paint=ft.Paint(color=alpha(frag_node_color, 0.28)),
                                 )
                             )
                         shapes.append(

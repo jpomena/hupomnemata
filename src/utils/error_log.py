@@ -33,3 +33,5 @@ def log_exception(context: str, error: Exception) -> None:
         error,
         exc_info=(type(error), error, error.__traceback__),
     )
+    for handler in logger.handlers:
+        handler.flush()

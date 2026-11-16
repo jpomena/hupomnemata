@@ -64,11 +64,13 @@ class CompilationService:
         self,
         compilation_id: int,
         fragment_id: int,
+        section_id: int | None = None,
     ) -> None:
         with SessionLocal() as session:
             CompilationRepository(session).remove_fragment(
                 compilation_id,
                 fragment_id,
+                section_id,
             )
 
     def update_fragment_note(
@@ -76,6 +78,7 @@ class CompilationService:
         compilation_id: int,
         fragment_id: int,
         note: str | None,
+        section_id: int | None = None,
     ) -> None:
         normalized_note = note.strip() if isinstance(note, str) else ''
         if len(normalized_note) > 2000:
@@ -87,6 +90,7 @@ class CompilationService:
                 compilation_id,
                 fragment_id,
                 normalized_note or None,
+                section_id,
             )
 
     def create_section(
@@ -94,12 +98,14 @@ class CompilationService:
         compilation_id: int,
         title: str,
         central_idea: str | None = None,
+        parent_id: int | None = None,
     ) -> int:
         with SessionLocal() as session:
             return CompilationRepository(session).create_section(
                 compilation_id,
                 title,
                 central_idea,
+                parent_id,
             )
 
     def update_section(
@@ -108,6 +114,7 @@ class CompilationService:
         section_id: int,
         title: str,
         central_idea: str | None = None,
+        parent_id: int | None = None,
     ) -> None:
         with SessionLocal() as session:
             CompilationRepository(session).update_section(
@@ -115,6 +122,20 @@ class CompilationService:
                 section_id,
                 title,
                 central_idea,
+                parent_id,
+            )
+
+    def transfer_section(
+        self,
+        compilation_id: int,
+        section_id: int,
+        new_parent_id: int | None,
+    ) -> None:
+        with SessionLocal() as session:
+            CompilationRepository(session).transfer_section(
+                compilation_id,
+                section_id,
+                new_parent_id,
             )
 
     def delete_section(self, compilation_id: int, section_id: int) -> None:
@@ -135,17 +156,34 @@ class CompilationService:
                 ordered_section_ids,
             )
 
+    def link_fragment_to_section(
+        self,
+        compilation_id: int,
+        fragment_id: int,
+        section_id: int,
+        work_note: str | None = None,
+    ) -> int:
+        with SessionLocal() as session:
+            return CompilationRepository(session).link_fragment_to_section(
+                compilation_id,
+                fragment_id,
+                section_id,
+                work_note,
+            )
+
     def assign_fragment_to_section(
         self,
         compilation_id: int,
         fragment_id: int,
         section_id: int | None,
+        current_section_id: int | None = None,
     ) -> None:
         with SessionLocal() as session:
             CompilationRepository(session).assign_fragment_to_section(
                 compilation_id,
                 fragment_id,
                 section_id,
+                current_section_id,
             )
 
     def reorder_section_fragments(

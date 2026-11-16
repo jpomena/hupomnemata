@@ -64,6 +64,7 @@ class CompilationFragmentRecord(FragmentRecord):
 
 class CompilationSectionRecord(TypedDict):
     id: int
+    parent_id: NotRequired[int | None]
     title: str
     central_idea: str | None
     position: int

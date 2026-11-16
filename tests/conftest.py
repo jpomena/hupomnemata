@@ -65,6 +65,7 @@ def clean_db():
     db_module.engine = engine
     db_module.SessionLocal.configure(bind=engine)
     db_module.Base.metadata.create_all(bind=engine)
+    db_module._initialized_engine = engine
     yield engine
     db_module.Base.metadata.drop_all(bind=engine)
     engine.dispose()

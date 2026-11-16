@@ -432,11 +432,14 @@ class WorksComposer:
         )
         detail = "A obra sai do acervo e das compilações." if len(resources) == 1 else "As obras saem do acervo e das compilações."
         if total_fragments:
-            detail += f" {total_fragments} fragmento{'s' if total_fragments != 1 else ''} também {'serão excluídos' if total_fragments != 1 else 'será excluído'}."
+            detail += (
+                f" {total_fragments} fragmento{'s' if total_fragments != 1 else ''} "
+                f"também {'serão excluídos' if total_fragments != 1 else 'será excluído'}."
+            )
         dialog: ft.AlertDialog | None = None
 
         def close(_e=None):
-            self.page.pop_dialog()
+            ui.close_dialog(self.page)
 
         def confirm(_e=None):
             close()
@@ -448,19 +451,34 @@ class WorksComposer:
             else:
                 for resource in resources:
                     self.on_delete_work(resource)
+            if self.page:
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
 
         dialog = ft.AlertDialog(
             bgcolor=c.colors["surface"],
             shape=ft.RoundedRectangleBorder(radius=s(10)),
             title=ui.ui_text(c, title, size=15, weight=ui.W600, max_lines=2),
-            content=ft.Container(ui.ui_text(c, detail + " Essa ação não pode ser desfeita.", size=13, color=c.colors["muted"], max_lines=4), width=s(420)),
+            content=ft.Container(
+                ui.ui_text(c, detail + " Essa ação não pode ser desfeita.", size=13, color=c.colors["muted"], max_lines=4),
+                width=s(420),
+            ),
             actions=[
                 ui.button(c, "Cancelar", on_click=close, variant="ghost"),
-                ui.button(c, "Excluir", on_click=confirm, variant="danger", icon_name="trash-can", icon_style="regular"),
+                ui.button(
+                    c,
+                    "Excluir",
+                    on_click=confirm,
+                    variant="danger",
+                    icon_name="trash-can",
+                    icon_style="regular",
+                ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.show_dialog(dialog)
+        ui.open_dialog(self.page, dialog)
 
     # ── composição ─────────────────────────────────────────
 
@@ -861,8 +879,8 @@ class WorksComposer:
                 weight=ui.W600,
                 color=c.colors["gold"],
             ),
-            bgcolor=ft.Colors.with_opacity(0.10, c.colors["gold"]),
-            border=ft.Border.all(1, ft.Colors.with_opacity(0.25, c.colors["gold"])),
+            bgcolor=ui.alpha(c.colors["gold"], 0.10),
+            border=ft.Border.all(1, ui.alpha(c.colors["gold"], 0.25)),
             border_radius=s(4),
             padding=ft.Padding.symmetric(horizontal=s(5), vertical=s(1.5)),
         )
@@ -989,7 +1007,7 @@ class WorksComposer:
                     c,
                     "Cancelar",
                     variant="ghost",
-                    on_click=lambda _e: self.page.pop_dialog() if self.page else None,
+                    on_click=lambda _e: ui.close_dialog(self.page),
                 ),
                 ui.button(
                     c,
@@ -1003,14 +1021,12 @@ class WorksComposer:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        if self.page:
-            self.page.show_dialog(dialog)
+        ui.open_dialog(self.page, dialog)
 
     def _save_edited_magazine(
         self, resource_id: int, new_title: str, new_place: str
     ) -> None:
-        if self.page:
-            self.page.pop_dialog()
+        ui.close_dialog(self.page)
         if self.on_update_magazine:
             self.on_update_magazine(resource_id, new_title, new_place)
         else:
@@ -1019,6 +1035,11 @@ class WorksComposer:
                 res.specific_work.title = new_title.strip()
                 res.specific_work.publication_place = new_place.strip() or "[s.l.]"
             self._refresh()
+        if self.page:
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
     def _open_delete_magazine_dialog(
         self, resource: BibliographicResource, child_count: int
@@ -1028,12 +1049,16 @@ class WorksComposer:
         mag_title = getattr(mag, "title", "este periódico")
 
         def confirm(_e):
-            if self.page:
-                self.page.pop_dialog()
+            ui.close_dialog(self.page)
             if self.on_delete_magazine:
                 self.on_delete_magazine(resource)
             else:
                 self.on_delete_work(resource)
+            if self.page:
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
 
         msg = (
             f"Tem certeza que deseja excluir o periódico “{mag_title}” e "
@@ -1049,7 +1074,7 @@ class WorksComposer:
                 "Excluir Periódico em Cascata",
                 size=18,
                 weight=ui.W700,
-                color=c.colors.get("danger", "#ef4444"),
+                color=c.colors["danger"],
             ),
             content=ui.ui_text(c, msg, size=13),
             actions=[
@@ -1057,7 +1082,7 @@ class WorksComposer:
                     c,
                     "Cancelar",
                     variant="ghost",
-                    on_click=lambda _e: self.page.pop_dialog() if self.page else None,
+                    on_click=lambda _e: ui.close_dialog(self.page),
                 ),
                 ui.button(
                     c,
@@ -1069,8 +1094,7 @@ class WorksComposer:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        if self.page:
-            self.page.show_dialog(dialog)
+        ui.open_dialog(self.page, dialog)
 
     def _clear_filters(self) -> None:
         self.query = ""
@@ -1140,7 +1164,15 @@ class WorksComposer:
         header: list[ft.Control] = [
             top,
             ft.Container(
-                ft.Text(work.title, size=s(24), weight=ui.W600, color=c.colors["text"], font_family=c.font_families["cormorant"], style=ft.TextStyle(height=1.15), selectable=True),
+                ui.serif_text(
+                    c,
+                    work.title,
+                    size=24,
+                    weight=ui.W600,
+                    color=c.colors["text"],
+                    height=1.15,
+                    selectable=True,
+                ),
                 margin=ft.Margin.only(top=s(8)),
             ),
         ]
@@ -1282,7 +1314,7 @@ class WorksComposer:
         detail = "O arquivo PDF será desvinculado desta obra e removido do repositório local. Fragmentos já criados serão mantidos no Acervo."
 
         def close(_e=None):
-            self.page.pop_dialog()
+            ui.close_dialog(self.page)
 
         def confirm(_e=None):
             close()
@@ -1317,7 +1349,7 @@ class WorksComposer:
             bgcolor=c.colors["surface"],
             shape=ft.RoundedRectangleBorder(radius=s(8)),
         )
-        self.page.show_dialog(dialog)
+        ui.open_dialog(self.page, dialog)
 
     def _add_one_to(self, compilation_id: int, resource) -> None:
         if self.on_add_to_compilation is None:

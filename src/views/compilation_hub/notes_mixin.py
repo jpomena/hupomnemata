@@ -6,22 +6,47 @@ from src.contracts import CompilationFragmentRecord
 from src.utils.fragment_reference import fragment_abnt_notation
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
-from .common import dialog, form_field, text_input
+from .common import close_dialog, dialog, form_field, open_dialog, text_input
 
 
 class CompilationHubNotesMixin:
     """Rodapé do bloco de fragmento e diálogo de edição da nota."""
 
-    def _save_fragment_note(self, fragment_id: int, note: str | None) -> None:
-        if self.on_fragment_note(
-            self.compilation['id'],
-            fragment_id,
-            note.strip() if isinstance(note, str) and note.strip() else None,
-        ):
+    def _save_fragment_note(
+        self,
+        fragment_id: int,
+        note: str | None,
+        section_id: int | None = None,
+    ) -> None:
+        clean_note = note.strip() if isinstance(note, str) and note.strip() else None
+        try:
+            success = self.on_fragment_note(
+                self.compilation['id'],
+                fragment_id,
+                clean_note,
+                section_id=section_id,
+            )
+        except TypeError:
+            success = self.on_fragment_note(
+                self.compilation['id'],
+                fragment_id,
+                clean_note,
+            )
+        if success:
             self.refresh()
+        elif self.page:
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
-    def _prompt_fragment_note(self, fragment: CompilationFragmentRecord) -> ft.AlertDialog:
+    def _prompt_fragment_note(
+        self,
+        fragment: CompilationFragmentRecord,
+        section_id: int | None = None,
+    ) -> ft.AlertDialog:
         c = self.config
+        sec_id = section_id if section_id is not None else fragment.get('section_id')
         work_title = self._work_title_of(fragment)
         kind = 'Citação' if fragment['fragment_type'] == 'quote' else 'Paráfrase'
         subtitle = ' · '.join(part for part in (kind, work_title, fragment_abnt_notation(fragment)) if part)
@@ -36,7 +61,14 @@ class CompilationHubNotesMixin:
             autofocus=True,
         )
         excerpt = ft.Container(
-            content=ui.serif_text(c, fragment.get('excerpt', ''), size=16, max_lines=5, color=c.colors['muted'], align=ft.TextAlign.JUSTIFY),
+            content=ui.serif_text(
+                c,
+                fragment.get('excerpt', ''),
+                size=16,
+                max_lines=5,
+                color=c.colors['muted'],
+                align=ft.TextAlign.JUSTIFY,
+            ),
             padding=ft.Padding.symmetric(horizontal=s(12), vertical=s(10)),
             bgcolor=c.colors['bg'],
             border=ft.Border.all(1, c.colors['border']),
@@ -46,30 +78,47 @@ class CompilationHubNotesMixin:
         def save(_event=None) -> None:
             value = note_field.value
             clean = value.strip() if isinstance(value, str) and value.strip() else None
-            self.page.pop_dialog()
-            self._save_fragment_note(fragment['id'], clean)
+            close_dialog(self.page)
+            self._save_fragment_note(fragment['id'], clean, section_id=sec_id)
 
         def delete(_event=None) -> None:
-            self.page.pop_dialog()
-            self._save_fragment_note(fragment['id'], None)
+            close_dialog(self.page)
+            self._save_fragment_note(fragment['id'], None, section_id=sec_id)
 
         actions: list[ft.Control] = []
         if fragment.get('work_note'):
-            actions.append(ui.button(c, 'Excluir nota', on_click=delete, variant='danger', icon_name='trash-can', icon_style='regular'))
+            actions.append(
+                ui.button(
+                    c,
+                    'Excluir nota',
+                    on_click=delete,
+                    variant='danger',
+                    icon_name='trash-can',
+                    icon_style='regular',
+                )
+            )
         actions.extend([
-            ui.button(c, 'Cancelar', on_click=lambda _e: self.page.pop_dialog(), variant='ghost'),
+            ui.button(c, 'Cancelar', on_click=lambda _e: close_dialog(self.page), variant='ghost'),
             ui.button(c, 'Salvar nota', on_click=save, variant='primary'),
         ])
         modal = dialog(
             c,
             'Nota de articulação',
-            [excerpt, form_field(c, 'Nota', note_field, hint='A nota vale só nesta compilação. O fragmento continua igual no Acervo.')],
+            [
+                excerpt,
+                form_field(
+                    c,
+                    'Nota',
+                    note_field,
+                    hint='A nota vale só nesta compilação. O fragmento continua igual no Acervo.',
+                ),
+            ],
             actions,
             width=560,
             subtitle=subtitle,
         )
         modal.data = {'note': note_field, 'save': save, 'delete': delete if fragment.get('work_note') else None}
-        self.page.show_dialog(modal)
+        open_dialog(self.page, modal)
         return modal
 
     def _compose_fragment_note(self, fragment: CompilationFragmentRecord) -> ft.Container:
@@ -89,7 +138,10 @@ class CompilationHubNotesMixin:
         action = ui.button(
             c,
             'Editar nota' if note else 'Adicionar nota',
-            on_click=lambda _e, current=fragment: self._prompt_fragment_note(current),
+            on_click=lambda _e, current=fragment: self._prompt_fragment_note(
+                current,
+                section_id=current.get('section_id'),
+            ),
             icon_name='note-sticky',
             icon_style='regular',
             variant='ghost',

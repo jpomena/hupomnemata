@@ -131,7 +131,7 @@ class NousComposer:
         # Contadores de métricas
         self.stat_total = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["text"])
         self.stat_with_ai = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["gold"])
-        self.stat_custom = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color="#5A6B7C")
+        self.stat_custom = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["muted"])
         self.stat_pending = ft.Text("0", size=24 * self.scale, font_family=self.config.font_families["cormorant"], weight=ft.FontWeight.W_700, color=self.config.colors["muted"])
 
     def compose(self) -> ft.Control:
@@ -273,7 +273,7 @@ class NousComposer:
                     on_click=self._handle_save_and_test_key,
                     style=ft.ButtonStyle(
                         bgcolor=self.config.colors["gold"],
-                        color="#FFFFFF",
+                        color=self.config.colors["on_gold"],
                     ),
                 ),
                 ft.OutlinedButton(
@@ -325,7 +325,7 @@ class NousComposer:
             controls=[
                 self._metric_chip("Total de Obras", self.stat_total, self.config.colors["text"]),
                 self._metric_chip("Com Síntese IA", self.stat_with_ai, self.config.colors["gold"]),
-                self._metric_chip("Personalizadas", self.stat_custom, "#5A6B7C"),
+                self._metric_chip("Personalizadas", self.stat_custom, self.config.colors["muted"]),
                 self._metric_chip("Pendentes", self.stat_pending, self.config.colors["muted"]),
             ],
             spacing=14 * self.scale,
@@ -340,7 +340,7 @@ class NousComposer:
                     on_click=self._handle_batch_generation,
                     style=ft.ButtonStyle(
                         bgcolor=self.config.colors["gold"],
-                        color="#FFFFFF",
+                        color=self.config.colors["on_gold"],
                     ),
                 ),
             ],
@@ -475,7 +475,7 @@ class NousComposer:
                     on_click=lambda _, wid=w_id: self._handle_single_generate(wid),
                     style=ft.ButtonStyle(
                         bgcolor=self.config.colors["gold"],
-                        color="#FFFFFF",
+                        color=self.config.colors["on_gold"],
                     ),
                 ),
                 ft.OutlinedButton(
@@ -909,7 +909,7 @@ class NousComposer:
                     on_click=save_override,
                     style=ft.ButtonStyle(
                         bgcolor=self.config.colors["gold"],
-                        color="#FFFFFF",
+                        color=self.config.colors["on_gold"],
                     ),
                 ),
             ],

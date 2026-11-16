@@ -923,8 +923,19 @@ def test_compilation_page_header_tabs_and_caderno():
     assert hub.copy_button.on_click is not None
     assert hub.copy_references_button.data['label'].value == 'Copiar Referências do Caderno'
     assert hub.copy_references_button.on_click is not None
+    assert hub.rail_toggle_button.on_click is not None
+    assert hub.rail_toggle_button.tooltip == 'Ocultar / Exibir referências do caderno'
     from src.views.compilation_hub.common import menu_labels
     assert menu_labels(hub.header_menu) == ['Editar detalhes', 'Excluir compilação']
+
+    # Testa toggle do rail lateral (fechado por default)
+    assert hub.show_rail is False
+    assert len(hub._compose_caderno().controls) == 2
+    hub._toggle_rail()
+    assert hub.show_rail is True
+    assert len(hub._compose_caderno().controls) == 3
+    hub._toggle_rail()
+    assert hub.show_rail is False
 
     tab_texts = _texts(hub.tab_bar)
     assert tab_texts == ['Visão geral', 'Obras e fragmentos', '2', 'Caderno de trabalho', '2']
@@ -934,14 +945,37 @@ def test_compilation_page_header_tabs_and_caderno():
     assert hub.outline_items[0].bgcolor == hub.config.colors['selected']
     assert _texts(hub.queue_item)[-2:] == ['A organizar', '1']
 
+    # Todas as seções iniciam recolhidas por padrão
+    assert 30 in hub._collapsed_set()
+    assert 31 in hub._collapsed_set()
     first_idea, second_idea, queue = hub.writing_blocks
+    assert any('Capítulo recolhido' in t for t in _texts(first_idea))
+
+    hub._focus_idea(30)
+    first_idea = hub.writing_blocks[0]
     first_texts = _texts(first_idea)
     assert first_texts[:2] == ['1', 'Argumento']
     assert 'Ideia central' in first_texts and 'Tese a sustentar.' in first_texts
+    idea_texts = _find_all(first_idea, lambda c: isinstance(c, ft.Text) and c.value == 'Tese a sustentar.')
+    assert len(idea_texts) == 1
+    assert idea_texts[0].font_family == hub.config.font_families['cormorant']
+    assert idea_texts[0].style.height == 1.35
+    assert first_idea.on_hover is not None
+    frag_block = _find_all(first_idea, lambda c: isinstance(c, ft.Container) and c.data == 20)
+    assert len(frag_block) == 1
+    assert frag_block[0].on_hover is not None
+
+    modal_dialog = hub._prompt_new_chapter()
+    assert modal_dialog.data['title'].expand is True
+    assert modal_dialog.data['idea'].expand is True
+    hub.page.pop_dialog()
     assert '“Trecho destacado.”' in first_texts
     assert '(Autor, 2024, p. 12)' in first_texts
     assert 'Preparar argumento.' in first_texts
     assert 'Editar nota' in first_texts
+
+    hub._focus_idea(31)
+    second_idea = hub.writing_blocks[1]
     second_texts = _texts(second_idea)
     assert 'Nenhum fragmento nesta ideia' in second_texts
     _button(second_idea, 'Escolher fragmentos').on_click(None)
@@ -1005,6 +1039,7 @@ def test_compilation_page_section_and_fragment_actions():
     composer.compose()
     composer.open_compilation_page(1)
     hub = composer.active_hub
+    hub._focus_idea(30)
 
     first_idea = hub.writing_blocks[0]
     section_menu, fragment_menu = _menus(first_idea)

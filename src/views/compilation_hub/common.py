@@ -96,6 +96,7 @@ def text_input(
     autofocus: bool = False,
     on_submit: Callable | None = None,
     text_align: ft.TextAlign | None = None,
+    expand: bool | int | None = True,
 ) -> ft.TextField:
     """Campo de texto do kit: fundo do canvas, borda de 1 px, foco dourado."""
     colors = c.colors
@@ -113,6 +114,7 @@ def text_input(
         max_length=max_length,
         autofocus=autofocus,
         on_submit=on_submit,
+        expand=expand,
         dense=True,
         content_padding=ft.Padding.symmetric(horizontal=s(10), vertical=s(10)),
         text_size=s(13),
@@ -138,7 +140,12 @@ def form_field(c: ViewConfig, label: str, control: ft.Control, hint: str | None 
     controls: list[ft.Control] = [ui.ui_text(c, label, size=12, weight=ui.W600, color=c.colors['muted']), control]
     if hint:
         controls.append(ui.meta_text(c, hint, max_lines=2))
-    return ft.Column(controls, spacing=s(6), tight=True)
+    return ft.Column(
+        controls,
+        spacing=s(6),
+        tight=True,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+    )
 
 
 def dropdown_option(c: ViewConfig, key: str, label: str) -> ft.DropdownOption:
@@ -180,30 +187,11 @@ def select_input(
     )
 
 
-def dialog(
-    c: ViewConfig,
-    title: str,
-    controls: Sequence[ft.Control],
-    actions: Sequence[ft.Control],
-    width: float = 520,
-    subtitle: str | None = None,
-) -> ft.AlertDialog:
-    """Diálogo padrão do redesign: superfície, raio 10, título em Montserrat 15/600."""
-    head: list[ft.Control] = [ui.ui_text(c, title, size=15, weight=ui.W600)]
-    if subtitle:
-        head.append(ui.ui_text(c, subtitle, size=12, color=c.colors['faint'], max_lines=2))
-    return ft.AlertDialog(
-        modal=True,
-        bgcolor=c.colors['surface'],
-        title=ft.Column(head, spacing=s(4), tight=True),
-        title_padding=ft.Padding.only(left=s(20), right=s(20), top=s(18), bottom=s(4)),
-        content=ft.Column(list(controls), tight=True, width=s(width), spacing=s(14)),
-        content_padding=ft.Padding.only(left=s(20), right=s(20), top=s(12), bottom=s(8)),
-        actions=list(actions),
-        actions_padding=ft.Padding.only(left=s(20), right=s(20), top=s(8), bottom=s(18)),
-        actions_alignment=ft.MainAxisAlignment.END,
-        shape=ft.RoundedRectangleBorder(radius=s(10)),
-    )
+# Diálogo padrão e modal reexportados a partir do UI Kit canônico
+dialog = ui.dialog
+modal = ui.modal
+open_dialog = ui.open_dialog
+close_dialog = ui.close_dialog
 
 
 def more_menu(

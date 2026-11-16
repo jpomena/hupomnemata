@@ -391,10 +391,14 @@ class CoreController(
             ),
             on_compilation_section_create=self.create_compilation_section,
             on_compilation_section_update=self.update_compilation_section,
+            on_compilation_section_transfer=self.transfer_compilation_section,
             on_compilation_section_delete=self.delete_compilation_section,
             on_compilation_section_reorder=self.reorder_compilation_sections,
             on_compilation_fragment_assign_section=(
                 self.assign_compilation_fragment_to_section
+            ),
+            on_compilation_fragment_link_section=(
+                self.link_compilation_fragment_to_section
             ),
             on_compilation_section_reorder_fragments=(
                 self.reorder_compilation_section_fragments
@@ -500,3 +504,8 @@ class CoreController(
             )
         except Exception:
             self.page.show_dialog(ft.SnackBar(content=ft.Text(value=message)))
+            if hasattr(self.page, "update"):
+                try:
+                    self.page.update()
+                except Exception:
+                    pass

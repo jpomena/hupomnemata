@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import flet as ft
 
 from src.utils.types import ViewConfig
+from src.views.ui_kit import alpha, s, serif_text, ui_text
 from src.views.knowledge.graph_template import generate_graph_html
 from src.views.knowledge.knowledge_panel import KnowledgePanel
 from src.views.knowledge.armillary_sphere_3d import ArmillaryConstellation3D
@@ -246,16 +247,16 @@ class KnowledgeComposer:
                 "Sincronizar",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=13 * self.scale,
-                color=self.config.colors["bg"],
+                size=s(13),
+                color=self.config.colors["on_gold"],
             ),
             icon=ft.Icons.SYNC,
             on_click=self._handle_sync_mesh,
             style=ft.ButtonStyle(
                 bgcolor=self.config.colors["gold"],
-                padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
+                padding=ft.Padding(s(14), 0, s(14), 0),
             ),
-            height=40 * self.scale,
+            height=s(40),
         )
 
         self.d3_button = ft.OutlinedButton(
@@ -263,16 +264,16 @@ class KnowledgeComposer:
                 "D3.js",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=13 * self.scale,
+                size=s(13),
                 color=self.config.colors["text"],
             ),
             icon=ft.Icons.OPEN_IN_BROWSER,
             on_click=self._handle_open_browser_graph,
             style=ft.ButtonStyle(
                 side=ft.BorderSide(1, self.config.colors["border"]),
-                padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
+                padding=ft.Padding(s(14), 0, s(14), 0),
             ),
-            height=40 * self.scale,
+            height=s(40),
         )
 
         # Motor Tridimensional da Constelação Celeste Esfera Armilar
@@ -293,46 +294,46 @@ class KnowledgeComposer:
                     ft.IconButton(
                         icon=ft.Icons.ZOOM_IN,
                         tooltip="Aproximar Constelação (Zoom +)",
-                        icon_size=20 * self.scale,
-                        icon_color="#E2E8F0",
+                        icon_size=s(20),
+                        icon_color=self.config.colors["text"],
                         on_click=lambda _: self.armillary_3d.zoom_in(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.ZOOM_OUT,
                         tooltip="Afastar Constelação (Zoom -)",
-                        icon_size=20 * self.scale,
-                        icon_color="#E2E8F0",
+                        icon_size=s(20),
+                        icon_color=self.config.colors["text"],
                         on_click=lambda _: self.armillary_3d.zoom_out(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.RESTART_ALT,
                         tooltip="Restaurar Visão Padrão",
-                        icon_size=19 * self.scale,
-                        icon_color="#E2E8F0",
+                        icon_size=s(19),
+                        icon_color=self.config.colors["text"],
                         on_click=lambda _: self.armillary_3d.reset_view(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.GRID_4X4,
                         tooltip="Exibir/Ocultar Grade Celeste",
-                        icon_size=19 * self.scale,
-                        icon_color="#E2E8F0",
+                        icon_size=s(19),
+                        icon_color=self.config.colors["text"],
                         on_click=self._handle_toggle_celestial_grid,
                     ),
                 ],
-                spacing=2,
+                spacing=s(2),
                 tight=True,
             ),
-            bgcolor="#0E1322C0",
-            border=ft.Border.all(1, "#38BDF830"),
-            border_radius=8,
-            padding=2,
+            bgcolor=alpha(self.config.colors["surface"], 0.88),
+            border=ft.Border.all(1, alpha(self.config.colors["gold"], 0.30)),
+            border_radius=s(8),
+            padding=s(2),
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=10,
-                color="#00000050",
+                color=alpha(self.config.colors["black"], 0.35),
             ),
-            right=24 * self.scale,
-            bottom=24 * self.scale,
+            right=s(24),
+            bottom=s(24),
         )
 
         space_gradient = ft.RadialGradient(
@@ -394,58 +395,58 @@ class KnowledgeComposer:
                 "Sincronizar",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=13 * self.scale,
-                color=self.config.colors["bg"],
+                size=s(13),
+                color=self.config.colors["on_gold"],
             )
             self.d3_button.content = ft.Text(
                 "D3.js",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=13 * self.scale,
+                size=s(13),
                 color=self.config.colors["text"],
             )
-            self.controls_row.spacing = 10 * self.scale
+            self.controls_row.spacing = s(10)
         elif avail_w >= 920:
             # Modo Médio (Janela Normal Desmaximizada ~1400px - 350px sidebar = 1050px)
             self.subtitle_prefix.visible = False
             self.subtitle_dot.visible = False
-            self.search_field.width = 150 * self.scale
-            self.filter_mode_dropdown.width = 135 * self.scale
-            self.sensitivity_slider.width = 100 * self.scale
+            self.search_field.width = s(150)
+            self.filter_mode_dropdown.width = s(135)
+            self.sensitivity_slider.width = s(100)
             self.sync_button.content = ft.Text(
                 "Sincronizar",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=12 * self.scale,
-                color=self.config.colors["bg"],
+                size=s(12),
+                color=self.config.colors["on_gold"],
             )
             self.d3_button.content = ft.Text(
                 "D3.js",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=12 * self.scale,
+                size=s(12),
                 color=self.config.colors["text"],
             )
-            self.controls_row.spacing = 6 * self.scale
+            self.controls_row.spacing = s(6)
         else:
             # Modo Compacto (Janela Estreita ou Painel Lateral Aberto)
             self.subtitle_prefix.visible = False
             self.subtitle_dot.visible = False
-            self.search_field.width = 115 * self.scale
-            self.filter_mode_dropdown.width = 110 * self.scale
-            self.sensitivity_slider.width = 75 * self.scale
+            self.search_field.width = s(115)
+            self.filter_mode_dropdown.width = s(110)
+            self.sensitivity_slider.width = s(75)
             self.sync_button.content = ft.Text(
                 "Sync",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=11 * self.scale,
-                color=self.config.colors["bg"],
+                size=s(11),
+                color=self.config.colors["on_gold"],
             )
             self.d3_button.content = ft.Text(
                 "D3",
                 font_family=self.config.font_families["montserrat"],
                 weight=ft.FontWeight.W_700,
-                size=11 * self.scale,
+                size=s(11),
                 color=self.config.colors["text"],
             )
             self.controls_row.spacing = 4 * self.scale
@@ -529,44 +530,45 @@ class KnowledgeComposer:
                 controls=[
                     ft.Icon(
                         ft.Icons.AUTO_AWESOME_OUTLINED,
-                        size=48,
+                        size=s(48),
                         color=self.config.colors["muted"],
                     ),
-                    ft.Text(
+                    serif_text(
+                        self.config,
                         "Nenhuma obra vetorizada ainda.",
-                        size=22 * self.scale,
-                        font_family=self.config.font_families["cormorant"],
+                        size=22,
                         weight=ft.FontWeight.W_700,
                         color=self.config.colors["text"],
                     ),
-                    ft.Text(
+                    ui_text(
+                        self.config,
                         "Cadastre obras e citações no Acervo para construir a malha semântica,\nou clique em 'Sincronizar' para processar o acervo existente.",
-                        size=13 * self.scale,
-                        font_family=self.config.font_families["montserrat"],
+                        size=13,
                         weight=ft.FontWeight.W_500,
                         color=self.config.colors["muted"],
-                        text_align=ft.TextAlign.CENTER,
+                        align=ft.TextAlign.CENTER,
+                        max_lines=None,
                     ),
-                    ft.Container(height=8),
+                    ft.Container(height=s(8)),
                     ft.FilledButton(
                         content=ft.Text(
                             "Sincronizar Agora",
                             font_family=self.config.font_families["montserrat"],
                             weight=ft.FontWeight.W_700,
-                            size=13 * self.scale,
-                            color=self.config.colors["bg"],
+                            size=s(13),
+                            color=self.config.colors["on_gold"],
                         ),
                         icon=ft.Icons.BOLT,
                         on_click=self._handle_sync_mesh,
                         style=ft.ButtonStyle(
                             bgcolor=self.config.colors["gold"],
-                            padding=ft.Padding(14 * self.scale, 0, 14 * self.scale, 0),
+                            padding=ft.Padding(s(14), 0, s(14), 0),
                         ),
-                        height=40 * self.scale,
+                        height=s(40),
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=8,
+                spacing=s(8),
                 tight=True,
             ),
             expand=True,

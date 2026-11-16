@@ -409,6 +409,10 @@ class AuthorSearchMixin:
             ),
         ]
         self.page.show_dialog(dialog)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _close_author_dialog(self, dialog: ft.AlertDialog) -> None:
         dialog.open = False

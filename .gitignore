@@ -228,3 +228,10 @@ TODO.md
 
 # User preferences
 *user_preferences.json
+
+# Cloud Sync & Google Drive OAuth tokens and backups
+*credentials.json
+*credentials_user.json
+*token.json
+*hupomnemata_conflict_*.db
+data/sync/

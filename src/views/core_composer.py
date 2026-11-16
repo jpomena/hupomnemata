@@ -94,6 +94,12 @@ class CoreComposer:
         on_compilation_edit_fragment: Callable[
             [int, FragmentRecord], None
         ],
+        on_compilation_section_transfer: Callable[
+            [int, int, int | None], bool
+        ] | None = None,
+        on_compilation_fragment_link_section: Callable[
+            [int, int, int, str | None], bool
+        ] | None = None,
         get_knowledge_graph: Callable[..., dict] | None = None,
         sync_knowledge_mesh: Callable[[], dict] | None = None,
         get_knowledge_resonances: Callable[..., list] | None = None,
@@ -151,10 +157,14 @@ class CoreComposer:
         self.on_compilation_fragment_note = on_compilation_fragment_note
         self.on_compilation_section_create = on_compilation_section_create
         self.on_compilation_section_update = on_compilation_section_update
+        self.on_compilation_section_transfer = on_compilation_section_transfer
         self.on_compilation_section_delete = on_compilation_section_delete
         self.on_compilation_section_reorder = on_compilation_section_reorder
         self.on_compilation_fragment_assign_section = (
             on_compilation_fragment_assign_section
+        )
+        self.on_compilation_fragment_link_section = (
+            on_compilation_fragment_link_section
         )
         self.on_compilation_section_reorder_fragments = (
             on_compilation_section_reorder_fragments
@@ -631,6 +641,8 @@ class CoreComposer:
             on_toggle_auto_scale=self.on_toggle_auto_scale or (lambda _: None),
             on_change_scale=self.on_change_scale or (lambda _: None),
             on_reset_settings=self.on_reset_settings or (lambda: None),
+            cloud_sync_service=getattr(self, "cloud_sync_service", None),
+            page=getattr(self, "page", None),
         ).compose()
 
     def _compose_nous(self) -> ft.Control:
@@ -757,10 +769,14 @@ class CoreComposer:
             on_fragment_note=self.on_compilation_fragment_note,
             on_create_section=self.on_compilation_section_create,
             on_update_section=self.on_compilation_section_update,
+            on_transfer_section=self.on_compilation_section_transfer,
             on_delete_section=self.on_compilation_section_delete,
             on_reorder_sections=self.on_compilation_section_reorder,
             on_assign_fragment_to_section=(
                 self.on_compilation_fragment_assign_section
+            ),
+            on_link_fragment_to_section=(
+                self.on_compilation_fragment_link_section
             ),
             on_reorder_section_fragments=(
                 self.on_compilation_section_reorder_fragments

@@ -471,7 +471,7 @@ class WorkDetailsPopup:
         if has_custom:
             badge_text = "Síntese pelo Usuário"
             badge_icon = ft.Icons.EDIT_NOTE
-            badge_color = "#5A6B7C"
+            badge_color = self.config.colors["muted"]
         elif has_llm:
             badge_text = "Síntese por LLM"
             badge_icon = ft.Icons.AUTO_AWESOME
@@ -657,22 +657,19 @@ class WorkDetailsPopup:
         if ok:
             self.resource.llm_description = msg
             if self.page:
-                self.page.show_dialog(
-                    ft.SnackBar(
-                        content=ft.Text(
-                            "Síntese epistemológica gerada e salva com sucesso!",
-                            color=self.config.colors["surface"],
-                        ),
-                        bgcolor=self.config.colors["gold"],
-                    )
+                ui.toast(
+                    self.page,
+                    self.config,
+                    "Síntese epistemológica gerada e salva com sucesso!",
+                    icon_name="circle-check",
                 )
         else:
             if self.page:
-                self.page.show_dialog(
-                    ft.SnackBar(
-                        content=ft.Text(f"Erro ao gerar síntese: {msg}"),
-                        bgcolor="#B00020",
-                    )
+                ui.toast(
+                    self.page,
+                    self.config,
+                    f"Erro ao gerar síntese: {msg}",
+                    icon_name="triangle-exclamation",
                 )
 
         if self.synthesis_container is not None:
@@ -687,7 +684,10 @@ class WorkDetailsPopup:
                 else self.config.colors["border"],
             )
         if self.page:
-            self.page.update()
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
     def _handle_edit_click(self, e) -> None:
         if self.nous_service is None or not self.page:
@@ -709,24 +709,36 @@ class WorkDetailsPopup:
             text_align=ft.TextAlign.JUSTIFY,
         )
 
+        def close_edit():
+            edit_modal.open = False
+            ui.close_dialog(self.page)
+
         def save_edit(_):
             new_text = edit_field.value.strip() if edit_field.value else ""
             self.nous_service.override_work_description(
                 self.resource.id, new_text if new_text else None
             )
             self.resource.custom_description = new_text if new_text else None
-            edit_modal.open = False
+            close_edit()
             if self.synthesis_container is not None:
                 self.synthesis_container.content = self._build_synthesis_body()
-            self.page.update()
+            if self.page:
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
 
         def restore_ai(_):
             self.nous_service.override_work_description(self.resource.id, None)
             self.resource.custom_description = None
-            edit_modal.open = False
+            close_edit()
             if self.synthesis_container is not None:
                 self.synthesis_container.content = self._build_synthesis_body()
-            self.page.update()
+            if self.page:
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
 
         actions = [
             ft.TextButton(
@@ -734,8 +746,7 @@ class WorkDetailsPopup:
                     "Cancelar",
                     color=self.config.colors["text"],
                 ),
-                on_click=lambda _: setattr(edit_modal, "open", False)
-                or self.page.update(),
+                on_click=lambda _: close_edit(),
             ),
         ]
         if self.resource.custom_description and self.resource.llm_description:
@@ -787,4 +798,4 @@ class WorkDetailsPopup:
             actions=actions,
             bgcolor=self.config.colors["bg"],
         )
-        self.page.show_dialog(edit_modal)
+        ui.open_dialog(self.page, edit_modal)

@@ -58,6 +58,8 @@ class CompilationHubComposer(
         on_edit_work: Callable[[int, int], None],
         on_create_fragment: Callable[[int, int], None],
         on_edit_fragment: Callable[[int, FragmentRecord], None],
+        on_transfer_section: Callable[[int, int, int | None], bool] | None = None,
+        on_link_fragment_to_section: Callable[[int, int, int, str | None], bool] | None = None,
         on_close: Callable[[], None] | None = None,
         on_data_changed: Callable[[CompilationRecord], None] | None = None,
         on_delete: Callable[[int], bool] | None = None,
@@ -80,9 +82,11 @@ class CompilationHubComposer(
         self.on_fragment_note = on_fragment_note
         self.on_create_section = on_create_section
         self.on_update_section = on_update_section
+        self.on_transfer_section = on_transfer_section
         self.on_delete_section = on_delete_section
         self.on_reorder_sections = on_reorder_sections
         self.on_assign_fragment_to_section = on_assign_fragment_to_section
+        self.on_link_fragment_to_section = on_link_fragment_to_section
         self.on_reorder_section_fragments = on_reorder_section_fragments
         self.on_copy_caderno = on_copy_caderno
         self.on_create_work = on_create_work
@@ -99,6 +103,7 @@ class CompilationHubComposer(
         self.selected_tab = initial_tab if initial_tab in TABS else 'caderno'
         self.active_section_id: int | str | None = None
         self.deleted = False
+        self.show_rail = False
         self.root: ft.Container | None = None
         self.outline_host: ft.Container | None = None
         self.writing_column: ft.Column | None = None
@@ -113,6 +118,10 @@ class CompilationHubComposer(
     ) -> None:
         del event
         action()
+
+    def _toggle_rail(self, _e: ft.ControlEvent | None = None) -> None:
+        self.show_rail = not getattr(self, 'show_rail', False)
+        self.refresh()
 
     # ── ciclo de vida ──────────────────────────────────────
 
@@ -205,6 +214,12 @@ class CompilationHubComposer(
             disabled=not has_refs,
             tooltip=refs_tooltip,
         )
+        self.rail_toggle_button = ui.icon_button(
+            c,
+            'table-columns',
+            on_click=self._toggle_rail,
+            tooltip='Ocultar / Exibir referências do caderno',
+        )
         menu_items = [('pen', 'Editar detalhes', self._open_details_dialog, False)]
         if self.on_delete is not None:
             menu_items += [None, ('trash-can', 'Excluir compilação', self._confirm_delete, True)]
@@ -213,7 +228,12 @@ class CompilationHubComposer(
             c,
             compilation['name'],
             compilation['description'],
-            actions=[self.copy_button, self.copy_references_button, self.header_menu],
+            actions=[
+                self.copy_button,
+                self.copy_references_button,
+                self.rail_toggle_button,
+                self.header_menu,
+            ],
             meta=meta,
         )
 

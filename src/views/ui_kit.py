@@ -525,20 +525,22 @@ def empty_state(
     title: str,
     body: str,
     action: ft.Control | None = None,
+    width: float | None = 560,
 ) -> ft.Container:
     controls: list[ft.Control] = [
-        fa_icon(icon_name, size=s(18), color=c.colors["faint"], style="regular"),
-        ui_text(c, title, size=13, weight=W600),
+        fa_icon(icon_name, size=s(20), color=c.colors["faint"], style="regular"),
+        ui_text(c, title, size=14, weight=W600, color=c.colors["text"]),
         ui_text(c, body, size=13, color=c.colors["muted"], max_lines=3),
     ]
     if action is not None:
-        controls.append(ft.Container(action, margin=ft.Margin.only(top=s(4))))
+        controls.append(ft.Container(action, margin=ft.Margin.only(top=s(6))))
     return ft.Container(
         content=ft.Column(controls, spacing=s(8), tight=True),
         padding=s(24),
         bgcolor=c.colors["surface"],
         border=ft.Border.all(1, c.colors["border"]),
         border_radius=ft.BorderRadius.all(s(8)),
+        width=s(width) if width else None,
     )
 
 
@@ -733,7 +735,13 @@ def hover_surface(
     return box
 
 
-def toast(page: ft.Page, c: ViewConfig, message: str, icon_name: str = "circle-check", on_undo: Callable | None = None) -> None:
+def toast(
+    page: ft.Page,
+    c: ViewConfig,
+    message: str,
+    icon_name: str = "circle-check",
+    on_undo: Callable | None = None,
+) -> None:
     """Aviso curto no canto. Com ``on_undo`` vira aviso de desfazer (6 s)."""
     colors = c.colors
     snack = ft.SnackBar(
@@ -746,12 +754,53 @@ def toast(page: ft.Page, c: ViewConfig, message: str, icon_name: str = "circle-c
         ),
         bgcolor=colors["text"],
         duration=6000 if on_undo else 3000,
-        action=ft.SnackBarAction(label="Desfazer", text_color=colors["gold"], on_click=lambda _e: on_undo()) if on_undo else None,
+        action=(
+            ft.SnackBarAction(
+                label="Desfazer",
+                text_color=colors["gold"],
+                on_click=lambda _e: on_undo(),
+            )
+            if on_undo
+            else None
+        ),
         behavior=ft.SnackBarBehavior.FLOATING,
         width=s(420),
         shape=ft.RoundedRectangleBorder(radius=s(8)),
     )
-    page.show_dialog(snack)
+    if page:
+        page.show_dialog(snack)
+        try:
+            page.update()
+        except Exception:
+            pass
+
+
+def open_dialog(page: ft.Page | None, dialog_control: ft.Control) -> None:
+    """Abre um diálogo ou modal na página e garante atualização síncrona do display."""
+    if not page:
+        return
+    try:
+        page.show_dialog(dialog_control)
+    except Exception:
+        pass
+    try:
+        page.update()
+    except Exception:
+        pass
+
+
+def close_dialog(page: ft.Page | None) -> None:
+    """Fecha o diálogo aberto no topo da pilha (pop_dialog) e garante atualização segura da página."""
+    if not page:
+        return
+    try:
+        page.pop_dialog()
+    except Exception:
+        pass
+    try:
+        page.update()
+    except Exception:
+        pass
 
 
 # ── formulário ─────────────────────────────────────────────
@@ -1014,3 +1063,61 @@ def set_field_error(c: ViewConfig, wrapper: ft.Control, message: str | None) -> 
     text.color = colors["danger"] if message else colors.get("faint", colors["muted"])
     data["message_icon"].visible = bool(message)
     data["message"].visible = bool(message or help_text)
+
+
+# ── diálogos e modais ──────────────────────────────────────
+
+
+def dialog(
+    c: ViewConfig,
+    title: str,
+    controls: Sequence[ft.Control],
+    actions: Sequence[ft.Control],
+    width: float = 520,
+    subtitle: str | None = None,
+    page: ft.Page | None = None,
+    on_dismiss: Callable | None = None,
+) -> ft.AlertDialog:
+    """Diálogo modal padrão do redesign: superfície, raio 10, título em Montserrat 15/600."""
+    head: list[ft.Control] = [ui_text(c, title, size=15, weight=W600)]
+    if subtitle:
+        head.append(ui_text(c, subtitle, size=12, color=c.colors["faint"], max_lines=2))
+
+    def _handle_dismiss(e):
+        if on_dismiss:
+            try:
+                on_dismiss(e)
+            except Exception:
+                pass
+        p = getattr(e, "page", None) or page
+        if p:
+            try:
+                p.update()
+            except Exception:
+                pass
+
+    dlg = ft.AlertDialog(
+        modal=True,
+        bgcolor=c.colors["surface"],
+        title=ft.Column(head, spacing=s(4), tight=True),
+        title_padding=ft.Padding.only(left=s(20), right=s(20), top=s(18), bottom=s(4)),
+        content=ft.Column(
+            list(controls),
+            tight=True,
+            width=s(width),
+            spacing=s(14),
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        ),
+        content_padding=ft.Padding.only(left=s(20), right=s(20), top=s(12), bottom=s(8)),
+        actions=list(actions),
+        actions_padding=ft.Padding.only(left=s(20), right=s(20), top=s(8), bottom=s(18)),
+        actions_alignment=ft.MainAxisAlignment.END,
+        shape=ft.RoundedRectangleBorder(radius=s(10)),
+        on_dismiss=_handle_dismiss,
+    )
+    if page:
+        open_dialog(page, dlg)
+    return dlg
+
+
+modal = dialog

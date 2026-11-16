@@ -34,7 +34,8 @@ WORK_TYPE_OPTIONS: list[tuple[str, str]] = [
     ("monographic_proceedings", "Trabalho em anais (evento)"),
     ("newspaper_article", "Artigo de jornal"),
     ("statute", "Legislação / Norma"),
-    ("miscellaneous_digital_document", "Documento digital diverso"),
+    ("caselaw", "Jurisprudência / Decisão judicial"),
+    ("miscellaneous_digital_document", "Documento digital / Web"),
 ]
 
 WORK_TYPE_MAP: dict[str, str] = dict(WORK_TYPE_OPTIONS)
@@ -63,12 +64,45 @@ def sanitize_work_metadata(meta: dict[str, Any], work_type: str) -> dict[str, An
             sanitized.get("journal_title")
             or sanitized.get("publisher")
             or "Revista Acadêmica"
-        )
+        ).strip()
         pub_place = str(sanitized.get("publication_place") or "[s.l.]")
         parent_id, _ = find_or_create_magazine(j_title, pub_place)
         sanitized["parent_bibliographic_resource_id"] = parent_id
-        if not sanitized.get("number"):
+        sanitized["journal_title"] = j_title
+
+        # Assegura que publisher não seja poluído com o nome do periódico
+        if sanitized.get("publisher") == j_title or not sanitized.get("publisher"):
+            sanitized["publisher"] = "[s.n.]"
+
+        # Trata paginação (part_start_page / part_end_page)
+        start_p = str(sanitized.get("part_start_page") or sanitized.get("start_page") or "").strip()
+        end_p = str(sanitized.get("part_end_page") or sanitized.get("end_page") or "").strip()
+        if "-" in start_p or "–" in start_p or "—" in start_p:
+            parts_p = re.split(r"[-–—]", start_p)
+            start_p = parts_p[0].strip()
+            if len(parts_p) > 1 and not end_p:
+                end_p = parts_p[1].strip()
+        start_digits = re.search(r"\d+", start_p)
+        end_digits = re.search(r"\d+", end_p)
+        sanitized["part_start_page"] = start_digits.group(0)[:6] if start_digits else (start_p[:6] or None)
+        sanitized["part_end_page"] = end_digits.group(0)[:6] if end_digits else (end_p[:6] or None)
+
+        num_val = sanitized.get("number")
+        if num_val is not None:
+            try:
+                sanitized["number"] = int(re.search(r"\d+", str(num_val)).group(0))
+            except Exception:
+                sanitized["number"] = 1
+        else:
             sanitized["number"] = 1
+
+        vol_val = sanitized.get("volume")
+        if vol_val is not None:
+            try:
+                sanitized["volume"] = int(re.search(r"\d+", str(vol_val)).group(0))
+            except Exception:
+                sanitized["volume"] = None
+
         parts = [p for p in raw_date.split("/") if p]
         if len(parts) == 1:
             sanitized["date_anchor"] = f"01/{year_str}"
@@ -124,7 +158,10 @@ def sanitize_work_metadata(meta: dict[str, Any], work_type: str) -> dict[str, An
     elif work_type == "statute":
         sanitized["is_partial"] = False
         sanitized.setdefault("publication_media", "Diário Oficial")
-        parts = [p for p in raw_date.split("/") if p]
+        if sanitized.get("publication_place") in (None, "", "[s.l.]"):
+            sanitized["publication_place"] = "Brasília"
+        raw_prom = str(sanitized.get("promulgation_date") or raw_date).strip()
+        parts = [p for p in raw_prom.split("/") if p]
         if len(parts) == 1:
             full_date = f"01/01/{year_str}"
         elif len(parts) == 2:
@@ -136,13 +173,76 @@ def sanitize_work_metadata(meta: dict[str, Any], work_type: str) -> dict[str, An
         sanitized["date_anchor"] = full_date
         sanitized["promulgation_date"] = full_date
 
-    elif work_type == "editorial_monograph":
+    elif work_type == "caselaw":
         sanitized["is_partial"] = False
+        court_val = str(sanitized.get("court") or "").strip()
+        sanitized.setdefault("publication_media", court_val or "Diário da Justiça")
+        sanitized.setdefault("decision_type", "Acórdão")
+        if sanitized.get("publication_place") in (None, "", "[s.l.]"):
+            sanitized["publication_place"] = "Brasília"
+        if court_val:
+            sanitized.setdefault("panel", court_val)
+            sanitized.setdefault("region", court_val)
+        else:
+            sanitized.setdefault("panel", "Tribunal Pleno")
+            sanitized.setdefault("region", "[s.r.]")
+
+        raw_dec = str(
+            sanitized.get("decision_date")
+            or sanitized.get("judgment_date")
+            or raw_date
+        ).strip()
+        parts = [p for p in raw_dec.split("/") if p]
+        if len(parts) == 1:
+            full_date = f"01/01/{year_str}"
+        elif len(parts) == 2:
+            full_date = f"01/{parts[0].zfill(2)}/{parts[1]}"
+        elif len(parts) == 3:
+            full_date = f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+        else:
+            full_date = f"01/01/{year_str}"
+        sanitized["date_anchor"] = full_date
+        sanitized["decision_date"] = full_date
+
+    elif work_type == "editorial_monograph":
+        is_chapter = bool(
+            sanitized.get("is_partial")
+            or sanitized.get("part_chapter")
+            or (sanitized.get("part_start_page") and sanitized.get("collection_name"))
+            or re.search(r"\bin:\s*", str(sanitized.get("raw") or ""), re.IGNORECASE)
+        )
+        sanitized["is_partial"] = is_chapter
         sanitized["date_anchor"] = year_str
+        if is_chapter:
+            start_p = str(sanitized.get("part_start_page") or "").strip()
+            end_p = str(sanitized.get("part_end_page") or "").strip()
+            if "-" in start_p or "–" in start_p or "—" in start_p:
+                parts_p = re.split(r"[-–—]", start_p)
+                start_p = parts_p[0].strip()
+                if len(parts_p) > 1 and not end_p:
+                    end_p = parts_p[1].strip()
+            start_digits = re.search(r"\d+", start_p)
+            end_digits = re.search(r"\d+", end_p)
+            sanitized["part_start_page"] = start_digits.group(0)[:6] if start_digits else (start_p[:6] or None)
+            sanitized["part_end_page"] = end_digits.group(0)[:6] if end_digits else (end_p[:6] or None)
 
     elif work_type == "miscellaneous_digital_document":
         sanitized["is_partial"] = False
         sanitized["date_anchor"] = year_str
+        sanitized.setdefault("publication_place", "[s.l.]")
+        raw_access = str(sanitized.get("viewed_at") or sanitized.get("access_date") or "").strip()
+        if raw_access:
+            parts = [p for p in raw_access.split("/") if p]
+            if len(parts) == 3:
+                sanitized["viewed_at"] = f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+            elif len(parts) == 2:
+                sanitized["viewed_at"] = f"01/{parts[0].zfill(2)}/{parts[1]}"
+            elif len(parts) == 1:
+                match_acc_year = re.search(r"\b(19\d\d|20\d\d)\b", raw_access)
+                acc_year = match_acc_year.group(1) if match_acc_year else year_str
+                sanitized["viewed_at"] = f"01/01/{acc_year}"
+
+    return sanitized
 
     return sanitized
 
@@ -201,11 +301,11 @@ class ReverseImportModalDialog:
             autofocus=True,
         )
 
-        self.error_text = ui.ui_text(c, "", size=12, color=c.colors.get("danger", "#ef4444"))
+        self.error_text = ui.ui_text(c, "", size=12, color=c.colors["danger"])
         self.error_container = ft.Container(
             content=ft.Row(
                 [
-                    fa_icon("circle-exclamation", size=s(14), color=c.colors.get("danger", "#ef4444")),
+                    fa_icon("circle-exclamation", size=s(14), color=c.colors["danger"]),
                     ft.Container(content=self.error_text, expand=True),
                 ],
                 spacing=s(8),
@@ -280,25 +380,14 @@ class ReverseImportModalDialog:
         )
 
         self.is_open = True
-        self.page.show_dialog(self.dialog)
+        ui.open_dialog(self.page, self.dialog)
 
     def close(self) -> None:
         """Fecha o diálogo modal com segurança."""
         self.is_open = False
         if self.dialog is not None:
             self.dialog.open = False
-            try:
-                self.dialog.update()
-            except Exception:
-                pass
-            try:
-                self.page.pop_dialog()
-            except Exception:
-                pass
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            ui.close_dialog(self.page)
 
     def _render_current_phase(self) -> None:
         """Atualiza o conteúdo do diálogo conforme a fase ativa."""
@@ -532,9 +621,14 @@ class ReverseImportModalDialog:
     def _compose_segment_card(self, index: int, item: dict[str, Any]) -> ft.Container:
         c = self.config
 
+        current_type = item.get("work_type")
+        if current_type not in WORK_TYPE_MAP:
+            current_type = WORK_TYPE_OPTIONS[0][0]
+            item["work_type"] = current_type
+
         type_dropdown = ft.Dropdown(
             options=[ft.dropdown.Option(k, v) for k, v in WORK_TYPE_OPTIONS],
-            value=item["work_type"],
+            value=current_type,
             height=s(32),
             text_size=s(11),
             bgcolor=c.colors.get("surface_variant", c.colors["surface"]),
@@ -653,6 +747,13 @@ class ReverseImportModalDialog:
                 item["error"] = msg if not ok else None
                 item["selected"] = ok
 
+                # Aproveitamento da validação e sugestão cognitiva do motor Nous
+                if ok and meta:
+                    suggested = meta.get("suggested_work_type")
+                    if suggested and suggested in WORK_TYPE_MAP:
+                        item["work_type"] = suggested
+                        meta["work_type"] = suggested
+
                 # Atualiza progresso
                 self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
                 self.progress_bar.value = idx / total
@@ -696,7 +797,7 @@ class ReverseImportModalDialog:
         header_text = f"{success_count} de {total_count} referências estruturadas com sucesso"
         status_header = ft.Row(
             [
-                fa_icon("circle-check" if success_count > 0 else "circle-exclamation", size=s(16), color=c.colors["gold"] if success_count > 0 else c.colors.get("danger", "#ef4444")),
+                fa_icon("circle-check" if success_count > 0 else "circle-exclamation", size=s(16), color=c.colors["gold"] if success_count > 0 else c.colors["danger"]),
                 ui.ui_text(c, header_text, size=13, weight=ui.W700),
                 ft.Container(expand=True),
                 ui.ui_text(c, f"Modelo: {self.nous_service.preferred_model}", size=11, color=c.colors["faint"]),
@@ -827,9 +928,14 @@ class ReverseImportModalDialog:
             padding=ft.Padding.symmetric(horizontal=s(6), vertical=s(2)),
         )
 
+        current_card_type = item.get("work_type")
+        if current_card_type not in WORK_TYPE_MAP:
+            current_card_type = WORK_TYPE_OPTIONS[0][0]
+            item["work_type"] = current_card_type
+
         type_dropdown_card = ft.Dropdown(
             options=[ft.dropdown.Option(k, v) for k, v in WORK_TYPE_OPTIONS],
-            value=item.get("work_type", WORK_TYPE_OPTIONS[0][0]),
+            value=current_card_type,
             height=s(30),
             text_size=s(11),
             bgcolor=c.colors.get("surface_variant", c.colors["surface"]),
@@ -863,14 +969,57 @@ class ReverseImportModalDialog:
             authors_str = "; ".join([n for n in author_names if n]) or "Autoria não identificada"
 
             year = meta.get("date_anchor", "s.d.")
-            pub = meta.get("publisher") or meta.get("journal_title") or ""
+            pub = meta.get("publisher") or ""
+            j_title = meta.get("journal_title") or ""
             place = meta.get("publication_place") or ""
+            w_type = item.get("work_type", "editorial_monograph")
 
             details_parts = [f"Ano: {year}"]
-            if pub:
-                details_parts.append(f"Editora/Revista: {pub}")
-            if place and place != "[s.l.]":
-                details_parts.append(f"Local: {place}")
+            if w_type == "journal_article":
+                rev = j_title or pub or "Revista Acadêmica"
+                vol = f"v. {meta.get('volume')}" if meta.get("volume") else ""
+                num = f"n. {meta.get('number')}" if meta.get("number") else ""
+                p_range = ""
+                if meta.get("part_start_page"):
+                    p_range = f"p. {meta['part_start_page']}"
+                    if meta.get("part_end_page"):
+                        p_range += f"-{meta['part_end_page']}"
+                vol_num = " • ".join([x for x in [vol, num, p_range] if x])
+                details_parts.append(f"Periódico: {rev}")
+                if vol_num:
+                    details_parts.append(vol_num)
+            elif w_type == "caselaw":
+                dec_type = meta.get("decision_type") or "Acórdão"
+                tribunal = meta.get("panel") or meta.get("region") or meta.get("court") or ""
+                num_proc = meta.get("case_number")
+                details_parts.append(f"Decisão: {dec_type}")
+                if tribunal:
+                    details_parts.append(f"Tribunal/Órgão: {tribunal}")
+                if num_proc:
+                    details_parts.append(f"Processo: {num_proc}")
+            elif w_type == "statute":
+                media = meta.get("publication_media") or "Diário Oficial"
+                promulg = meta.get("promulgation_date") or year
+                details_parts.append(f"Promulgação: {promulg}")
+                details_parts.append(f"Veículo: {media}")
+            elif w_type == "miscellaneous_digital_document":
+                url_val = meta.get("url")
+                acc_val = meta.get("viewed_at") or meta.get("access_date")
+                if url_val:
+                    details_parts.append(f"URL: {url_val}")
+                if acc_val:
+                    details_parts.append(f"Acesso: {acc_val}")
+            else:
+                if pub and pub != "[s.n.]":
+                    details_parts.append(f"Editora: {pub}")
+                if place and place != "[s.l.]":
+                    details_parts.append(f"Local: {place}")
+                if meta.get("is_partial") and meta.get("part_start_page"):
+                    p_info = f"p. {meta['part_start_page']}"
+                    if meta.get("part_end_page"):
+                        p_info += f"-{meta['part_end_page']}"
+                    details_parts.append(f"Capítulo ({p_info})")
+
             details_str = " • ".join(details_parts)
 
             content_col = ft.Column(
@@ -907,7 +1056,7 @@ class ReverseImportModalDialog:
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ui.ui_text(c, f"Texto original: {item['raw']}", size=11, color=c.colors["muted"]),
-                    ui.ui_text(c, f"Erro: {err_msg}", size=11, color=c.colors.get("danger", "#ef4444")),
+                    ui.ui_text(c, f"Erro: {err_msg}", size=11, color=c.colors["danger"]),
                 ],
                 spacing=s(4),
                 tight=True,
@@ -916,8 +1065,8 @@ class ReverseImportModalDialog:
 
         return ft.Container(
             content=content_col,
-            bgcolor=ft.Colors.with_opacity(0.04, c.colors["gold"] if ok else c.colors.get("danger", "#ef4444")),
-            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, c.colors["gold"] if ok else c.colors.get("danger", "#ef4444"))),
+            bgcolor=ui.alpha(c.colors["gold"] if ok else c.colors["danger"], 0.04),
+            border=ft.Border.all(1, ui.alpha(c.colors["gold"] if ok else c.colors["danger"], 0.2)),
             border_radius=s(6),
             padding=s(10),
         )

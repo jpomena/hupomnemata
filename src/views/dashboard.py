@@ -719,13 +719,13 @@ class DashboardComposer:
                 controls=[
                     ft.Column(
                         controls=[
-                            ft.Text(
-                                value=title if title is not None else c.texts['app']['main_view_title'],
-                                size=s(30),
+                            ui.serif_text(
+                                c,
+                                title if title is not None else c.texts['app']['main_view_title'],
+                                size=30,
                                 weight=W600,
                                 color=c.colors['text'],
-                                font_family=c.font_families['cormorant'],
-                                style=ft.TextStyle(height=1.1),
+                                height=1.1,
                             ),
                             ui.ui_text(
                                 c,

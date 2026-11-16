@@ -2,7 +2,9 @@ import sys
 
 from pathlib import Path
 
-from sqlalchemy import create_engine, or_, select, text
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, inspect, or_, select, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from src.utils.error_log import log_exception
 
@@ -574,21 +576,47 @@ def _migrate_periodical_parent_links() -> None:
         raise
 
 
+def apply_migrations(target_engine=None) -> None:
+    """Apply Alembic migrations or stamp baseline on pre-existing databases."""
+    _import_domain_models()
+    eng = target_engine or engine
+
+    ini_path = Path(__file__).resolve().parents[2] / 'alembic.ini'
+    if not ini_path.exists():
+        ini_path = Path.cwd() / 'alembic.ini'
+
+    alembic_cfg = Config(str(ini_path))
+    alembic_cfg.attributes['engine'] = eng
+
+    inspector = inspect(eng)
+    table_names = set(inspector.get_table_names())
+
+    if 'alembic_version' not in table_names:
+        if 'bibliographic_resources' in table_names:
+            command.stamp(alembic_cfg, 'head')
+        else:
+            command.upgrade(alembic_cfg, 'head')
+    else:
+        command.upgrade(alembic_cfg, 'head')
+
+
 _initialized_engine = None
 
 
-def init_db():
+def init_db(target_engine=None):
     global _initialized_engine
+    eng = target_engine or engine
     _import_domain_models()
     _rename_legacy_citations_table()
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=eng)
     _ensure_legacy_columns()
     _ensure_compilation_fragment_columns()
     _ensure_compilation_outline_columns()
     _cleanup_duplicate_specific_works()
     _split_resources_with_multiple_work_types()
     _migrate_periodical_parent_links()
-    _initialized_engine = engine
+    apply_migrations(eng)
+    _initialized_engine = eng
 
 
 class _SessionLocal(sessionmaker):

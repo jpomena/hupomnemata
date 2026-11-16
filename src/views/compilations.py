@@ -63,6 +63,8 @@ class CompilationsComposer:
         on_edit_work: Callable[[int, int], None],
         on_create_fragment: Callable[[int, int], None],
         on_edit_fragment: Callable[[int, FragmentRecord], None],
+        on_transfer_section: Callable[[int, int, int | None], bool] | None = None,
+        on_link_fragment_to_section: Callable[[int, int, int, str | None], bool] | None = None,
         on_navigate: Callable[[str], None] | None = None,
         on_open_work: Callable[[int], None] | None = None,
         on_chrome_changed: Callable[[], None] | None = None,
@@ -83,9 +85,11 @@ class CompilationsComposer:
         self.on_fragment_note = on_fragment_note
         self.on_create_section = on_create_section
         self.on_update_section = on_update_section
+        self.on_transfer_section = on_transfer_section
         self.on_delete_section = on_delete_section
         self.on_reorder_sections = on_reorder_sections
         self.on_assign_fragment_to_section = on_assign_fragment_to_section
+        self.on_link_fragment_to_section = on_link_fragment_to_section
         self.on_reorder_section_fragments = on_reorder_section_fragments
         self.on_copy_caderno = on_copy_caderno
         self.on_create_work = on_create_work
@@ -154,7 +158,7 @@ class CompilationsComposer:
             ],
             subtitle='Um projeto de escrita reúne obras, fragmentos e o roteiro de ideias.',
         )
-        self.page.show_dialog(self.create_dialog)
+        ui.open_dialog(self.page, self.create_dialog)
         return self.create_dialog
 
     def _close_create_dialog(self) -> None:
@@ -195,7 +199,7 @@ class CompilationsComposer:
             # Se a criação falhou, reabre o modal com a mensagem
             if hasattr(self, 'create_dialog') and self.create_dialog is not None:
                 self.create_dialog.open = True
-                self.page.show_dialog(self.create_dialog)
+                ui.open_dialog(self.page, self.create_dialog)
             return
 
         self.new_name.value = ''
@@ -229,9 +233,11 @@ class CompilationsComposer:
             on_fragment_note=self.on_fragment_note,
             on_create_section=self.on_create_section,
             on_update_section=self.on_update_section,
+            on_transfer_section=self.on_transfer_section,
             on_delete_section=self.on_delete_section,
             on_reorder_sections=self.on_reorder_sections,
             on_assign_fragment_to_section=self.on_assign_fragment_to_section,
+            on_link_fragment_to_section=self.on_link_fragment_to_section,
             on_reorder_section_fragments=self.on_reorder_section_fragments,
             on_copy_caderno=self.on_copy_caderno,
             on_create_work=self.on_create_work,
@@ -353,15 +359,28 @@ class CompilationsComposer:
                 else str(len(self.compilations))
             )
         if not self.compilations:
-            self.table_host.content = ui.empty_state(
-                c,
-                'folder-open',
-                'Nenhuma compilação ainda',
-                'Crie uma compilação para reunir as obras e os fragmentos de um projeto de escrita.',
-                action=ui.button(c, 'Nova compilação', on_click=lambda _e: self.open_create_dialog(), icon_name='plus', small=True),
+            self.table_host.content = ft.Container(
+                ui.empty_state(
+                    c,
+                    'folder-open',
+                    'Nenhuma compilação ainda',
+                    'Crie uma compilação para reunir as obras e os fragmentos de um projeto de escrita.',
+                    action=ui.button(
+                        c,
+                        'Nova compilação',
+                        on_click=lambda _e: self.open_create_dialog(),
+                        icon_name='plus',
+                        variant='primary',
+                        small=True,
+                    ),
+                ),
+                padding=ft.Padding.only(top=s(24), left=s(4)),
             )
         elif not visible:
-            self.table_host.content = ui.empty_state(c, 'magnifying-glass', 'Nada encontrado', 'Nenhuma compilação corresponde à busca.')
+            self.table_host.content = ft.Container(
+                ui.empty_state(c, 'magnifying-glass', 'Nada encontrado', 'Nenhuma compilação corresponde à busca.'),
+                padding=ft.Padding.only(top=s(24), left=s(4)),
+            )
         else:
             self.table_host.content = ui.card(c, [self._compose_table_header(), *self.rows])
 

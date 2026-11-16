@@ -20,6 +20,9 @@ class AppearanceSettings:
     auto_scale: bool = True
     manual_scale: float = 1.0  # de 0.80 a 1.40
     gemini_api_key: str = ""
+    cloud_sync_enabled: bool = False
+    sync_pdfs: bool = False
+    last_sync_utc: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Converte as configurações para dicionário."""
@@ -41,12 +44,18 @@ class AppearanceSettings:
             manual_scale = 1.0
 
         gemini_api_key = str(data.get("gemini_api_key", "") or "").strip()
+        cloud_sync_enabled = bool(data.get("cloud_sync_enabled", False))
+        sync_pdfs = bool(data.get("sync_pdfs", False))
+        last_sync_utc = str(data.get("last_sync_utc", "") or "").strip()
 
         return cls(
             theme_mode=theme_mode,
             auto_scale=auto_scale,
             manual_scale=manual_scale,
             gemini_api_key=gemini_api_key,
+            cloud_sync_enabled=cloud_sync_enabled,
+            sync_pdfs=sync_pdfs,
+            last_sync_utc=last_sync_utc,
         )
 
 

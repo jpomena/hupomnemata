@@ -367,12 +367,22 @@ class FragmentsComposer:
             controls: list[ft.Control] = [self._compose_group(work_id, items) for work_id, items in groups]
         elif not self.fragments:
             controls = [
-                ui.empty_state(
-                    c,
-                    'quote-left',
-                    'Nenhum fragmento ainda',
-                    'Registre citações e paráfrases das obras do acervo para reunir aqui o que você leu.',
-                    action=ui.button(c, 'Novo fragmento', icon_name='plus', small=True, on_click=self._open_create_modal),
+                ft.Container(
+                    ui.empty_state(
+                        c,
+                        'quote-left',
+                        'Nenhum fragmento ainda',
+                        'Registre citações e paráfrases das obras do acervo para reunir aqui o que você leu.',
+                        action=ui.button(
+                            c,
+                            'Novo fragmento',
+                            icon_name='plus',
+                            variant='primary',
+                            small=True,
+                            on_click=self._open_create_modal,
+                        ),
+                    ),
+                    padding=ft.Padding.only(top=s(24), left=s(4)),
                 )
             ]
         else:
@@ -382,12 +392,15 @@ class FragmentsComposer:
                 else 'Nenhum fragmento deste tipo.'
             )
             controls = [
-                ui.empty_state(
-                    c,
-                    'magnifying-glass',
-                    'Nenhum fragmento encontrado',
-                    body,
-                    action=ui.button(c, 'Limpar filtro', small=True, on_click=lambda _e: self._clear_filters()),
+                ft.Container(
+                    ui.empty_state(
+                        c,
+                        'magnifying-glass',
+                        'Nenhum fragmento encontrado',
+                        body,
+                        action=ui.button(c, 'Limpar filtro', small=True, on_click=lambda _e: self._clear_filters()),
+                    ),
+                    padding=ft.Padding.only(top=s(24), left=s(4)),
                 )
             ]
         controls.append(ft.Container(height=s(40)))

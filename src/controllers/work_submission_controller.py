@@ -261,6 +261,10 @@ class WorkSubmissionController:
             )
         )
         self.page.show_dialog(self.multiple_authors_modal)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _select_existing_author(self, index: int, author_id: int) -> None:
         self._pending_author_ids[index] = author_id

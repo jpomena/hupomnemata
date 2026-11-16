@@ -121,7 +121,7 @@ class KnowledgePanel:
             visible=False,
             style=ft.ButtonStyle(
                 bgcolor=self.config.colors["gold"],
-                color="#FFFFFF",
+                color=self.config.colors["on_gold"],
             ),
         )
 

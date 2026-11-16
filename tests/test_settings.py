@@ -198,7 +198,7 @@ def test_settings_composer_structure_and_callbacks(test_config):
     body = view.content.controls[1]
     scroll_column = body.content
     cards_row = scroll_column.controls[0]
-    assert len(cards_row.controls) == 3
+    assert len(cards_row.controls) == 4
 
     # Theme card
     theme_card = cards_row.controls[0].content
@@ -476,3 +476,111 @@ def test_title_bar_icon_switches_on_maximize(test_config):
     composer_windowed.update_window_state(False)
     assert composer_windowed.maximize_button.data.value == square
     assert composer_windowed.maximize_button.tooltip == "Maximizar"
+
+
+def test_sync_conflict_modal_and_relative_time(test_config):
+    from datetime import datetime, timezone, timedelta
+    from src.services.cloud_sync_service import SyncResult, SyncStatus
+
+    shown_dialogs = []
+    dummy_page = SimpleNamespace(
+        show_dialog=lambda d: shown_dialogs.append(d),
+        pop_dialog=lambda: shown_dialogs.pop() if shown_dialogs else None,
+        update=lambda: None,
+    )
+
+    sync_calls = []
+
+    class MockSyncService:
+        def is_authenticated(self):
+            return True
+
+        def sync(self, sync_pdfs=False, force_push=False, force_pull=False):
+            sync_calls.append({
+                "sync_pdfs": sync_pdfs,
+                "force_push": force_push,
+                "force_pull": force_pull,
+            })
+            return SyncResult(
+                status=SyncStatus.SUCCESS,
+                message="Mock sync resolved",
+            )
+
+    composer = SettingsComposer(
+        scale=1.0,
+        config=test_config,
+        current_theme_mode="light",
+        auto_scale=True,
+        manual_scale=1.0,
+        effective_scale=1.0,
+        on_navigate=lambda _: None,
+        on_change_theme=lambda _: None,
+        on_toggle_auto_scale=lambda _: None,
+        on_change_scale=lambda _: None,
+        on_reset_settings=lambda: None,
+        cloud_sync_service=MockSyncService(),
+        page=dummy_page,
+    )
+
+    # 1. Test relative time formatting
+    now = datetime.now(timezone.utc)
+    t_seconds = (now - timedelta(seconds=30)).isoformat()
+    t_minutes = (now - timedelta(minutes=15)).isoformat()
+    t_hours = (now - timedelta(hours=2)).isoformat()
+    t_days = (now - timedelta(days=3)).isoformat()
+
+    assert composer._format_relative_time(None) == "recentemente"
+    assert composer._format_relative_time(t_seconds) == "há poucos segundos"
+    assert composer._format_relative_time(t_minutes) == "há 15 minutos"
+    assert composer._format_relative_time(t_hours) == "há 2 horas"
+    assert composer._format_relative_time(t_days) == "há 3 dias"
+
+    # 2. Test conflict modal presentation
+    conflict_res = SyncResult(
+        status=SyncStatus.CONFLICT,
+        message="Conflito detectado",
+        conflict_backup_path="/path/to/backup.db",
+        details={
+            "remote_manifest": {"timestamp_utc": t_hours},
+        },
+    )
+
+    status_text = ft.Text("Status")
+    feedback_banner = ft.Container()
+
+    composer._show_conflict_modal(conflict_res, status_text, feedback_banner)
+    assert len(shown_dialogs) == 1
+
+    modal = shown_dialogs[0]
+    assert isinstance(modal, ft.AlertDialog)
+
+    # Check title
+    title_col = modal.title
+    title_text = title_col.controls[0].value
+    assert title_text == "Conflito de Sincronização"
+
+    # Check content
+    content_col = modal.content
+    explanation = content_col.controls[0].value
+    assert "A nuvem possui alterações gravadas há 2 horas por outra estação" in explanation
+    assert "esta máquina também possui alterações locais não sincronizadas" in explanation
+
+    reassurance = content_col.controls[1].content.controls[1].value
+    assert "Uma cópia fria de segurança da base local foi preservada em disco." in reassurance
+
+    # Check actions
+    actions = modal.actions
+    assert len(actions) == 2
+    local_btn = actions[0]
+
+    # Test Local resolution click
+    local_btn.on_click(None)
+    assert len(shown_dialogs) == 0
+
+    # Reopen to test Cloud resolution click
+    composer._show_conflict_modal(conflict_res, status_text, feedback_banner)
+    assert len(shown_dialogs) == 1
+    modal_2 = shown_dialogs[0]
+    cloud_btn = modal_2.actions[1]
+    cloud_btn.on_click(None)
+    assert len(shown_dialogs) == 0

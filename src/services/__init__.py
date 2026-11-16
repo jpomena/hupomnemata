@@ -18,6 +18,7 @@ from .semantic_engine import (
 from .knowledge_service import KnowledgeService
 from .nous_service import NousAIService
 from .pdf_service import PdfService
+from .cloud_sync_service import CloudSyncService, SyncStatus, SyncResult
 
 __all__ = [
     'WorkService',
@@ -25,6 +26,9 @@ __all__ = [
     'FragmentService',
     'CompilationService',
     'PdfService',
+    'CloudSyncService',
+    'SyncStatus',
+    'SyncResult',
     'AppearanceSettings',
     'BASE_WINDOW_SCALE',
     'SettingsService',

@@ -12,7 +12,17 @@ from src.utils.fa import fa_icon
 from src.utils.fragment_reference import fragment_abnt_notation
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
-from .common import MenuItem, dialog, form_field, max_width_box, more_menu, plural, select_input
+from .common import (
+    MenuItem,
+    close_dialog,
+    dialog,
+    form_field,
+    max_width_box,
+    more_menu,
+    open_dialog,
+    plural,
+    select_input,
+)
 from .caderno_mixin import quoted
 
 
@@ -71,7 +81,7 @@ class CompilationHubWorksMixin:
         c = self.config
 
         def confirm(_event=None) -> None:
-            self.page.pop_dialog()
+            close_dialog(self.page)
             self._remove_work(work['id'])
 
         modal = dialog(
@@ -87,13 +97,13 @@ class CompilationHubWorksMixin:
                 )
             ],
             [
-                ui.button(c, 'Cancelar', on_click=lambda _e: self.page.pop_dialog(), variant='ghost'),
+                ui.button(c, 'Cancelar', on_click=lambda _e: close_dialog(self.page), variant='ghost'),
                 ui.button(c, 'Retirar obra', on_click=confirm, variant='danger', icon_name='circle-minus'),
             ],
             width=440,
         )
         modal.data = {'confirm': confirm}
-        self.page.show_dialog(modal)
+        open_dialog(self.page, modal)
         return modal
 
     def _move_work(self, index: int, offset: int) -> None:
@@ -105,28 +115,46 @@ class CompilationHubWorksMixin:
         if self.on_reorder_works(self.compilation['id'], work_ids):
             self.refresh()
 
-    def _toggle_membership(self, fragment_id: int, selected: bool) -> None:
-        self._set_fragment_destination(fragment_id, 'unassigned' if selected else 'not_selected')
+    def _toggle_membership(
+        self,
+        fragment_id: int,
+        selected: bool,
+        current_section_id: int | None = None,
+    ) -> None:
+        self._set_fragment_destination(
+            fragment_id,
+            'unassigned' if selected else 'not_selected',
+            current_section_id=current_section_id,
+        )
 
     # ── composição ─────────────────────────────────────────
 
     def _destination_options(self) -> list[tuple[str, str]]:
-        return (
-            [('unassigned', 'A organizar')]
-            + [(str(section['id']), section['title']) for section in self._sorted_sections()]
-            + [('create_section', '+ Nova ideia…')]
-        )
+        options: list[tuple[str, str]] = [('unassigned', 'A organizar')]
+        chapters = self._root_chapters() if hasattr(self, '_root_chapters') else self._sorted_sections()
+        for ch in chapters:
+            options.append((str(ch['id']), f"Capítulo: {ch['title']}"))
+            if hasattr(self, '_child_sections'):
+                for child in self._child_sections(ch['id']):
+                    options.append((str(child['id']), f"  ↳ {child['title']}"))
+        options.append(('create_section', '+ Novo Capítulo…'))
+        return options
 
     def _compose_fragment(self, fragment: CompilationFragmentRecord, last: bool = False) -> ft.Container:
         c = self.config
         is_member = fragment['is_member']
-        destination = (str(fragment['section_id']) if fragment['section_id'] is not None else 'unassigned') if is_member else 'unassigned'
+        current_sec_id = fragment.get('section_id')
+        destination = (str(current_sec_id) if current_sec_id is not None else 'unassigned') if is_member else 'unassigned'
         selector = select_input(
             c,
             destination,
             self._destination_options(),
-            on_select=lambda event, current_id=fragment['id']: (
-                self._set_fragment_destination(current_id, event.control.value)
+            on_select=lambda event, current_id=fragment['id'], sid=current_sec_id: (
+                self._set_fragment_destination(
+                    current_id,
+                    event.control.value,
+                    current_section_id=sid,
+                )
                 if event.control.value is not None
                 else None
             ),
@@ -139,7 +167,11 @@ class CompilationHubWorksMixin:
             check_color=c.colors['on_gold'],
             border_side=ft.BorderSide(1, c.colors['border_strong']),
             shape=ft.RoundedRectangleBorder(radius=s(4)),
-            on_change=lambda event, current_id=fragment['id']: self._toggle_membership(current_id, bool(event.control.value)),
+            on_change=lambda event, current_id=fragment['id'], sid=current_sec_id: self._toggle_membership(
+                current_id,
+                bool(event.control.value),
+                current_section_id=sid,
+            ),
         )
         if fragment['fragment_type'] == 'quote':
             body = ui.serif_text(c, quoted(fragment['excerpt']), size=17, max_lines=3, height=1.45, align=ft.TextAlign.JUSTIFY)

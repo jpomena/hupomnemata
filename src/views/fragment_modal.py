@@ -453,19 +453,19 @@ class FragmentModal:
         self.location_value.max_length = 5 if fragment['location_type'] == 'Página' else 100
         self._render_kind_selector()
         self._update_location_fields()
-        self.page.show_dialog(self.modal)
+        ui.open_dialog(self.page, self.modal)
         self.update()
 
     def _close_modal(self, event: ft.Event[ft.Container] | None = None) -> None:
         del event
         self._reset_form()
         self.modal.open = False
-        self.page.update()
+        ui.close_dialog(self.page)
 
     def _open_create_modal(self, event: ft.Event[ft.Container] | None = None) -> None:
         del event
         self._reset_form()
-        self.page.show_dialog(self.modal)
+        ui.open_dialog(self.page, self.modal)
 
     def open_create(self, on_saved: Callable[[], None] | None = None) -> None:
         """Abre o diálogo de novo fragmento."""
@@ -500,7 +500,7 @@ class FragmentModal:
             self.location_value.value = initial_location_value
         if initial_excerpt:
             self.excerpt.value = initial_excerpt
-        self.page.show_dialog(self.modal)
+        ui.open_dialog(self.page, self.modal)
 
     def open_edit(self, fragment: FragmentRecord, on_saved: Callable[[], None] | None = None) -> None:
         """Abre o diálogo preenchido com os dados do fragmento a editar."""

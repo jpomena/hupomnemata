@@ -48,10 +48,11 @@ class CompilationRepository:
             ).append(fragment)
         records: list[CompilationRecord] = []
         for compilation in compilations:
-            member_fragments = {
-                item.fragment_id: item
-                for item in compilation.fragment_items
-            }
+            member_items_by_fragment: dict[int, list[CompilationFragment]] = {}
+            for item in compilation.fragment_items:
+                member_items_by_fragment.setdefault(
+                    item.fragment_id, []
+                ).append(item)
             section_positions = {
                 section.id: section.position
                 for section in compilation.sections
@@ -63,27 +64,33 @@ class CompilationRepository:
                     continue
                 work_fragments: list[CompilationFragmentRecord] = []
                 for fragment in fragments_by_resource.get(item.bib_res_id, []):
-                    fragment_item = member_fragments.get(fragment['id'])
-                    is_member = bool(fragment_item and fragment_item.is_member)
-                    work_fragments.append({
-                        **fragment,
-                        'is_member': is_member,
-                        'project_position': (
-                            fragment_item.position
-                            if is_member and fragment_item is not None
-                            else None
-                        ),
-                        'work_note': (
-                            fragment_item.work_note
-                            if fragment_item is not None
-                            else None
-                        ),
-                        'section_id': (
-                            fragment_item.section_id
-                            if is_member and fragment_item is not None
-                            else None
-                        ),
-                    })
+                    items = member_items_by_fragment.get(fragment['id'])
+                    if not items:
+                        work_fragments.append({
+                            **fragment,
+                            'is_member': False,
+                            'project_position': None,
+                            'work_note': None,
+                            'section_id': None,
+                        })
+                    else:
+                        for fragment_item in items:
+                            is_member = bool(fragment_item.is_member)
+                            work_fragments.append({
+                                **fragment,
+                                'is_member': is_member,
+                                'project_position': (
+                                    fragment_item.position
+                                    if is_member
+                                    else None
+                                ),
+                                'work_note': fragment_item.work_note,
+                                'section_id': (
+                                    fragment_item.section_id
+                                    if is_member
+                                    else None
+                                ),
+                            })
                 work_fragments.sort(key=lambda fragment: (
                     not fragment['is_member'],
                     (
@@ -125,6 +132,7 @@ class CompilationRepository:
                 'sections': [
                     {
                         'id': section.id,
+                        'parent_id': section.parent_id,
                         'title': section.title,
                         'central_idea': section.central_idea,
                         'position': section.position,
@@ -353,35 +361,66 @@ class CompilationRepository:
         self,
         compilation_id: int,
         fragment_id: int,
+        section_id: int | None = None,
     ) -> None:
-        item = self.session.scalar(
+        if self.session.get(Compilation, compilation_id) is None:
+            raise ValueError('A compilação não está mais disponível.')
+        fragment = self.session.get(Fragment, fragment_id)
+        if fragment is None:
+            raise ValueError('O fragmento não está mais disponível.')
+
+        if section_id is not None:
+            item = self.session.scalar(
+                select(CompilationFragment).where(
+                    CompilationFragment.compilation_id == compilation_id,
+                    CompilationFragment.fragment_id == fragment_id,
+                    CompilationFragment.section_id == section_id,
+                )
+            )
+            if item is None or not item.is_member:
+                raise ValueError('O fragmento não pertence a esta seção.')
+            if item.work_note:
+                item.is_member = False
+                item.section_id = None
+                item.position = 0
+            else:
+                self.session.delete(item)
+            self.session.flush()
+            self._normalize_section_fragment_positions(
+                compilation_id,
+                section_id,
+            )
+            self.session.commit()
+            return
+
+        items = self.session.scalars(
             select(CompilationFragment).where(
                 CompilationFragment.compilation_id == compilation_id,
                 CompilationFragment.fragment_id == fragment_id,
             )
-        )
-        if item is None or not item.is_member:
+        ).all()
+        member_items = [it for it in items if it.is_member]
+        if not member_items:
             raise ValueError('O fragmento não pertence a esta compilação.')
-        fragment = self.session.get(Fragment, fragment_id)
-        if fragment is None:
-            raise ValueError('O fragmento não está mais disponível.')
-        section_id = item.section_id
-        if item.work_note:
-            item.is_member = False
-            item.section_id = None
-            item.position = 0
-        else:
-            self.session.delete(item)
+        affected_sections = {
+            it.section_id for it in member_items if it.section_id is not None
+        }
+        for item in member_items:
+            if item.work_note:
+                item.is_member = False
+                item.section_id = None
+                item.position = 0
+            else:
+                self.session.delete(item)
         self.session.flush()
-        if section_id is None:
-            self._normalize_fragment_positions(
-                compilation_id,
-                fragment.bib_res_id,
-            )
-        else:
+        self._normalize_fragment_positions(
+            compilation_id,
+            fragment.bib_res_id,
+        )
+        for sid in affected_sections:
             self._normalize_section_fragment_positions(
                 compilation_id,
-                section_id,
+                sid,
             )
         self.session.commit()
 
@@ -390,6 +429,7 @@ class CompilationRepository:
         compilation_id: int,
         fragment_id: int,
         note: str | None,
+        section_id: int | None = None,
     ) -> None:
         if self.session.get(Compilation, compilation_id) is None:
             raise ValueError('A compilação não está mais disponível.')
@@ -403,12 +443,14 @@ class CompilationRepository:
             )
         clean_note = clean_note or None
 
-        item = self.session.scalar(
-            select(CompilationFragment).where(
-                CompilationFragment.compilation_id == compilation_id,
-                CompilationFragment.fragment_id == fragment_id,
-            )
+        query = select(CompilationFragment).where(
+            CompilationFragment.compilation_id == compilation_id,
+            CompilationFragment.fragment_id == fragment_id,
         )
+        if section_id is not None:
+            query = query.where(CompilationFragment.section_id == section_id)
+        items = self.session.scalars(query).all()
+        item = items[0] if items else None
 
         if clean_note is not None:
             if not self.contains_work(compilation_id, fragment.bib_res_id):
@@ -425,7 +467,9 @@ class CompilationRepository:
                     )
                     .where(
                         CompilationFragment.compilation_id == compilation_id,
-                        CompilationFragment.section_id.is_(None),
+                        CompilationFragment.section_id == section_id
+                        if section_id is not None
+                        else CompilationFragment.section_id.is_(None),
                         CompilationFragment.is_member.is_(True),
                         Fragment.bib_res_id == fragment.bib_res_id,
                     )
@@ -436,6 +480,7 @@ class CompilationRepository:
                 self.session.add(CompilationFragment(
                     compilation_id=compilation_id,
                     fragment_id=fragment_id,
+                    section_id=section_id,
                     position=new_position,
                     work_note=clean_note,
                     is_member=True,
@@ -452,7 +497,9 @@ class CompilationRepository:
                         .where(
                             CompilationFragment.compilation_id
                             == compilation_id,
-                            CompilationFragment.section_id.is_(None),
+                            CompilationFragment.section_id == section_id
+                            if section_id is not None
+                            else CompilationFragment.section_id.is_(None),
                             CompilationFragment.is_member.is_(True),
                             Fragment.bib_res_id == fragment.bib_res_id,
                         )
@@ -463,7 +510,7 @@ class CompilationRepository:
                         else -1
                     ) + 1
                     item.is_member = True
-                    item.section_id = None
+                    item.section_id = section_id
                     item.position = new_position
         else:
             if item is not None:
@@ -476,10 +523,21 @@ class CompilationRepository:
         self,
         compilation_id: int,
         title: str,
-        central_idea: str | None,
+        central_idea: str | None = None,
+        parent_id: int | None = None,
     ) -> int:
         if self.session.get(Compilation, compilation_id) is None:
             raise ValueError('A compilação não está mais disponível.')
+        if parent_id is not None:
+            parent = self.session.get(CompilationSection, parent_id)
+            if parent is None or parent.compilation_id != compilation_id:
+                raise ValueError(
+                    'A seção superior não pertence a esta compilação.'
+                )
+            if parent.parent_id is not None:
+                raise ValueError(
+                    'Não é permitido aninhar seções além de capítulos e argumentos.'
+                )
         title, central_idea = self._validated_section_values(
             title,
             central_idea,
@@ -490,6 +548,7 @@ class CompilationRepository:
         )
         section = CompilationSection(
             compilation_id=compilation_id,
+            parent_id=parent_id,
             title=title,
             central_idea=central_idea,
             position=(next_position if next_position is not None else -1) + 1,
@@ -503,7 +562,8 @@ class CompilationRepository:
         compilation_id: int,
         section_id: int,
         title: str,
-        central_idea: str | None,
+        central_idea: str | None = None,
+        parent_id: int | None = None,
     ) -> None:
         section = self.session.scalar(
             select(CompilationSection).where(
@@ -513,10 +573,74 @@ class CompilationRepository:
         )
         if section is None:
             raise ValueError('A seção não pertence a esta compilação.')
-        section.title, section.central_idea = self._validated_section_values(
+        if parent_id is not None and parent_id != section.parent_id:
+            if parent_id == section_id:
+                raise ValueError('Uma seção não pode ser subordinada a si mesma.')
+            parent = self.session.get(CompilationSection, parent_id)
+            if parent is None or parent.compilation_id != compilation_id:
+                raise ValueError(
+                    'A seção superior não pertence a esta compilação.'
+                )
+            if parent.parent_id is not None:
+                raise ValueError(
+                    'Não é permitido aninhar seções além de capítulos e argumentos.'
+                )
+            has_children = self.session.scalar(
+                select(CompilationSection.id).where(
+                    CompilationSection.parent_id == section_id
+                )
+            ) is not None
+            if has_children:
+                raise ValueError(
+                    'Um capítulo com argumentos não pode se tornar argumento de outro capítulo.'
+                )
+            section.parent_id = parent_id
+        title, central_idea = self._validated_section_values(
             title,
             central_idea,
         )
+        section.title = title
+        section.central_idea = central_idea
+        self.session.commit()
+
+    def transfer_section(
+        self,
+        compilation_id: int,
+        section_id: int,
+        new_parent_id: int | None,
+    ) -> None:
+        section = self.session.scalar(
+            select(CompilationSection).where(
+                CompilationSection.compilation_id == compilation_id,
+                CompilationSection.id == section_id,
+            )
+        )
+        if section is None:
+            raise ValueError('A seção não pertence a esta compilação.')
+        if new_parent_id == section_id:
+            raise ValueError('Uma seção não pode ser subordinada a si mesma.')
+        if new_parent_id is not None:
+            parent = self.session.get(CompilationSection, new_parent_id)
+            if parent is None or parent.compilation_id != compilation_id:
+                raise ValueError(
+                    'A seção de destino não pertence a esta compilação.'
+                )
+            if parent.parent_id is not None:
+                raise ValueError(
+                    'Não é permitido aninhar seções além de capítulos e argumentos.'
+                )
+            has_children = self.session.scalar(
+                select(CompilationSection.id).where(
+                    CompilationSection.parent_id == section_id
+                )
+            ) is not None
+            if has_children:
+                raise ValueError(
+                    'Um capítulo com argumentos não pode se tornar argumento de outro capítulo.'
+                )
+        if section.parent_id == new_parent_id:
+            return
+        section.parent_id = new_parent_id
         self.session.commit()
 
     def delete_section(self, compilation_id: int, section_id: int) -> None:
@@ -528,11 +652,18 @@ class CompilationRepository:
         )
         if section is None:
             raise ValueError('A seção não pertence a esta compilação.')
+        child_ids = list(self.session.scalars(
+            select(CompilationSection.id).where(
+                CompilationSection.compilation_id == compilation_id,
+                CompilationSection.parent_id == section_id,
+            )
+        ))
+        all_section_ids = [section_id] + child_ids
         items = self.session.scalars(
             select(CompilationFragment)
             .where(
                 CompilationFragment.compilation_id == compilation_id,
-                CompilationFragment.section_id == section_id,
+                CompilationFragment.section_id.in_(all_section_ids),
             )
             .order_by(CompilationFragment.position, CompilationFragment.id)
         ).all()
@@ -566,6 +697,77 @@ class CompilationRepository:
         self.session.flush()
         self._normalize_section_positions(compilation_id)
         self.session.commit()
+
+    def link_fragment_to_section(
+        self,
+        compilation_id: int,
+        fragment_id: int,
+        section_id: int,
+        work_note: str | None = None,
+    ) -> int:
+        if self.session.get(Compilation, compilation_id) is None:
+            raise ValueError('A compilação não está mais disponível.')
+        fragment = self.session.get(Fragment, fragment_id)
+        if fragment is None:
+            raise ValueError('O fragmento não está mais disponível.')
+        if not self.contains_work(compilation_id, fragment.bib_res_id):
+            raise ValueError(
+                'Inclua a obra do fragmento na compilação antes de '
+                'vinculá-lo a uma seção.'
+            )
+        section = self.session.scalar(
+            select(CompilationSection).where(
+                CompilationSection.compilation_id == compilation_id,
+                CompilationSection.id == section_id,
+            )
+        )
+        if section is None:
+            raise ValueError('A seção não pertence a esta compilação.')
+
+        clean_note = work_note.strip() if isinstance(work_note, str) else ''
+        if len(clean_note) > 2000:
+            raise ValueError(
+                'A nota de articulação deve ter no máximo 2000 caracteres.'
+            )
+        clean_note = clean_note or None
+
+        item = self.session.scalar(
+            select(CompilationFragment).where(
+                CompilationFragment.compilation_id == compilation_id,
+                CompilationFragment.section_id == section_id,
+                CompilationFragment.fragment_id == fragment_id,
+            )
+        )
+        if item is not None and item.is_member:
+            raise ValueError('Este fragmento já está vinculado a esta seção.')
+
+        next_position = self.session.scalar(
+            select(func.coalesce(func.max(CompilationFragment.position), -1))
+            .where(
+                CompilationFragment.compilation_id == compilation_id,
+                CompilationFragment.section_id == section_id,
+                CompilationFragment.is_member.is_(True),
+            )
+        )
+        position = (next_position if next_position is not None else -1) + 1
+
+        if item is not None:
+            item.is_member = True
+            item.position = position
+            if clean_note:
+                item.work_note = clean_note
+        else:
+            item = CompilationFragment(
+                compilation_id=compilation_id,
+                section_id=section_id,
+                fragment_id=fragment_id,
+                position=position,
+                work_note=clean_note,
+                is_member=True,
+            )
+            self.session.add(item)
+        self.session.commit()
+        return item.id
 
     def reorder_sections(
         self,
@@ -601,13 +803,27 @@ class CompilationRepository:
         compilation_id: int,
         fragment_id: int,
         section_id: int | None,
+        current_section_id: int | None = None,
     ) -> None:
-        item = self.session.scalar(
-            select(CompilationFragment).where(
-                CompilationFragment.compilation_id == compilation_id,
-                CompilationFragment.fragment_id == fragment_id,
-            )
+        query = select(CompilationFragment).where(
+            CompilationFragment.compilation_id == compilation_id,
+            CompilationFragment.fragment_id == fragment_id,
         )
+        if current_section_id is not None:
+            item = self.session.scalar(
+                query.where(
+                    CompilationFragment.section_id == current_section_id
+                )
+            )
+        else:
+            items = self.session.scalars(query).all()
+            unassigned = [it for it in items if it.section_id is None]
+            item = (
+                unassigned[0]
+                if unassigned
+                else (items[0] if items else None)
+            )
+
         if item is None or not item.is_member:
             raise ValueError('O fragmento não está selecionado no caderno.')
         old_section_id = item.section_id
@@ -622,6 +838,18 @@ class CompilationRepository:
             )
             if section is None:
                 raise ValueError('A seção não pertence a esta compilação.')
+            existing_target = self.session.scalar(
+                select(CompilationFragment).where(
+                    CompilationFragment.compilation_id == compilation_id,
+                    CompilationFragment.section_id == section_id,
+                    CompilationFragment.fragment_id == fragment_id,
+                    CompilationFragment.id != item.id,
+                )
+            )
+            if existing_target is not None and existing_target.is_member:
+                raise ValueError(
+                    'O fragmento já está presente na seção de destino.'
+                )
             next_position = self.session.scalar(
                 select(func.coalesce(
                     func.max(CompilationFragment.position),

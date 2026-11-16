@@ -613,6 +613,7 @@ class WorkInsertModalComposer(
             self._execute_import_search(raw)
 
         if self.import_duplicate_box is not None:
+            warn_color = c.colors.get("warning", c.colors["gold"])
             self.import_duplicate_box.content = ft.Container(
                 content=ft.Column(
                     [
@@ -621,14 +622,14 @@ class WorkInsertModalComposer(
                                 fa_icon(
                                     "triangle-exclamation",
                                     size=ui.s(14),
-                                    color=c.colors.get("warning", "#eab308"),
+                                    color=warn_color,
                                 ),
                                 ui.ui_text(
                                     c,
                                     "Identificador já cadastrado no Acervo:",
                                     size=12,
                                     weight=ui.W600,
-                                    color=c.colors.get("warning", "#eab308"),
+                                    color=warn_color,
                                 ),
                             ],
                             spacing=ui.s(6),
@@ -663,9 +664,9 @@ class WorkInsertModalComposer(
                     spacing=ui.s(6),
                     tight=True,
                 ),
-                bgcolor=ui.alpha(c.colors.get("warning", "#eab308"), 0.12),
+                bgcolor=ui.alpha(warn_color, 0.12),
                 border=ft.Border.all(
-                    1, ui.alpha(c.colors.get("warning", "#eab308"), 0.3)
+                    1, ui.alpha(warn_color, 0.3)
                 ),
                 border_radius=ft.BorderRadius.all(ui.s(6)),
                 padding=ui.s(10),
@@ -746,7 +747,7 @@ class WorkInsertModalComposer(
         )
         self.import_badge_container = ft.Container(content=None, visible=False)
         self.import_error_text = ui.ui_text(
-            c, "", size=12, color=c.colors.get("danger", "#ef4444")
+            c, "", size=12, color=c.colors["danger"]
         )
         self.import_error_box = ft.Container(
             content=ft.Row(
@@ -754,7 +755,7 @@ class WorkInsertModalComposer(
                     fa_icon(
                         "circle-exclamation",
                         size=ui.s(14),
-                        color=c.colors.get("danger", "#ef4444"),
+                        color=c.colors["danger"],
                     ),
                     ft.Container(content=self.import_error_text, expand=True),
                 ],

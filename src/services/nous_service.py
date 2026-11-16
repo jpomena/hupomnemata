@@ -410,28 +410,54 @@ class NousAIService:
         prompt = (
             "Você é o mecanismo cognitivo NOUS do software bibliográfico Hupomnemata.\n"
             "Analise a referência bibliográfica abaixo e extraia seus componentes em formato JSON estrito.\n\n"
-            f"Tipo de obra alvo selecionado: {work_type}\n"
+            f"Tipo de obra alvo pré-selecionado: {work_type}\n"
             f"Referência bibliográfica:\n\"\"\"{clean_ref}\"\"\"\n\n"
             "Regras e esquema JSON esperado:\n"
-            "Retorne EXCLUSIVAMENTE um objeto JSON (sem markdown, sem introdução, sem explicações), com os seguintes campos:\n"
+            "Retorne EXCLUSIVAMENTE um objeto JSON válido (sem cercadura de markdown ```json, sem introdução).\n\n"
             "{\n"
+            '  "suggested_work_type": "Classificação cognitiva precisa da obra. Opções permitidas:\n'
+            '    - \'editorial_monograph\': livro integral, monografia comercial ou capítulo de livro coletivo (\'In:\')\n'
+            '    - \'journal_article\': artigo publicado em revista científica/periódico acadêmico\n'
+            '    - \'academic_monograph\': tese de doutorado, dissertação de mestrado ou TCC\n'
+            '    - \'monographic_proceedings\': trabalho publicado em anais de evento/congresso\n'
+            '    - \'newspaper_article\': artigo ou notícia em jornal diário ou periódico de notícias\n'
+            '    - \'statute\': legislação, constituição, lei, decreto, portaria ou resolução governamental\n'
+            '    - \'caselaw\': jurisprudência, acórdão, sentença, decisão monocrática ou súmula de tribunal\n'
+            '    - \'miscellaneous_digital_document\': documento web, post de blog ou página online",\n'
             '  "title": "Título principal da obra (sem subtítulo, obrigatório)",\n'
             '  "subtitle": "Subtítulo da obra após dois-pontos ou travessão (se houver, senão null)",\n'
             '  "authors": [{"name": "Prenome Sobrenome (ou Sobrenome, Prenomes se ABNT)", "corporation": false}],\n'
-            '  "date_anchor": "Ano de publicação (ex: \'2014\'; obrigatório)",\n'
-            '  "publisher": "Editora (se não houver no texto use \'[s.n.]\')",\n'
-            '  "publication_place": "Local/Cidade de publicação (se não houver use \'[s.l.]\')",\n'
+            '  "date_anchor": "Ano ou data de publicação (ex: \'2014\' ou \'15/03/2021\'; obrigatório)",\n'
+            '  "publisher": "Editora do livro ou instituição publicadora. ATENÇÃO: NUNCA coloque revista científica '
+            'aqui! Em periódicos, use \'[s.n.]\'",\n'
+            '  "publication_place": "Local/Cidade da publicação (se não houver use \'[s.l.]\')",\n'
             '  "edition": "Número da edição se houver (ex: 2)",\n'
-            '  "journal_title": "Título do periódico/revista (se journal_article ou newspaper_article)",\n'
-            '  "volume": "Volume da revista/livro se houver",\n'
-            '  "number": "Número do fascículo se houver (para journal_article padrão 1 se não houver)",\n'
+            '  "journal_title": "Nome do periódico/revista científica (CRÍTICO: preencher em journal_article e '
+            'newspaper_article; NUNCA em livros)",\n'
+            '  "volume": "Volume do periódico ou livro se houver",\n'
+            '  "number": "Número do fascículo da revista (padrão 1 se não houver)",\n'
             '  "part_start_page": "Página inicial se houver",\n'
             '  "part_end_page": "Página final se houver",\n'
             '  "doi": "DOI se houver no texto",\n'
             '  "isbn": "ISBN se houver",\n'
             '  "issn": "ISSN se houver",\n'
-            '  "url": "URL se houver"\n'
-            "}\n"
+            '  "url": "URL se houver no texto",\n'
+            '  "viewed_at": "Data de acesso em DD/MM/AAAA se houver menção a acesso online",\n'
+            '  "court": "Tribunal competente (para caselaw, ex: \'Supremo Tribunal Federal\', \'TJSP\')",\n'
+            '  "panel": "Órgão julgador ou turma (para caselaw, ex: \'Segunda Turma\')",\n'
+            '  "region": "Região ou tribunal (para caselaw, ex: \'STF\', \'TRF4\')",\n'
+            '  "decision_type": "Tipo da decisão judicial (para caselaw, ex: \'Acórdão\', \'Sentença\')",\n'
+            '  "decision_date": "Data da decisão em DD/MM/AAAA (para caselaw)",\n'
+            '  "case_number": "Número do processo/recurso (para caselaw, ex: \'RE 583.955\')",\n'
+            '  "rapporteur": "Relator da decisão (para caselaw, ex: \'Min. Gilmar Mendes\')",\n'
+            '  "promulgation_date": "Data de promulgação em DD/MM/AAAA (para statute)",\n'
+            '  "publication_media": "Veículo de publicação oficial (para statute e caselaw, ex: \'DOU\', \'DJe\')"\n'
+            "}\n\n"
+            "Diretrizes de Distinção Rigorosa:\n"
+            "- Artigo vs Livro: O artigo de revista tem 'title' (título do artigo) e 'journal_title' (nome da revista)."
+            " A editora em 'publisher' deve ser '[s.n.]'. Livros têm editora em 'publisher' e NUNCA 'journal_title'.\n"
+            "- Se o 'Tipo de obra alvo pré-selecionado' estiver incorreto em relação à estrutura da referência, "
+            "indique a tipologia correta em 'suggested_work_type'.\n"
         )
 
         payload = {
@@ -478,8 +504,25 @@ class NousAIService:
                         if not isinstance(extracted, dict):
                             continue
 
-                        # Normalização e complementação de defaults
+                        # Validação e normalização de tipo cognitivo sugerido
+                        valid_types = {
+                            "editorial_monograph",
+                            "journal_article",
+                            "academic_monograph",
+                            "monographic_proceedings",
+                            "newspaper_article",
+                            "statute",
+                            "caselaw",
+                            "miscellaneous_digital_document",
+                        }
+                        suggested = str(extracted.get("suggested_work_type") or "").strip()
+                        if suggested in valid_types:
+                            extracted["suggested_work_type"] = suggested
+                        else:
+                            extracted["suggested_work_type"] = work_type
+
                         extracted["work_type"] = work_type
+
                         if not extracted.get("title"):
                             extracted["title"] = clean_ref[:60]
                         if not extracted.get("publication_place"):
@@ -490,7 +533,17 @@ class NousAIService:
                             year_match = re.search(r"\b(19\d\d|20\d\d)\b", clean_ref)
                             extracted["date_anchor"] = year_match.group(1) if year_match else "2024"
 
-                        if work_type == "journal_article":
+                        # Sanitização preventiva para periódicos
+                        if work_type == "journal_article" or extracted.get("suggested_work_type") == "journal_article":
+                            j_name = extracted.get("journal_title")
+                            pub_name = extracted.get("publisher")
+                            # Se o modelo colocou o periódico em publisher e não em journal_title
+                            if not j_name and pub_name and pub_name != "[s.n.]":
+                                extracted["journal_title"] = pub_name
+                                extracted["publisher"] = "[s.n.]"
+                            elif j_name and pub_name == j_name:
+                                extracted["publisher"] = "[s.n.]"
+
                             if not extracted.get("number"):
                                 extracted["number"] = 1
                             extracted["is_partial"] = True

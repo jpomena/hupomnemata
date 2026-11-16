@@ -54,11 +54,11 @@ class ImportModalDialog:
         )
 
         self.badge_container = ft.Container(content=None, visible=False)
-        self.error_text = ui.ui_text(c, "", size=12, color=c.colors.get("danger", "#ef4444"))
+        self.error_text = ui.ui_text(c, "", size=12, color=c.colors["danger"])
         self.error_box = ft.Container(
             content=ft.Row(
                 [
-                    fa_icon("circle-exclamation", size=s(14), color=c.colors.get("danger", "#ef4444")),
+                    fa_icon("circle-exclamation", size=s(14), color=c.colors["danger"]),
                     ft.Container(content=self.error_text, expand=True),
                 ],
                 spacing=s(8),
@@ -161,20 +161,13 @@ class ImportModalDialog:
             on_dismiss=lambda _e: setattr(self, "is_open", False),
         )
         self.is_open = True
-        self.page.show_dialog(self.dialog)
+        ui.open_dialog(self.page, self.dialog)
 
     def close(self) -> None:
         self.is_open = False
         if self.dialog is not None:
             self.dialog.open = False
-            try:
-                self.dialog.update()
-            except Exception:
-                pass
-            try:
-                self.page.pop_dialog()
-            except Exception:
-                pass
+            ui.close_dialog(self.page)
 
     def _on_input_change(self, event: ft.ControlEvent) -> None:
         raw = event.control.value or ""
@@ -247,13 +240,14 @@ class ImportModalDialog:
                 pass
             self._execute_remote_search()
 
+        warn_color = c.colors.get("warning", c.colors["gold"])
         self.duplicate_box.content = ft.Container(
             content=ft.Column(
                 [
                     ft.Row(
                         [
-                            fa_icon("triangle-exclamation", size=s(14), color=c.colors.get("warning", "#eab308")),
-                            ui.ui_text(c, "Identificador já cadastrado no Acervo:", size=12, weight=ui.W600, color=c.colors.get("warning", "#eab308")),
+                            fa_icon("triangle-exclamation", size=s(14), color=warn_color),
+                            ui.ui_text(c, "Identificador já cadastrado no Acervo:", size=12, weight=ui.W600, color=warn_color),
                         ],
                         spacing=s(6),
                     ),
@@ -269,8 +263,8 @@ class ImportModalDialog:
                 spacing=s(6),
                 tight=True,
             ),
-            bgcolor=ui.alpha(c.colors.get("warning", "#eab308"), 0.12),
-            border=ft.Border.all(1, ui.alpha(c.colors.get("warning", "#eab308"), 0.3)),
+            bgcolor=ui.alpha(warn_color, 0.12),
+            border=ft.Border.all(1, ui.alpha(warn_color, 0.3)),
             border_radius=ft.BorderRadius.all(s(6)),
             padding=s(10),
         )

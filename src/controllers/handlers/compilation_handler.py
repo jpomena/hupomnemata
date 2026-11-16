@@ -164,6 +164,7 @@ class CompilationControllerMixin:
         compilation_id: int,
         fragment_id: int,
         selected: bool,
+        section_id: int | None = None,
     ) -> bool:
         try:
             if selected:
@@ -175,6 +176,7 @@ class CompilationControllerMixin:
                 self.compilation_service.remove_fragment(
                     compilation_id,
                     fragment_id,
+                    section_id,
                 )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
@@ -197,12 +199,14 @@ class CompilationControllerMixin:
         compilation_id: int,
         fragment_id: int,
         note: str | None,
+        section_id: int | None = None,
     ) -> bool:
         try:
             self.compilation_service.update_fragment_note(
                 compilation_id,
                 fragment_id,
                 note,
+                section_id,
             )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
@@ -224,12 +228,14 @@ class CompilationControllerMixin:
         compilation_id: int,
         title: str,
         central_idea: str | None,
+        parent_id: int | None = None,
     ) -> int | None:
         try:
             section_id = self.compilation_service.create_section(
                 compilation_id,
                 title,
                 central_idea,
+                parent_id,
             )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
@@ -249,6 +255,7 @@ class CompilationControllerMixin:
         section_id: int,
         title: str,
         central_idea: str | None,
+        parent_id: int | None = None,
     ) -> bool:
         try:
             self.compilation_service.update_section(
@@ -256,6 +263,7 @@ class CompilationControllerMixin:
                 section_id,
                 title,
                 central_idea,
+                parent_id,
             )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
@@ -264,6 +272,59 @@ class CompilationControllerMixin:
             log_exception('Falha ao atualizar seção do caderno', error)
             self.show_message(
                 f'Não foi possível atualizar a seção.\n\n{error}',
+                self.view_config.colors['text'],
+            )
+            return False
+        return True
+
+    def transfer_compilation_section(
+        self,
+        compilation_id: int,
+        section_id: int,
+        new_parent_id: int | None,
+    ) -> bool:
+        try:
+            self.compilation_service.transfer_section(
+                compilation_id,
+                section_id,
+                new_parent_id,
+            )
+        except (ValueError, TypeError) as error:
+            self.show_message(str(error), self.view_config.colors['text'])
+            return False
+        except Exception as error:
+            log_exception('Falha ao transferir seção do caderno', error)
+            self.show_message(
+                f'Não foi possível transferir a seção.\n\n{error}',
+                self.view_config.colors['text'],
+            )
+            return False
+        return True
+
+    def link_compilation_fragment_to_section(
+        self,
+        compilation_id: int,
+        fragment_id: int,
+        section_id: int,
+        work_note: str | None = None,
+    ) -> bool:
+        try:
+            self.compilation_service.link_fragment_to_section(
+                compilation_id,
+                fragment_id,
+                section_id,
+                work_note,
+            )
+        except (ValueError, TypeError) as error:
+            self.show_message(str(error), self.view_config.colors['text'])
+            return False
+        except Exception as error:
+            log_exception(
+                'Falha ao vincular fragmento a nova seção',
+                error,
+            )
+            self.show_message(
+                f'Não foi possível vincular o fragmento.\n\n{error}',
                 self.view_config.colors['text'],
             )
             return False
@@ -315,12 +376,14 @@ class CompilationControllerMixin:
         compilation_id: int,
         fragment_id: int,
         section_id: int | None,
+        current_section_id: int | None = None,
     ) -> bool:
         try:
             self.compilation_service.assign_fragment_to_section(
                 compilation_id,
                 fragment_id,
                 section_id,
+                current_section_id,
             )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
@@ -389,6 +452,10 @@ class CompilationControllerMixin:
             on_create_parent_work=self.open_parent_work,
         )
         self.page.show_dialog(modal)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _add_created_compilation_work(
         self,

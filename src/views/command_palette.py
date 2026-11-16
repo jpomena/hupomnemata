@@ -140,15 +140,12 @@ class CommandPalette:
             on_dismiss=lambda _e: setattr(self, "is_open", False),
         )
         self.is_open = True
-        self.page.show_dialog(self.dialog)
+        ui.open_dialog(self.page, self.dialog)
 
     def close(self) -> None:
         self.is_open = False
         if self.dialog is not None:
-            try:
-                self.page.pop_dialog()
-            except Exception:
-                pass
+            ui.close_dialog(self.page)
 
     def _on_change(self, event) -> None:
         self.index = 0
