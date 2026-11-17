@@ -72,7 +72,7 @@
   "FONTS": {
     "cormorant": {
       "name": "Cormorant Garamond",
-      "path": "fonts/Cormorant_Garamond/CormorantGaramond-VariableFont_wght.ttf",
+      "path": "fonts/Cormorant_Garamond/static/CormorantGaramond-Regular.ttf",
       "sizes": {
         "big": 28,
         "large": 24,
@@ -87,7 +87,7 @@
     },
     "montserrat": {
       "name": "Montserrat",
-      "path": "fonts/Montserrat/Montserrat-VariableFont_wght.ttf",
+      "path": "fonts/Montserrat/static/Montserrat-Regular.ttf",
       "sizes": {
         "large": 16,
         "medium": 14,
@@ -103,7 +103,7 @@
     },
     "mono": {
       "name": "JetBrains Mono",
-      "path": "fonts/JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf",
+      "path": "fonts/JetBrains_Mono/static/JetBrainsMono-Regular.ttf",
       "weights": {
         "normal": "W_400",
         "semibold": "W_600",
@@ -124,7 +124,7 @@
     },
     "bodoni": {
       "name": "Bodoni Moda",
-      "path": "fonts/Bodoni_Moda/BodoniModa-VariableFont_opsz,wght.ttf",
+      "path": "fonts/Bodoni_Moda/static/BodoniModa_18pt-Regular.ttf",
       "sizes": {
         "big": 28,
         "large": 24,
@@ -140,7 +140,7 @@
     },
     "jost": {
       "name": "Jost",
-      "path": "fonts/Jost/Jost-VariableFont_wght.ttf",
+      "path": "fonts/Jost/static/Jost-Regular.ttf",
       "sizes": {
         "large": 16,
         "medium": 14,

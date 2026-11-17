@@ -6,6 +6,7 @@ import flet as ft
 from src.utils.fa import glyph as fa_glyph
 
 from src.configs.settings import (
+    ASSETS_DIR,
     COLORS_DARK,
     COLORS_LIGHT,
     CORE_MENUS,
@@ -51,6 +52,14 @@ def test_appearance_settings_defaults():
     assert settings.theme_mode == "light"
     assert settings.auto_scale is True
     assert settings.manual_scale == 1.0
+
+
+def test_page_font_assets_use_static_files_relative_to_assets_dir():
+    assert PAGE_FONTS
+    for font_path in PAGE_FONTS.values():
+        assert font_path.startswith("/fonts/")
+        assert (ASSETS_DIR / font_path.lstrip("/")).is_file()
+        assert "VariableFont" not in font_path
 
 
 def test_appearance_settings_serialization_and_clamping():

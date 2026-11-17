@@ -13,6 +13,7 @@ from pathlib import Path
 import flet as ft
 
 from src.configs.settings import (
+    ASSETS_DIR,
     COLORS_DARK,
     COLORS_LIGHT,
     CORE_MENUS,
@@ -197,7 +198,7 @@ def run_standalone_reader(resource_id: int) -> None:
         page.add(reader_view)
         page.update()
 
-    ft.run(main)
+    ft.run(main, assets_dir=str(ASSETS_DIR))
 
 
 if __name__ == "__main__":

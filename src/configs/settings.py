@@ -5,6 +5,7 @@ from pathlib import Path
 
 CONFIG_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CONFIG_DIR.parents[1]
+ASSETS_DIR = PROJECT_ROOT / 'assets'
 parameters_path = CONFIG_DIR / 'params.json'
 with open(parameters_path, 'r', encoding='utf-8') as file:
     parameters = json.load(file)
@@ -31,9 +32,7 @@ FONT_FAMILIES = {}
 PAGE_FONTS = {}
 for key, config in FONT_CONFIG.items():
     FONT_FAMILIES[key] = config['name']
-    PAGE_FONTS[config['name']] = str(
-        PROJECT_ROOT / 'assets' / config['path']
-    )
+    PAGE_FONTS[config['name']] = f"/{config['path']}"
 
 FONT_SIZES = {
     f'{family}_{size_name}': size

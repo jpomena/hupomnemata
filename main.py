@@ -1,4 +1,6 @@
 import flet as ft
+
+from src.configs.settings import ASSETS_DIR
 from src.controllers import CoreController
 
 
@@ -7,4 +9,4 @@ def main(page: ft.Page):
 
 
 if __name__ == '__main__':
-    ft.run(main)
+    ft.run(main, assets_dir=str(ASSETS_DIR))
