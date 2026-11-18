@@ -498,3 +498,26 @@ def test_nous_composer_single_generate_visual_feedback(monkeypatch, mock_view_co
 
     assert 1 not in composer.generating_work_ids
     assert len(dummy_page.overlay) >= 2
+
+
+def test_nous_batch_generation_granular_callbacks(mock_view_config):
+    """Valida que o processamento em lote invoca o callback granular on_work_completed."""
+    completed_ids = []
+
+    def mock_on_work_completed(wid, ok, msg):
+        completed_ids.append((wid, ok))
+
+    service = NousAIService()
+    service.list_works_ai_status = lambda: [
+        {"id": 10, "title": "Obra 1", "has_llm": False, "has_custom": False},
+        {"id": 20, "title": "Obra 2", "has_llm": False, "has_custom": False},
+    ]
+    service.generate_work_description = lambda wid: (True, "Ok")
+
+    res = service.generate_batch_pending(
+        on_work_completed=mock_on_work_completed
+    )
+
+    assert res["total"] == 2
+    assert res["success"] == 2
+    assert completed_ids == [(10, True), (20, True)]

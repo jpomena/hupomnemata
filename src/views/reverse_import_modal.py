@@ -6,6 +6,7 @@ selecionar tipos de obra e extrair metadados estruturados exclusivamente via Nou
 
 from __future__ import annotations
 
+import asyncio
 import re
 import threading
 from collections.abc import Callable
@@ -730,11 +731,60 @@ class ReverseImportModalDialog:
         self._render_current_phase()
         self.page.update()
 
-        thread = threading.Thread(target=self._run_extraction_background, daemon=True)
-        thread.start()
+        run_task = getattr(self.page, "run_task", None)
+        if run_task is not None:
+            run_task(self._async_run_extraction)
+        else:
+            thread = threading.Thread(target=self._run_extraction_background, daemon=True)
+            thread.start()
+
+    async def _async_run_extraction(self) -> None:
+        """Executa os workloads do Nous e atualiza a interface a cada item em tempo real."""
+        try:
+            total = len(self.items)
+            for idx, item in enumerate(self.items, 1):
+                raw = item["raw"].strip()
+                work_type = item["work_type"]
+
+                ok, meta, msg = await asyncio.to_thread(
+                    self.nous_service.extract_reference_metadata, raw, work_type
+                )
+                item["success"] = ok
+                item["metadata"] = meta if ok else None
+                item["error"] = msg if not ok else None
+                item["selected"] = ok
+
+                # Aproveitamento da validação e sugestão cognitiva do motor Nous
+                if ok and meta:
+                    suggested = meta.get("suggested_work_type")
+                    if suggested and suggested in WORK_TYPE_MAP:
+                        item["work_type"] = suggested
+                        meta["work_type"] = suggested
+
+                # Atualiza progresso em tempo real
+                self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
+                self.progress_bar.value = idx / total
+                try:
+                    self.progress_label.update()
+                    self.progress_bar.update()
+                except Exception:
+                    try:
+                        self.page.update()
+                    except Exception:
+                        pass
+
+        except Exception as exc:
+            log_exception("ReverseImportModalDialog._async_run_extraction", exc)
+        finally:
+            self.is_processing = False
+            self._render_current_phase()
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
     def _run_extraction_background(self) -> None:
-        """Executa os workloads do Nous e atualiza a interface a cada item."""
+        """Executa os workloads do Nous e atualiza a interface a cada item (fallback para thread pura)."""
         try:
             total = len(self.items)
             for idx, item in enumerate(self.items, 1):
@@ -757,14 +807,20 @@ class ReverseImportModalDialog:
                 # Atualiza progresso
                 self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
                 self.progress_bar.value = idx / total
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
 
         except Exception as exc:
             log_exception("ReverseImportModalDialog._run_extraction_background", exc)
         finally:
             self.is_processing = False
             self._render_current_phase()
-            self.page.update()
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
     def _compose_phase3(self) -> ft.Container:
         c = self.config

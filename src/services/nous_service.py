@@ -353,6 +353,7 @@ class NousAIService:
     def generate_batch_pending(
         self,
         on_progress: Optional[Callable[[int, int, str], None]] = None,
+        on_work_completed: Optional[Callable[[int, bool, str], None]] = None,
     ) -> Dict[str, Any]:
         """Gera sínteses por IA em lote para todas as obras pendentes do acervo."""
         works = self.list_works_ai_status()
@@ -375,6 +376,9 @@ class NousAIService:
             else:
                 failed += 1
                 errors.append(f"{w_title}: {msg}")
+
+            if on_work_completed:
+                on_work_completed(w_id, ok, msg)
 
         return {
             "total": total,

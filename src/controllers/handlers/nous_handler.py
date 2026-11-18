@@ -32,7 +32,11 @@ class NousControllerMixin:
         return self.nous_service.list_works_ai_status()
 
     def generate_batch_ai_descriptions(
-        self, on_progress: Optional[Callable[[int, int, str], None]] = None
+        self,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
+        on_work_completed: Optional[Callable[[int, bool, str], None]] = None,
     ) -> Dict[str, Any]:
         """Gera em lote sínteses para todas as obras pendentes."""
-        return self.nous_service.generate_batch_pending(on_progress=on_progress)
+        return self.nous_service.generate_batch_pending(
+            on_progress=on_progress, on_work_completed=on_work_completed
+        )

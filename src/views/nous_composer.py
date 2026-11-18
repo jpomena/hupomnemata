@@ -3,6 +3,7 @@ Apresenta configuração BYOK (Google Gemini), tutorial didático passo a passo,
 gestão de sínteses epistemológicas e enriquecimento das obras do acervo.
 """
 
+import asyncio
 from collections.abc import Callable
 import threading
 from typing import Any, Dict, List, Optional
@@ -671,13 +672,79 @@ class NousComposer:
 
         self.page.update()
 
+    def _update_single_work_ui(self, work_id: int) -> None:
+        """Atualiza cirurgicamente apenas os controles do card da obra e o painel de métricas."""
+        updated_list = self.nous_service.list_works_ai_status()
+        updated_item = next((w for w in updated_list if w["id"] == work_id), None)
+        if updated_item is None:
+            self._refresh_works_data()
+            return
+
+        for idx, w in enumerate(self.works_data):
+            if w["id"] == work_id:
+                self.works_data[idx] = updated_item
+                break
+
+        # Atualiza métricas no topo in-place
+        total = len(self.works_data)
+        with_ai = sum(1 for w in self.works_data if w["has_llm"] and not w["has_custom"])
+        custom = sum(1 for w in self.works_data if w["has_custom"])
+        pending = sum(1 for w in self.works_data if not w["has_llm"] and not w["has_custom"])
+        self.stat_total.value = str(total)
+        self.stat_with_ai.value = str(with_ai)
+        self.stat_custom.value = str(custom)
+        self.stat_pending.value = str(pending)
+        if hasattr(self, "metrics_row") and self.metrics_row is not None:
+            try:
+                self.metrics_row.update()
+            except Exception:
+                pass
+
+        # Atualiza badge do card
+        badge_box = self.work_badge_containers.get(work_id)
+        if badge_box is not None:
+            badge_box.content = ft.Text(
+                updated_item["status_label"].upper(),
+                size=10 * self.scale,
+                weight=ft.FontWeight.W_600,
+                font_family=self.config.font_families["montserrat"],
+                color=updated_item["status_color"],
+            )
+            badge_box.bgcolor = self.config.colors["surface"]
+            badge_box.border = ft.Border.all(1, updated_item["status_color"])
+            try:
+                badge_box.update()
+            except Exception:
+                pass
+
+        # Atualiza snippet de texto do card
+        snip_box = self.work_snippet_texts.get(work_id)
+        if snip_box is not None:
+            has_snip = bool(updated_item["snippet"])
+            snip_box.value = updated_item["snippet"] or "Sem síntese cadastrada."
+            snip_box.italic = not has_snip
+            snip_box.weight = ft.FontWeight.W_600 if has_snip else ft.FontWeight.W_500
+            snip_box.color = self.config.colors["text"] if has_snip else self.config.colors["muted"]
+            try:
+                snip_box.update()
+            except Exception:
+                pass
+
+        # Atualiza botões de ação do card
+        act_box = self.work_actions_containers.get(work_id)
+        if act_box is not None:
+            act_box.content = self._build_work_actions(updated_item)
+            try:
+                act_box.update()
+            except Exception:
+                pass
+
     def _handle_single_generate(self, work_id: int) -> None:
-        """Dispara a geração de descrição para uma única obra com feedback visual imediato em background thread mantendo o scroll."""
+        """Dispara a geração de descrição para uma única obra com feedback visual imediato em tempo real."""
         if work_id in self.generating_work_ids or self.is_batch_running:
             return
 
         self.generating_work_ids.add(work_id)
-        # Atualiza apenas o container de ações do card correspondente sem reconstruir a lista (mantém posição do scroll)
         work_item = next((w for w in self.works_data if w["id"] == work_id), None)
         actions_ctrl = self.work_actions_containers.get(work_id)
         if actions_ctrl is not None and work_item is not None:
@@ -690,10 +757,15 @@ class NousComposer:
         if hasattr(self.page, "overlay") and self.page.overlay is not None:
             snack = ft.SnackBar(ft.Text("Gerando síntese epistemológica com Nous..."))
             self.page.overlay.append(snack)
-
-        def background_task():
+            snack.open = True
             try:
-                ok, msg = self.nous_service.generate_work_description(work_id)
+                self.page.update()
+            except Exception:
+                pass
+
+        async def _async_generate():
+            try:
+                ok, msg = await asyncio.to_thread(self.nous_service.generate_work_description, work_id)
             except Exception as err:
                 ok, msg = False, str(err)
             finally:
@@ -703,76 +775,13 @@ class NousComposer:
                 if hasattr(self.page, "overlay") and self.page.overlay is not None:
                     res_snack = ft.SnackBar(ft.Text("✓ Síntese gerada e salva com sucesso!"))
                     self.page.overlay.append(res_snack)
-
-                # Atualiza os dados locais e apenas os controles específicos da obra para não resetar o scroll
-                updated_list = self.nous_service.list_works_ai_status()
-                updated_item = next((w for w in updated_list if w["id"] == work_id), None)
-                if updated_item is not None:
-                    # Atualiza item em self.works_data
-                    for idx, w in enumerate(self.works_data):
-                        if w["id"] == work_id:
-                            self.works_data[idx] = updated_item
-                            break
-
-                    # Atualiza métricas no topo in-place
-                    total = len(self.works_data)
-                    with_ai = sum(1 for w in self.works_data if w["has_llm"] and not w["has_custom"])
-                    custom = sum(1 for w in self.works_data if w["has_custom"])
-                    pending = sum(1 for w in self.works_data if not w["has_llm"] and not w["has_custom"])
-                    self.stat_total.value = str(total)
-                    self.stat_with_ai.value = str(with_ai)
-                    self.stat_custom.value = str(custom)
-                    self.stat_pending.value = str(pending)
-                    if hasattr(self, "metrics_row") and self.metrics_row is not None:
-                        try:
-                            self.metrics_row.update()
-                        except Exception:
-                            pass
-
-                    # Atualiza badge do card (fundo surface limpo, sem grená)
-                    badge_box = self.work_badge_containers.get(work_id)
-                    if badge_box is not None:
-                        badge_box.content = ft.Text(
-                            updated_item["status_label"].upper(),
-                            size=10 * self.scale,
-                            weight=ft.FontWeight.W_600,
-                            font_family=self.config.font_families["montserrat"],
-                            color=updated_item["status_color"],
-                        )
-                        badge_box.bgcolor = self.config.colors["surface"]
-                        badge_box.border = ft.Border.all(1, updated_item["status_color"])
-                        try:
-                            badge_box.update()
-                        except Exception:
-                            pass
-
-                    # Atualiza snippet de texto do card
-                    snip_box = self.work_snippet_texts.get(work_id)
-                    if snip_box is not None:
-                        has_snip = bool(updated_item["snippet"])
-                        snip_box.value = updated_item["snippet"] or "Sem síntese cadastrada."
-                        snip_box.italic = not has_snip
-                        snip_box.weight = ft.FontWeight.W_600 if has_snip else ft.FontWeight.W_500
-                        snip_box.color = self.config.colors["text"] if has_snip else self.config.colors["muted"]
-                        try:
-                            snip_box.update()
-                        except Exception:
-                            pass
-
-                    # Atualiza botões de ação do card
-                    act_box = self.work_actions_containers.get(work_id)
-                    if act_box is not None:
-                        act_box.content = self._build_work_actions(updated_item)
-                        try:
-                            act_box.update()
-                        except Exception:
-                            pass
-                else:
-                    self._refresh_works_data()
+                    res_snack.open = True
+                self._update_single_work_ui(work_id)
             else:
                 if hasattr(self.page, "overlay") and self.page.overlay is not None:
                     res_snack = ft.SnackBar(ft.Text(f"Erro: {msg}"))
                     self.page.overlay.append(res_snack)
+                    res_snack.open = True
                 target_w = next((w for w in self.works_data if w["id"] == work_id), None)
                 act_box = self.work_actions_containers.get(work_id)
                 if act_box is not None and target_w is not None:
@@ -781,12 +790,49 @@ class NousComposer:
                         act_box.update()
                     except Exception:
                         pass
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
-        thread = threading.Thread(target=background_task, daemon=True)
-        thread.start()
+        run_task = getattr(self.page, "run_task", None)
+        if run_task is not None:
+            run_task(_async_generate)
+        else:
+            def _thread_fallback():
+                try:
+                    ok, msg = self.nous_service.generate_work_description(work_id)
+                except Exception as err:
+                    ok, msg = False, str(err)
+                finally:
+                    self.generating_work_ids.discard(work_id)
+                if ok:
+                    if hasattr(self.page, "overlay") and self.page.overlay is not None:
+                        res_snack = ft.SnackBar(ft.Text("✓ Síntese gerada e salva com sucesso!"))
+                        self.page.overlay.append(res_snack)
+                        res_snack.open = True
+                    self._update_single_work_ui(work_id)
+                else:
+                    if hasattr(self.page, "overlay") and self.page.overlay is not None:
+                        res_snack = ft.SnackBar(ft.Text(f"Erro: {msg}"))
+                        self.page.overlay.append(res_snack)
+                        res_snack.open = True
+                    target_w = next((w for w in self.works_data if w["id"] == work_id), None)
+                    act_box = self.work_actions_containers.get(work_id)
+                    if act_box is not None and target_w is not None:
+                        act_box.content = self._build_work_actions(target_w)
+                        try:
+                            act_box.update()
+                        except Exception:
+                            pass
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
+            threading.Thread(target=_thread_fallback, daemon=True).start()
 
     def _handle_batch_generation(self, _e: ft.ControlEvent) -> None:
-        """Executa processamento em lote para todas as obras pendentes em background thread."""
+        """Executa processamento em lote com atualização viva e granular em tempo real."""
         if self.is_batch_running:
             return
 
@@ -794,20 +840,31 @@ class NousComposer:
         self.batch_progress_bar.visible = True
         self.batch_progress_text.visible = True
         self.batch_progress_bar.value = 0.0
-        self.page.update()
+        self.batch_progress_text.value = "Iniciando processamento com motor Nous..."
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
         def update_progress(curr: int, total: int, title: str) -> None:
             self.batch_progress_bar.value = curr / max(1, total)
             self.batch_progress_text.value = f"Processando ({curr}/{total}): {title}"
             try:
-                self.page.update()
-
+                self.batch_progress_bar.update()
+                self.batch_progress_text.update()
             except Exception:
                 pass
 
-        def background_batch():
+        def on_item_completed(w_id: int, ok: bool, msg: str) -> None:
+            self._update_single_work_ui(w_id)
+
+        async def _async_batch():
             try:
-                results = self.nous_service.generate_batch_pending(on_progress=update_progress)
+                results = await asyncio.to_thread(
+                    self.nous_service.generate_batch_pending,
+                    on_progress=update_progress,
+                    on_work_completed=on_item_completed,
+                )
                 res_msg = f"Concluído: {results['success']} obras processadas com sucesso, {results['failed']} falhas."
             except Exception as err:
                 res_msg = f"Falha no processamento em lote: {err}"
@@ -816,18 +873,45 @@ class NousComposer:
                 self.batch_progress_bar.visible = False
                 self.batch_progress_text.visible = False
 
-            snack = ft.SnackBar(ft.Text(res_msg))
-            self.page.overlay.append(snack)
-            snack.open = True
+            if hasattr(self.page, "overlay") and self.page.overlay is not None:
+                snack = ft.SnackBar(ft.Text(res_msg))
+                self.page.overlay.append(snack)
+                snack.open = True
             self._refresh_works_data()
             try:
                 self.page.update()
-
             except Exception:
                 pass
 
-        thread = threading.Thread(target=background_batch, daemon=True)
-        thread.start()
+        run_task = getattr(self.page, "run_task", None)
+        if run_task is not None:
+            run_task(_async_batch)
+        else:
+            def _thread_batch_fallback():
+                try:
+                    results = self.nous_service.generate_batch_pending(
+                        on_progress=update_progress,
+                        on_work_completed=on_item_completed,
+                    )
+                    res_msg = f"Concluído: {results['success']} obras processadas com sucesso, {results['failed']} falhas."
+                except Exception as err:
+                    res_msg = f"Falha no processamento em lote: {err}"
+                finally:
+                    self.is_batch_running = False
+                    self.batch_progress_bar.visible = False
+                    self.batch_progress_text.visible = False
+
+                if hasattr(self.page, "overlay") and self.page.overlay is not None:
+                    snack = ft.SnackBar(ft.Text(res_msg))
+                    self.page.overlay.append(snack)
+                    snack.open = True
+                self._refresh_works_data()
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=_thread_batch_fallback, daemon=True).start()
 
     def _open_override_dialog(self, work_item: Dict[str, Any]) -> None:
         """Abre diálogo para o usuário inspecionar e sobrepor a síntese com texto próprio."""

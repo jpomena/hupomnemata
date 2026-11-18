@@ -848,17 +848,125 @@ class CompilationHubCadernoMixin:
 
     # ── coluna 1: roteiro ──────────────────────────────────
 
-    def _nav_head(self, label: str, trailing: ft.Control | None = None) -> ft.Container:
+    def _nav_head(
+        self,
+        label: str,
+        trailing: ft.Control | None = None,
+        is_collapsed: bool = False,
+        on_toggle: Callable | None = None,
+    ) -> ft.Container:
         c = self.config
+        label_ctrl = ui.ui_text(c, label, size=12, weight=ui.W600, color=c.colors['faint'])
+        if on_toggle:
+            chevron = ui.icon_button(
+                c,
+                'chevron-right' if is_collapsed else 'chevron-down',
+                on_click=on_toggle,
+                tooltip='Expandir seção' if is_collapsed else 'Recolher seção',
+                size=18,
+                small=True,
+            )
+            title_part = ft.Row([chevron, label_ctrl], spacing=s(2), vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        else:
+            title_part = label_ctrl
+
         return ft.Container(
             content=ft.Row(
-                [ui.ui_text(c, label, size=12, weight=ui.W600, color=c.colors['faint'])] + ([trailing] if trailing else []),
+                [title_part] + ([trailing] if trailing else []),
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             height=s(26),
-            padding=ft.Padding.only(left=s(8), right=s(2)),
+            padding=ft.Padding.only(left=s(2) if on_toggle else s(8), right=s(2)),
         )
+
+    def _outline_chapter_item(
+        self,
+        chap_idx: int,
+        chapter: CompilationSectionRecord,
+        has_children: bool,
+        is_collapsed: bool,
+        active: bool,
+        frag_count: int,
+    ) -> ft.Container:
+        c = self.config
+
+        if has_children:
+            chevron = ui.icon_button(
+                c,
+                'chevron-right' if is_collapsed else 'chevron-down',
+                on_click=lambda _e, sid=chapter['id']: self._toggle_outline_chapter(sid),
+                tooltip='Expandir argumentos' if is_collapsed else 'Recolher argumentos',
+                size=18,
+                small=True,
+            )
+        else:
+            chevron = ft.Container(width=s(18))
+
+        row = ft.Row(
+            [
+                chevron,
+                ft.Container(
+                    ui.ui_text(
+                        c,
+                        str(chap_idx + 1),
+                        size=12,
+                        weight=ui.W600,
+                        color=c.colors['gold'] if active else c.colors['faint'],
+                        tabular=True,
+                    ),
+                    width=s(16),
+                ),
+                ui.ui_text(
+                    c,
+                    chapter['title'],
+                    size=13,
+                    weight=ui.W600 if active else ui.W500,
+                    color=c.colors['text'] if active else c.colors['muted'],
+                    expand=True,
+                ),
+                ui.ui_text(c, str(frag_count), size=12, color=c.colors['faint'], tabular=True),
+            ],
+            spacing=s(4),
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        box = ui.hover_surface(
+            c,
+            row,
+            on_click=lambda _e, sid=chapter['id']: self._focus_idea(sid),
+            selected=active,
+            padding=ft.Padding.symmetric(horizontal=s(6)),
+            height=s(30),
+        )
+        box.data = chapter['title']
+        return box
+
+    def _toggle_outline_chapter(self, sid: int) -> None:
+        """Alterna recolhimento de um capítulo na árvore do roteiro."""
+        collapsed = self._collapsed_set()
+        if sid in collapsed:
+            collapsed.discard(sid)
+        else:
+            collapsed.add(sid)
+        if getattr(self, 'outline_host', None) is not None:
+            self.outline_host.content = self._compose_outline()
+            self.page.update()
+        elif hasattr(self, '_render'):
+            self._render()
+
+    def _toggle_outline_roteiro(self, _e=None) -> None:
+        """Alterna recolhimento do bloco inteiro do Roteiro."""
+        self._outline_roteiro_collapsed = not getattr(self, '_outline_roteiro_collapsed', False)
+        if getattr(self, 'outline_host', None) is not None:
+            self.outline_host.content = self._compose_outline()
+            self.page.update()
+
+    def _toggle_outline_fila(self, _e=None) -> None:
+        """Alterna recolhimento do bloco inteiro da Fila."""
+        self._outline_fila_collapsed = not getattr(self, '_outline_fila_collapsed', False)
+        if getattr(self, 'outline_host', None) is not None:
+            self.outline_host.content = self._compose_outline()
+            self.page.update()
 
     def _outline_item(
         self,
@@ -889,45 +997,46 @@ class CompilationHubCadernoMixin:
         for chap_idx, chapter in enumerate(chapters):
             active = self.active_section_id == chapter['id']
             frag_count = len(self._section_fragments(chapter['id']))
+            children = self._child_sections(chapter['id'])
+            has_children = bool(children)
+            is_collapsed = chapter['id'] in self._collapsed_set()
+
             items.append(
-                self._outline_item(
-                    ui.ui_text(
-                        c,
-                        str(chap_idx + 1),
-                        size=12,
-                        weight=ui.W600,
-                        color=c.colors['gold'] if active else c.colors['faint'],
-                        tabular=True,
-                    ),
-                    chapter['title'],
-                    frag_count,
-                    active,
-                    lambda _e, sid=chapter['id']: self._focus_idea(sid),
+                self._outline_chapter_item(
+                    chap_idx=chap_idx,
+                    chapter=chapter,
+                    has_children=has_children,
+                    is_collapsed=is_collapsed,
+                    active=active,
+                    frag_count=frag_count,
                 )
             )
-            children = self._child_sections(chapter['id'])
-            for child_idx, child in enumerate(children):
-                child_active = self.active_section_id == child['id']
-                child_count = len(self._section_fragments(child['id']))
-                items.append(
-                    ft.Container(
-                        self._outline_item(
-                            ui.ui_text(
-                                c,
-                                f"{chap_idx + 1}.{child_idx + 1}",
-                                size=11,
-                                weight=ui.W600,
-                                color=c.colors['gold'] if child_active else c.colors['faint'],
-                                tabular=True,
+
+            # Argumentos subordinados: exibidos apenas quando o capítulo pai estiver expandido
+            if not is_collapsed:
+                for child_idx, child in enumerate(children):
+                    child_active = self.active_section_id == child['id']
+                    child_count = len(self._section_fragments(child['id']))
+                    items.append(
+                        ft.Container(
+                            self._outline_item(
+                                ui.ui_text(
+                                    c,
+                                    f"{chap_idx + 1}.{child_idx + 1}",
+                                    size=11,
+                                    weight=ui.W600,
+                                    color=c.colors['gold'] if child_active else c.colors['faint'],
+                                    tabular=True,
+                                ),
+                                child['title'],
+                                child_count,
+                                child_active,
+                                lambda _e, sid=child['id']: self._focus_idea(sid),
                             ),
-                            child['title'],
-                            child_count,
-                            child_active,
-                            lambda _e, sid=child['id']: self._focus_idea(sid),
-                        ),
-                        padding=ft.Padding.only(left=s(16)),
+                            padding=ft.Padding.only(left=s(20)),
+                            data=child['title'],
+                        )
                     )
-                )
         if not chapters:
             items.append(
                 ft.Container(
@@ -945,27 +1054,42 @@ class CompilationHubCadernoMixin:
         )
         self.outline_items = items
         self.queue_item = queue
+
+        roteiro_collapsed = getattr(self, '_outline_roteiro_collapsed', False)
+        fila_collapsed = getattr(self, '_outline_fila_collapsed', False)
+
+        roteiro_head = self._nav_head(
+            'Roteiro',
+            trailing=ui.icon_button(
+                c,
+                'plus',
+                on_click=lambda _e: self._prompt_new_section(),
+                tooltip='Novo capítulo ou argumento',
+                size=22,
+            ),
+            is_collapsed=roteiro_collapsed,
+            on_toggle=self._toggle_outline_roteiro,
+        )
+
+        fila_head = self._nav_head(
+            'Fila',
+            is_collapsed=fila_collapsed,
+            on_toggle=self._toggle_outline_fila,
+        )
+
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Column(
-                        [
-                            self._nav_head(
-                                'Roteiro',
-                                ui.icon_button(
-                                    c,
-                                    'plus',
-                                    on_click=lambda _e: self._prompt_new_section(),
-                                    tooltip='Novo capítulo ou argumento',
-                                    size=22,
-                                ),
-                            )
-                        ]
-                        + items,
+                        [roteiro_head] + ([] if roteiro_collapsed else items),
                         spacing=s(1),
                         tight=True,
                     ),
-                    ft.Column([self._nav_head('Fila'), queue], spacing=s(1), tight=True),
+                    ft.Column(
+                        [fila_head] + ([] if fila_collapsed else [queue]),
+                        spacing=s(1),
+                        tight=True,
+                    ),
                     ft.Container(
                         ui.ui_text(
                             c,

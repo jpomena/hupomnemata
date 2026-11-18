@@ -311,3 +311,97 @@ def test_caderno_hierarchy_ui_rendering_and_auto_uncollapse(view_config):
     # Parent chapter 100 MUST be automatically uncollapsed
     assert 100 not in hub._collapsed_set()
     assert hub.active_section_id == 101
+
+
+def test_outline_chapters_start_collapsed_and_toggle(view_config):
+    """Valida que no menu lateral do Roteiro os capítulos iniciam recolhidos por padrão e podem ser alternados."""
+    from types import SimpleNamespace
+    from src.views.compilation_hub.hub_composer import CompilationHubComposer
+
+    dummy_page = SimpleNamespace(
+        update=lambda: None,
+        run_task=lambda fn: None,
+        show_dialog=lambda _: None,
+        pop_dialog=lambda: None,
+    )
+
+    compilation = {
+        'id': 1,
+        'name': 'Compilação de Teste',
+        'sections': [
+            {
+                'id': 10,
+                'title': 'Capítulo 1',
+                'central_idea': 'Ideia 1.',
+                'parent_id': None,
+                'position': 0,
+            },
+            {
+                'id': 11,
+                'title': 'Argumento 1.1',
+                'central_idea': 'Sub-ideia 1.',
+                'parent_id': 10,
+                'position': 0,
+            },
+            {
+                'id': 20,
+                'title': 'Capítulo 2',
+                'central_idea': 'Ideia 2.',
+                'parent_id': None,
+                'position': 1,
+            },
+        ],
+        'works': [],
+    }
+
+    hub = CompilationHubComposer(
+        page=dummy_page,
+        config=view_config,
+        compilation=compilation,
+        refresh_compilations=lambda: [compilation],
+        search_works=lambda _q: [],
+        on_update=lambda *_: True,
+        on_add_work=lambda *_: True,
+        on_remove_work=lambda *_: True,
+        on_reorder_works=lambda *_: True,
+        on_fragment_membership=lambda *_: True,
+        on_fragment_note=lambda *_: True,
+        on_create_section=lambda *_: None,
+        on_update_section=lambda *_: True,
+        on_delete_section=lambda *_: True,
+        on_reorder_sections=lambda *_: True,
+        on_assign_fragment_to_section=lambda *_: True,
+        on_reorder_section_fragments=lambda *_: True,
+        on_copy_caderno=lambda *_: None,
+        on_create_work=lambda *_: None,
+        on_edit_work=lambda *_: None,
+        on_create_fragment=lambda *_: None,
+        on_edit_fragment=lambda *_: None,
+    )
+
+    # 1. Por padrão, todos os capítulos iniciam recolhidos no _collapsed_set()
+    assert 10 in hub._collapsed_set()
+    assert 20 in hub._collapsed_set()
+
+    # Monta a árvore do outline
+    hub._compose_outline()
+
+    # Apenas os 2 capítulos raízes devem estar visíveis; o argumento 1.1 está recolhido
+    titles = [item.data for item in hub.outline_items]
+    assert titles == ['Capítulo 1', 'Capítulo 2']
+
+    # 2. Alterna expansão do Capítulo 1
+    hub._toggle_outline_chapter(10)
+    assert 10 not in hub._collapsed_set()
+
+    hub._compose_outline()
+    titles_expanded = [item.data for item in hub.outline_items]
+    # Agora o Argumento 1.1 está visível sob o Capítulo 1
+    assert titles_expanded == ['Capítulo 1', 'Argumento 1.1', 'Capítulo 2']
+
+    # 3. Recolhe o Capítulo 1 novamente
+    hub._toggle_outline_chapter(10)
+    assert 10 in hub._collapsed_set()
+
+    hub._compose_outline()
+    assert [item.data for item in hub.outline_items] == ['Capítulo 1', 'Capítulo 2']

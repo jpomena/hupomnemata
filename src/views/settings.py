@@ -1,5 +1,6 @@
 """Composer da tela de configurações da aplicação."""
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 import threading
@@ -717,7 +718,13 @@ class SettingsComposer:
                     safe_update(status_text)
                     safe_update(feedback_banner)
 
-            threading.Thread(target=run_resolution, daemon=True).start()
+            run_task = getattr(page, "run_task", None) if page is not None else None
+            if run_task is not None:
+                async def _async_resolution():
+                    await asyncio.to_thread(run_resolution)
+                run_task(_async_resolution)
+            else:
+                threading.Thread(target=run_resolution, daemon=True).start()
 
         content_controls: list[ft.Control] = [
             ui.ui_text(
@@ -862,7 +869,13 @@ class SettingsComposer:
                 safe_update(status_text)
                 safe_update(feedback_banner)
 
-            threading.Thread(target=run_sync, daemon=True).start()
+            run_task = getattr(self.page, "run_task", None) if hasattr(self, "page") and self.page is not None else None
+            if run_task is not None:
+                async def _async_sync():
+                    await asyncio.to_thread(run_sync)
+                run_task(_async_sync)
+            else:
+                threading.Thread(target=run_sync, daemon=True).start()
 
         def on_auth_click(_):
             if is_auth:
@@ -888,7 +901,13 @@ class SettingsComposer:
                     status_text.color = self.config.colors["danger"]
                     safe_update(status_text)
 
-            threading.Thread(target=run_auth, daemon=True).start()
+            run_task = getattr(self.page, "run_task", None) if hasattr(self, "page") and self.page is not None else None
+            if run_task is not None:
+                async def _async_auth():
+                    await asyncio.to_thread(run_auth)
+                run_task(_async_auth)
+            else:
+                threading.Thread(target=run_auth, daemon=True).start()
 
         sync_button = ft.Button(
             content=ft.Row(
