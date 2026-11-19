@@ -7,6 +7,7 @@ from typing import Any
 from pypdf import PdfReader
 from sqlalchemy import select
 
+from src.configs.paths import resolve_data_dir, resolve_pdf_storage_dir
 from src.db.db import SessionLocal
 from src.domains import BibliographicResource, Fragment, PdfAnnotation
 from src.utils.error_log import log_exception
@@ -16,7 +17,7 @@ if getattr(sys, 'frozen', False):
 else:
     _BASE_DIR = Path(__file__).resolve().parents[2]
 
-DEFAULT_PDF_STORAGE_DIR = _BASE_DIR / 'data' / 'storage' / 'pdfs'
+DEFAULT_PDF_STORAGE_DIR = resolve_pdf_storage_dir()
 
 
 class PdfService:
@@ -26,17 +27,33 @@ class PdfService:
         self,
         storage_dir: Path | None = None,
         base_dir: Path | None = None,
+        data_dir: Path | None = None,
     ) -> None:
+        # ``base_dir`` permanece como raiz de resolução de caminhos legados
+        # (gravados relativos ao projeto antes da portabilidade).
         self.base_dir = Path(base_dir or _BASE_DIR)
-        self.storage_dir = Path(storage_dir or DEFAULT_PDF_STORAGE_DIR)
+        self.data_dir = (
+            Path(data_dir) if data_dir is not None else resolve_data_dir()
+        )
+        self.storage_dir = Path(storage_dir or resolve_pdf_storage_dir())
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def resolve_path(self, stored_path: str) -> Path:
-        """Resolve o caminho absoluto a partir do valor gravado no banco."""
+        """Resolve o caminho gravado no banco.
+
+        Ordem: absoluto → relativo ao diretório de dados → relativo à raiz do
+        projeto (legado). Caminhos novos inexistentes preferem o ``data_dir``.
+        """
         p = Path(stored_path)
         if p.is_absolute():
             return p
-        return self.base_dir / p
+        data_candidate = self.data_dir / p
+        if data_candidate.exists():
+            return data_candidate
+        legacy_candidate = self.base_dir / p
+        if legacy_candidate.exists():
+            return legacy_candidate
+        return data_candidate
 
     @staticmethod
     def compute_sha256(file_path: Path) -> str:
@@ -86,9 +103,9 @@ class PdfService:
             raise IOError(f'Não foi possível copiar o arquivo: {error}') from error
 
         try:
-            rel_path = str(dest_path.relative_to(self.base_dir))
+            rel_path = dest_path.relative_to(self.data_dir).as_posix()
         except ValueError:
-            rel_path = str(dest_path)
+            rel_path = dest_path.as_posix()
 
         with SessionLocal() as session:
             resource = session.get(BibliographicResource, bib_res_id)

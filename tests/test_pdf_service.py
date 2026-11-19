@@ -1399,3 +1399,30 @@ def test_pdf_orphan_cleanup_on_work_delete_and_detach(
         # Limpeza
         repo = WorkRepository(session)
         repo.remove_work(work_res)
+
+
+def test_attach_stores_path_relative_to_data_dir(tmp_path, dummy_pdf, test_resource):
+    data_dir = tmp_path / 'dados'
+    service = PdfService(storage_dir=data_dir / 'pdfs', data_dir=data_dir)
+
+    info = service.attach_pdf(test_resource, dummy_pdf, 'manual.pdf')
+
+    assert info['pdf_path'].startswith('pdfs/')
+    resolved = service.resolve_path(info['pdf_path'])
+    assert resolved.exists()
+    assert resolved.parent == data_dir / 'pdfs'
+
+
+def test_resolve_path_supports_legacy_project_relative_paths(tmp_path):
+    project = tmp_path / 'projeto'
+    legacy = project / 'data' / 'storage' / 'pdfs' / 'antigo.pdf'
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b'%PDF-1.4')
+
+    service = PdfService(
+        storage_dir=tmp_path / 'dados' / 'pdfs',
+        base_dir=project,
+        data_dir=tmp_path / 'dados',
+    )
+
+    assert service.resolve_path('data/storage/pdfs/antigo.pdf') == legacy

@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import Protocol
 
-from src.configs.settings import CONFIG_DIR
+from src.configs.paths import resolve_secrets_path
 
 logger = logging.getLogger('hupomnemata.secrets')
 
@@ -123,7 +123,7 @@ class SecretStore:
         fallback_path: Path | None = None,
         backend: SecretBackend | None = None,
     ) -> None:
-        self.fallback_path = Path(fallback_path or (CONFIG_DIR / 'secrets.json'))
+        self.fallback_path = Path(fallback_path or resolve_secrets_path())
         self._file = FileBackend(self.fallback_path)
         self._backend = backend if backend is not None else self._detect_backend()
         self._warned = False

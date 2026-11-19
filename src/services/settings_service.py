@@ -7,7 +7,7 @@ from typing import Any
 
 import flet as ft
 
-from src.configs.settings import CONFIG_DIR
+from src.configs.paths import resolve_preferences_path
 from src.services.secret_store import FileBackend, SecretStore
 from src.utils.error_log import log_exception
 from src.utils.ft_responsiveness import Responsive
@@ -107,7 +107,7 @@ class SettingsService:
         self.storage_path = (
             storage_path
             if storage_path is not None
-            else (CONFIG_DIR / "user_preferences.json")
+            else resolve_preferences_path()
         )
         if secret_store is not None:
             self.secret_store = secret_store

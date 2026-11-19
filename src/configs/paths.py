@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ from pathlib import Path
 APP_DIR_NAME = 'Hupomnemata'
 DATA_DIR_ENV = 'HUPOMNEMATA_DATA_DIR'
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LEGACY_CONFIG_DIR = PROJECT_ROOT / 'src' / 'configs'
 
 
 def resolve_data_dir(
@@ -72,6 +74,21 @@ def resolve_backups_dir(env: dict[str, str] | None = None) -> Path:
 
 def resolve_sync_dir(env: dict[str, str] | None = None) -> Path:
     return resolve_data_dir(env) / 'sync'
+
+
+def resolve_preferences_path(env: dict[str, str] | None = None) -> Path:
+    """Preferências de aparência (tema, escala) no diretório do usuário."""
+    return resolve_data_dir(env) / 'user_preferences.json'
+
+
+def resolve_pdf_storage_dir(env: dict[str, str] | None = None) -> Path:
+    """Repositório gerenciado de PDFs, sempre gravável e fora do código."""
+    return resolve_data_dir(env) / 'pdfs'
+
+
+def resolve_secrets_path(env: dict[str, str] | None = None) -> Path:
+    """Fallback local do cofre, quando o keyring do SO não está disponível."""
+    return resolve_data_dir(env) / 'secrets.json'
 
 
 def legacy_database_candidates() -> list[Path]:
@@ -129,9 +146,56 @@ def migrate_legacy_database(
     return {'migrated': False, 'target': str(target), 'reason': 'sem legado'}
 
 
-def ensure_user_environment() -> dict[str, str | bool]:
-    """Prepara o diretório de dados e adota o banco legado se necessário."""
-    data_dir = resolve_data_dir()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    resolve_backups_dir().mkdir(parents=True, exist_ok=True)
-    return migrate_legacy_database()
+def _adopt_legacy_file(source: Path, target: Path) -> str | None:
+    """Copia um arquivo legado para o destino, sem sobrescrever existente."""
+    if target.exists() or not source.exists() or not source.is_file():
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    return str(target)
+
+
+def ensure_user_environment(
+    data_dir: Path | None = None,
+    legacy_config_dir: Path | None = None,
+    database_target: Path | None = None,
+) -> dict[str, object]:
+    """Prepara o diretório de dados e adota artefatos legados.
+
+    Idempotente e não destrutivo: bancos, preferências e cofre de fallback são
+    copiados apenas quando o destino ainda não existe; os originais permanecem
+    no lugar como backup.
+    """
+    resolved_dir = Path(data_dir) if data_dir is not None else resolve_data_dir()
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    (resolved_dir / 'backups').mkdir(parents=True, exist_ok=True)
+    (resolved_dir / 'pdfs').mkdir(parents=True, exist_ok=True)
+
+    legacy_dir = (
+        Path(legacy_config_dir)
+        if legacy_config_dir is not None
+        else LEGACY_CONFIG_DIR
+    )
+    adopted_files = [
+        adopted
+        for adopted in (
+            _adopt_legacy_file(
+                legacy_dir / 'user_preferences.json',
+                resolved_dir / 'user_preferences.json',
+            ),
+            _adopt_legacy_file(
+                legacy_dir / 'secrets.json',
+                resolved_dir / 'secrets.json',
+            ),
+        )
+        if adopted
+    ]
+
+    database_target = (
+        database_target
+        if database_target is not None
+        else (resolved_dir / 'hupomnemata.db' if data_dir is not None else None)
+    )
+    database = migrate_legacy_database(database_target)
+    database['adopted_files'] = adopted_files
+    return database

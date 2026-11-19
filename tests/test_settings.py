@@ -593,3 +593,9 @@ def test_sync_conflict_modal_and_relative_time(test_config):
     cloud_btn = modal_2.actions[1]
     cloud_btn.on_click(None)
     assert len(shown_dialogs) == 0
+
+
+def test_default_preferences_path_is_in_user_data_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv('HUPOMNEMATA_DATA_DIR', str(tmp_path / 'dados'))
+    service = SettingsService()
+    assert service.storage_path == tmp_path / 'dados' / 'user_preferences.json'

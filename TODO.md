@@ -99,9 +99,9 @@
 - [x] **Portabilidade de Dados — banco**: migração para `%LOCALAPPDATA%\Hupomnemata`
   (XDG/macOS equivalentes), adoção única do banco legado via `VACUUM INTO`,
   backups e quarentena em `backups/`.
-- [ ] **Portabilidade de Dados — PDFs e preferências**: mover
-  `data/storage/pdfs` e `user_preferences.json` para o mesmo diretório de dados,
-  preservando a resolução dos caminhos relativos já gravados.
+- [x] **Portabilidade de Dados — PDFs e preferências**: `pdfs/` e
+  `user_preferences.json` no diretório de dados; `pdf_path` relativo ao
+  `data_dir` com fallback para caminhos legados; adoção única sem sobrescrever.
 - [ ] **Exportação Abrangente**:
   - Exportação de obras e referências em formatos de intercâmbio bibliográfico (BibTeX, RIS, CSL-JSON).
 - [ ] **Grafo Conceitual (Malha de Conhecimento)**:

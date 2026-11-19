@@ -108,3 +108,8 @@ def test_delete_api_key_removes_from_store(tmp_path: Path):
 
     assert service.delete_api_key() is True
     assert service.get_api_key() == ''
+
+
+def test_default_secret_fallback_lives_in_user_data_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv('HUPOMNEMATA_DATA_DIR', str(tmp_path / 'dados'))
+    assert SecretStore().fallback_path == tmp_path / 'dados' / 'secrets.json'

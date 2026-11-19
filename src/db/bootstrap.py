@@ -22,4 +22,6 @@ def bootstrap_user_environment() -> dict[str, Any]:
             result.get('source'),
             result.get('target'),
         )
+    for adopted in result.get('adopted_files', []):
+        logger.info('Arquivo legado adotado para o diretório de dados: %s', adopted)
     return result

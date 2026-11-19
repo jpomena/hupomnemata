@@ -5,9 +5,13 @@ from pathlib import Path
 
 from src.configs.paths import (
     DATA_DIR_ENV,
+    ensure_user_environment,
     migrate_legacy_database,
     resolve_data_dir,
     resolve_database_path,
+    resolve_pdf_storage_dir,
+    resolve_preferences_path,
+    resolve_secrets_path,
 )
 
 
@@ -110,3 +114,49 @@ def test_paths_support_spaces_and_unicode(tmp_path):
     directory = tmp_path / 'gab. carrijo' / 'Área de Dados'
     env = {DATA_DIR_ENV: str(directory)}
     assert resolve_database_path(env=env).parent == directory
+
+
+def test_artifacts_resolve_under_data_dir(tmp_path):
+    directory = tmp_path / 'dados'
+    env = {DATA_DIR_ENV: str(directory)}
+    assert resolve_preferences_path(env) == directory / 'user_preferences.json'
+    assert resolve_secrets_path(env) == directory / 'secrets.json'
+    assert resolve_pdf_storage_dir(env) == directory / 'pdfs'
+
+
+def test_environment_adopts_legacy_preferences_once(tmp_path):
+    legacy = tmp_path / 'legacy_config'
+    legacy.mkdir()
+    (legacy / 'user_preferences.json').write_text(
+        '{"theme_mode": "dark"}', encoding='utf-8'
+    )
+    (legacy / 'secrets.json').write_text(
+        '{"gemini_api_key": "chave"}', encoding='utf-8'
+    )
+
+    data = tmp_path / 'dados'
+    data.mkdir()
+    # Destino de banco já existente evita adotar o banco real do projeto.
+    sqlite3.connect(str(data / 'hupomnemata.db')).close()
+
+    result = ensure_user_environment(
+        data_dir=data,
+        legacy_config_dir=legacy,
+        database_target=data / 'hupomnemata.db',
+    )
+
+    assert (data / 'user_preferences.json').read_text(encoding='utf-8')
+    assert (data / 'secrets.json').read_text(encoding='utf-8')
+    assert len(result['adopted_files']) == 2
+    # Originais preservados.
+    assert (legacy / 'user_preferences.json').exists()
+    assert (legacy / 'secrets.json').exists()
+
+    # Segunda execução não sobrescreve o destino.
+    (data / 'user_preferences.json').write_text('novo', encoding='utf-8')
+    ensure_user_environment(
+        data_dir=data,
+        legacy_config_dir=legacy,
+        database_target=data / 'hupomnemata.db',
+    )
+    assert (data / 'user_preferences.json').read_text(encoding='utf-8') == 'novo'

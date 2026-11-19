@@ -25,10 +25,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from src.configs.paths import resolve_data_dir
+from src.configs.paths import resolve_data_dir, resolve_pdf_storage_dir
 from src.configs.settings import CONFIG_DIR
 from src.db.db import DATABASE_PATH, apply_migrations
-from src.services.pdf_service import DEFAULT_PDF_STORAGE_DIR
 from src.services.secret_store import FileBackend, SecretStore
 from src.utils.error_log import log_exception
 
@@ -92,7 +91,7 @@ class CloudSyncService:
             else resolve_data_dir() / "sync"
         )
         self.sync_dir.mkdir(parents=True, exist_ok=True)
-        self.pdf_storage_dir = Path(DEFAULT_PDF_STORAGE_DIR)
+        self.pdf_storage_dir = resolve_pdf_storage_dir()
 
         self.token_path = self.config_dir / "token.json"
         self.bundled_credentials_path = self.config_dir / "credentials.json"

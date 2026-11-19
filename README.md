@@ -82,7 +82,7 @@ A suíte de testes cobre formatadores, validações de domínio, repositórios, 
 python -m pytest
 ```
 
-Atualmente, **636 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
+Atualmente, **642 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
 
 ```powershell
 python -m flake8 src tests main.py
@@ -146,10 +146,17 @@ repositórios nem estratégias — essa fronteira é verificada pela suíte.
   aponta diretamente para o arquivo. Na primeira execução, um banco legado em
   `src/db/hupomnemata.db` é adotado via `VACUUM INTO` e preservado como backup.
   Backups e quarentenas ficam em `backups/` dentro do diretório de dados.
+* **PDFs**: armazenados em `<diretório de dados>/pdfs`. O banco grava o caminho
+  relativo (`pdfs/<obra>_<hash>.pdf`), resolvido contra o diretório de dados;
+  caminhos legados relativos ao projeto (`data/storage/pdfs/...`) continuam
+  legíveis via fallback. O layout relativo mantém o sync entre dispositivos válido.
+* **Preferências**: `user_preferences.json` reside no diretório de dados. O
+  arquivo antigo em `src/configs/` é adotado uma única vez, sem sobrescrever o
+  destino e sem apagar o original.
 * **Integridade**: toda conexão ativa `foreign_keys`, `busy_timeout` e WAL
   (quando o volume suporta). Violações legadas são quarentenadas com os
   registros completos antes do reparo.
 * **Credenciais**: a chave Gemini e o token OAuth do Google Drive são guardados
-  no cofre do sistema via `keyring`; o fallback local é `secrets.json` com
-  permissões restritas e nunca é versionado.
+  no cofre do sistema via `keyring`; o fallback local é `secrets.json` dentro do
+  diretório de dados, com permissões restritas e nunca versionado.
 * **Auditoria de Logs**: exceções tratadas e diagnósticos de execução são registrados com stack trace completo em `logs/hupomnemata.txt`.
