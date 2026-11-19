@@ -582,7 +582,10 @@ def test_fragments_screen_groups_filters_and_rows():
     assert '“Já entre aspas”' in first_group_texts
     assert 'Paráfrase 2' in first_group_texts
     assert 'cap. III' in first_group_texts
-    rows = groups[0].content.controls[1:]
+    body = groups[0].content.controls[1]
+    assert isinstance(body, ft.Container)
+    assert body.animate_size is not None
+    rows = body.content.controls
     assert [row.data['fragment_id'] for row in rows] == [2, 3]
     comment_text = rows[0].content.controls[1].controls[0]
     quote_text = rows[1].content.controls[1].controls[0]
@@ -640,10 +643,14 @@ def test_fragments_screen_groups_filters_and_rows():
     assert len(composer.visible_fragments()) == 3
 
     # recolher e expandir
+    before_toggle = composer.fragment_list.controls[0]
     composer.toggle_group(22)
     collapsed_group = composer.fragment_list.controls[0]
+    assert collapsed_group is before_toggle
     assert collapsed_group.data == {'work_id': 22, 'collapsed': True}
-    assert len(collapsed_group.content.controls) == 1
+    body = collapsed_group.content.controls[1]
+    assert isinstance(body.content, ft.Container) and body.content.height == 0
+    assert composer.group_hosts[22]['chevron'].rotate == 0
     composer.toggle_all()
     assert composer.collapsed == {21, 22}
     assert 'Expandir tudo' in _texts(composer.collapse_host)

@@ -103,7 +103,7 @@ class PdfReaderView(
             ink=True,
             tooltip='Ir para página (clique para digitar)',
             on_click=self._start_page_edit,
-            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_FAST),
         )
         self.page_number_container = self.page_number_display
 
@@ -226,11 +226,15 @@ class PdfReaderView(
         )
 
         self.sidebar_container = ft.Container(
-            width=s(320),
+            width=s(320) if self.show_sidebar else 0,
             bgcolor=config.colors['surface'],
-            border=ft.Border.only(left=ft.BorderSide(1, config.colors['border'])),
-            padding=s(16),
-            visible=self.show_sidebar,
+            border=ft.Border.only(left=ft.BorderSide(1, config.colors['border'])) if self.show_sidebar else None,
+            padding=s(16) if self.show_sidebar else 0,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            opacity=1.0 if self.show_sidebar else 0.0,
+            visible=True,
+            animate=ui.motion(ui.MOTION_BASE),
+            animate_opacity=ui.fade(ui.MOTION_BASE),
         )
 
         self.view_mode_host = ft.Container()

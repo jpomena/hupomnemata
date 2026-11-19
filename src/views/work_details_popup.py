@@ -202,7 +202,7 @@ class WorkDetailsPopup:
             ),
             content=ft.Container(
                 content=content,
-                animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+                animate=ui.motion(ui.MOTION_SLOW),
             ),
             bgcolor=self.config.colors["bg"],
             actions=[

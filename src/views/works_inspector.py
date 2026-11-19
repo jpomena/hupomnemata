@@ -53,7 +53,7 @@ class WorksInspectorMixin:
             style=ft.TextStyle(height=1.6),
         )
 
-    def _compose_inspector(self) -> ft.Control | None:
+    def _compose_inspector(self, framed: bool = True) -> ft.Control | None:
         resource = self._work(self.selected_id)
         if resource is None or self._is_magazine(resource):
             return None
@@ -147,24 +147,28 @@ class WorksInspectorMixin:
             padding_left=24,
         )
         body = self._inspector_fragments(fragments) if self.inspector_tab == "fragmentos" else self._inspector_overview(resource)
+        inner = ft.Column(
+            [
+                ft.Container(ft.Column(header, spacing=s(4), tight=True), padding=ft.Padding.only(left=s(24), right=s(16), top=s(16), bottom=s(12))),
+                tabs,
+                ft.Container(ft.Column(body, spacing=0, scroll=ft.ScrollMode.AUTO, expand=True), expand=True),
+            ],
+            spacing=0,
+            expand=True,
+        )
+        if not framed:
+            return inner
         return ft.Container(
             width=s(self.config.ui.get("inspector_width", 380)),
             bgcolor=c.colors["surface"],
             border=ft.Border.only(left=ft.BorderSide(1, c.colors["border"])),
-            content=ft.Column(
-                [
-                    ft.Container(ft.Column(header, spacing=s(4), tight=True), padding=ft.Padding.only(left=s(24), right=s(16), top=s(16), bottom=s(12))),
-                    tabs,
-                    ft.Container(ft.Column(body, spacing=0, scroll=ft.ScrollMode.AUTO, expand=True), expand=True),
-                ],
-                spacing=0,
-                expand=True,
-            ),
+            content=inner,
         )
 
     def _set_inspector_tab(self, key: str) -> None:
         self.inspector_tab = key
-        self._refresh()
+        if not self._render_inspector():
+            self._refresh()
 
     def _open_pdf_reader(self, resource: BibliographicResource) -> None:
         """Abre o leitor imersivo de PDF em janela dedicada independente."""

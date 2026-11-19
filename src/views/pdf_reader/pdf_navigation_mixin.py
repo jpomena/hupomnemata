@@ -306,7 +306,18 @@ class PdfNavigationMixin:
 
     def _toggle_sidebar(self, _e: ft.ControlEvent | None = None) -> None:
         self.show_sidebar = not self.show_sidebar
-        self.sidebar_container.visible = self.show_sidebar
+        if self.show_sidebar:
+            self.sidebar_container.width = ui.s(320)
+            self.sidebar_container.padding = ui.s(16)
+            self.sidebar_container.opacity = 1.0
+            self.sidebar_container.border = ft.Border.only(
+                left=ft.BorderSide(1, self.config.colors['border'])
+            )
+        else:
+            self.sidebar_container.opacity = 0.0
+            self.sidebar_container.padding = 0
+            self.sidebar_container.width = 0
+            self.sidebar_container.border = None
         try:
             self.update()
         except (RuntimeError, AttributeError):

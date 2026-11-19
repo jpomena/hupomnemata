@@ -32,8 +32,9 @@ citações, sínteses e caderno.
 5. **Tabela de dados para coleções**, com colunas ordenáveis, seleção por checkbox
    e barra de ações em lote. Painel de detalhes à direita, com abas. Modal só para
    criar.
-6. **Sem animação de entrada de página.** Movimento só em sobreposições (menu,
-   diálogo, paleta, aviso), de 100 a 280 ms.
+6. **Movimento só onde há interação.** Sem animação de entrada de página. Hover,
+   foco e seleção usam 90–160 ms; sobreposições (menu, diálogo, paleta, aviso e
+   painéis retráteis) usam 180–220 ms. Curva padrão: `ease-out`.
 7. **Dourado só onde há decisão:** ação primária, item ativo, foco, checkbox marcado,
    seleção em lote. Nunca em título ou ícone decorativo.
 8. **Excluir com desfazer, não com confirmação.** O aviso com “Desfazer” fica 6 s
@@ -66,6 +67,27 @@ Hex para o `params.json` (o Flet não usa OKLCH). Os valores OKLCH estão em
 | `ok` | `#6ebf8c` | `#156f41` | “Banco local”, confirmação |
 
 Tons de seleção usam o dourado a 10–12 % de opacidade (`accent-wash`).
+
+## Movimento
+
+Os tokens vivem em `src/views/ui_kit.py` (`MOTION_*` e `motion()`); nenhuma tela
+deve declarar duração solta.
+
+| Token | Duração | Uso |
+|---|---|---|
+| `MOTION_INSTANT` | 90 ms | resposta ao clique, botão, checkbox |
+| `MOTION_FAST` | 120 ms | hover de linha, ícone, link, chip |
+| `MOTION_BASE` | 160 ms | seleção de aba, segmentado, card interativo |
+| `MOTION_SLOW` | 220 ms | painel, diálogo, crescimento de conteúdo |
+
+Regras:
+
+- Animar **cor, borda, opacidade, escala e deslocamento** com `animate` /
+  `animate_opacity` / `animate_scale` / `animate_offset` do `ft.Container`.
+- Hover não desloca layout: só fundo, borda, cor de glifo e escala de até 1,12.
+- Recolhimentos usam `ft.AnimatedSwitcher` com transição `FADE` e 160 ms.
+- Troca de tema usa `page.theme_animation_style` (180 ms, `ease-out`).
+- Sem bounce, sem parallax, sem animação decorativa repetida.
 
 ## Tipografia
 

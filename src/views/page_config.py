@@ -40,6 +40,10 @@ class PageConfigurator:
         )
         page.padding = 0
         page.bgcolor = self.config.colors["bg"]
+        page.theme_animation_style = ft.AnimationStyle(
+            duration=180,
+            curve=ft.AnimationCurve.EASE_OUT,
+        )
         page.window.width = 1400
         page.window.height = 900
         page.window.resizable = True

@@ -9,6 +9,7 @@ O diálogo também é usado pelas compilações (``open_create_for_work`` e
 
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
+import math
 
 import flet as ft
 
@@ -86,6 +87,7 @@ class FragmentsComposer:
         self.query = initial_query or ''
         self.collapsed: set[int] = set()
         self.root: ft.Container | None = None
+        self.group_hosts: dict[int, dict] = {}
 
         colors = config.colors
         self.search = ui.search_field(
@@ -318,19 +320,70 @@ class FragmentsComposer:
         self._refresh()
 
     def toggle_group(self, work_id: int) -> None:
-        if work_id in self.collapsed:
-            self.collapsed.discard(work_id)
-        else:
+        self._set_group_collapsed(work_id, work_id not in self.collapsed)
+
+    def _set_group_collapsed(self, work_id: int, collapsed: bool) -> None:
+        """Recolhe ou expande um grupo sem reconstruir a lista inteira."""
+        state = self.group_hosts.get(work_id)
+        if state is None:
+            if collapsed:
+                self.collapsed.add(work_id)
+            else:
+                self.collapsed.discard(work_id)
+            self._refresh()
+            return
+        if collapsed:
             self.collapsed.add(work_id)
-        self._refresh()
+        else:
+            self.collapsed.discard(work_id)
+        state["body"].content = (
+            ft.Container(height=0)
+            if collapsed
+            else ft.Column(state["rows"], spacing=0, tight=True)
+        )
+        state["chevron"].rotate = 0 if collapsed else math.pi / 2
+        state["button"].tooltip = f"{'Expandir' if collapsed else 'Recolher'} {state['title']}"
+        state["head"].border = (
+            None
+            if collapsed
+            else ft.Border.only(bottom=ft.BorderSide(1, self.config.colors["border"]))
+        )
+        group = state.get("group")
+        if group is not None:
+            group.data = {"work_id": work_id, "collapsed": collapsed}
+        for control in (state["body"], state["chevron"], state["head"]):
+            try:
+                control.update()
+            except Exception:
+                pass
+
+    def _collapse_button(self, groups: list[tuple[int, list[FragmentRecord]]]) -> ft.Container:
+        c = self.config
+        all_collapsed = bool(groups) and all(work_id in self.collapsed for work_id, _ in groups)
+        return ui.button(
+            c,
+            'Expandir tudo' if all_collapsed else 'Recolher tudo',
+            icon_name='angles-down' if all_collapsed else 'angles-up',
+            variant='ghost',
+            small=True,
+            disabled=not groups,
+            on_click=lambda _e: self.toggle_all(),
+        )
+
+    def _sync_collapse_button(self) -> None:
+        groups = self.group_by_work(self.visible_fragments())
+        self.collapse_host.content = self._collapse_button(groups)
+        try:
+            self.collapse_host.update()
+        except Exception:
+            pass
 
     def toggle_all(self) -> None:
         work_ids = [work_id for work_id, _ in self.group_by_work(self.visible_fragments())]
-        if work_ids and all(work_id in self.collapsed for work_id in work_ids):
-            self.collapsed.difference_update(work_ids)
-        else:
-            self.collapsed.update(work_ids)
-        self._refresh()
+        collapse = not (work_ids and all(work_id in self.collapsed for work_id in work_ids))
+        for work_id in work_ids:
+            self._set_group_collapsed(work_id, collapse)
+        self._sync_collapse_button()
 
     def _refresh(self, update: bool = True) -> None:
         c = self.config
@@ -352,16 +405,7 @@ class FragmentsComposer:
             self.count_text.value = _plural(len(groups), 'obra', 'obras')
         else:
             self.count_text.value = f"{len(visible)} de {total} em {_plural(len(groups), 'obra', 'obras')}"
-        all_collapsed = bool(groups) and all(work_id in self.collapsed for work_id, _ in groups)
-        self.collapse_host.content = ui.button(
-            c,
-            'Expandir tudo' if all_collapsed else 'Recolher tudo',
-            icon_name='angles-down' if all_collapsed else 'angles-up',
-            variant='ghost',
-            small=True,
-            disabled=not groups,
-            on_click=lambda _e: self.toggle_all(),
-        )
+        self.collapse_host.content = self._collapse_button(groups)
 
         if groups:
             controls: list[ft.Control] = [self._compose_group(work_id, items) for work_id, items in groups]
@@ -427,13 +471,17 @@ class FragmentsComposer:
         title_line: list[ft.Control] = [title_text]
         if byline:
             title_line.append(ui.ui_text(c, byline, size=12.5, color=colors['faint']))
+        chevron_btn = ui.icon_button(
+            c,
+            'chevron-right',
+            on_click=lambda _e, wid=work_id: self.toggle_group(wid),
+            tooltip=f"{'Expandir' if collapsed else 'Recolher'} {title}",
+        )
+        chevron = chevron_btn.content
+        chevron.animate_rotation = ui.motion(ui.MOTION_BASE)
+        chevron.rotate = 0 if collapsed else math.pi / 2
         head_controls: list[ft.Control] = [
-            ui.icon_button(
-                c,
-                'chevron-right' if collapsed else 'chevron-down',
-                on_click=lambda _e, wid=work_id: self.toggle_group(wid),
-                tooltip=f"{'Expandir' if collapsed else 'Recolher'} {title}",
-            ),
+            chevron_btn,
             ft.Container(
                 ft.Row(title_line, spacing=s(8), vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 expand=True,
@@ -454,7 +502,7 @@ class FragmentsComposer:
             height=s(44),
             padding=ft.Padding.only(left=s(8), right=s(8)),
             border=None if collapsed else ft.Border.only(bottom=ft.BorderSide(1, colors['border'])),
-            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_FAST),
             on_click=lambda _e, wid=work_id: self.toggle_group(wid),
         )
 
@@ -468,14 +516,26 @@ class FragmentsComposer:
                 pass
 
         head.on_hover = _head_hover
-        rows: list[ft.Control] = [head]
-        if not collapsed:
-            rows.extend(
-                self._compose_fragment_row(fragment, last=index == len(items) - 1)
-                for index, fragment in enumerate(items)
-            )
-        group = ui.card(c, rows)
+        rows = [
+            self._compose_fragment_row(fragment, last=index == len(items) - 1)
+            for index, fragment in enumerate(items)
+        ]
+        body = ft.Container(
+            content=ft.Container(height=0) if collapsed else ft.Column(rows, spacing=0, tight=True),
+            animate_size=ui.motion(ui.MOTION_BASE),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        )
+        self.group_hosts[work_id] = {
+            'head': head,
+            'body': body,
+            'rows': rows,
+            'chevron': chevron,
+            'button': chevron_btn,
+            'title': title,
+        }
+        group = ui.card(c, [head, body])
         group.data = {'work_id': work_id, 'collapsed': collapsed}
+        self.group_hosts[work_id]['group'] = group
         return group
 
     def _compose_fragment_row(self, fragment: FragmentRecord, last: bool = False) -> ft.Container:
@@ -525,6 +585,7 @@ class FragmentsComposer:
             spacing=s(2),
             tight=True,
             opacity=0,
+            animate_opacity=ui.fade(ui.MOTION_FAST),
         )
         row = ft.Container(
             content=ft.Row(
@@ -547,7 +608,7 @@ class FragmentsComposer:
             ),
             padding=ft.Padding.only(left=s(16), right=s(8), top=s(10), bottom=s(10)),
             border=None if last else ft.Border.only(bottom=ft.BorderSide(1, colors['border'])),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_BASE),
         )
         row.data = {'fragment_id': fragment['id'], 'tools': tools}
 

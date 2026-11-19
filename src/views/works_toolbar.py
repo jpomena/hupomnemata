@@ -184,7 +184,7 @@ class WorksToolbarMixin:
 
     def _clear_checked(self) -> None:
         self.checked.clear()
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def _add_checked_to(self, compilation_id: int) -> None:
         if self.on_add_to_compilation is None:
@@ -194,7 +194,7 @@ class WorksToolbarMixin:
         if self.page is not None:
             ui.toast(self.page, self.config, f"{len(self.checked)} obra(s) adicionada(s) à compilação")
         self.checked.clear()
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def _add_one_to(self, compilation_id: int, resource) -> None:
         if self.on_add_to_compilation is None:
@@ -206,10 +206,11 @@ class WorksToolbarMixin:
             links.append((compilation_id, name))
             if self.page is not None:
                 ui.toast(self.page, self.config, f"Obra adicionada a {name}")
-            self._refresh()
+            self._refresh_table_only(toolbar=True)
+            self._render_inspector()
 
     def _clear_filters(self) -> None:
         self.query = ""
         self.type_filter = None
         self.compilation_filter = None
-        self._refresh()
+        self._refresh_table_only(toolbar=True)

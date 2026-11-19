@@ -40,6 +40,7 @@ class CommandPalette:
         self.is_open = False
         self.dialog: ft.AlertDialog | None = None
         self.results = ft.Column(spacing=s(1), tight=True, scroll=ft.ScrollMode.AUTO)
+        self._rows: list[tuple[ft.Container, ft.Text]] = []
 
     # ── dados ──────────────────────────────────────────────
 
@@ -64,24 +65,53 @@ class CommandPalette:
     def _row(self, position: int, icon_name: str, title: str, sub: str | None) -> ft.Container:
         c = self.config
         selected = position == self.index
+        glyph = fa_icon(icon_name, size=s(12), color=c.colors["gold"] if selected else c.colors["faint"])
         controls: list[ft.Control] = [
-            fa_icon(icon_name, size=s(12), color=c.colors["gold"] if selected else c.colors["faint"]),
+            glyph,
             ui.ui_text(c, title.replace("\n", " "), size=13, weight=ui.W500, expand=True),
         ]
         if sub:
             controls.append(ft.Container(ui.ui_text(c, sub, size=12, color=c.colors["faint"]), width=s(200), alignment=ft.Alignment.CENTER_RIGHT))
-        return ft.Container(
+        box = ft.Container(
             content=ft.Row(controls, spacing=s(10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
             height=s(36),
             padding=ft.Padding.symmetric(horizontal=s(8)),
             border_radius=ft.BorderRadius.all(s(6)),
             bgcolor=c.colors["selected"] if selected else None,
+            animate=ui.motion(ui.MOTION_FAST),
             on_click=lambda _e, p=position: self._run(p),
         )
+
+        def _hover(e, item=box, pos=position):
+            hovering = e.data in (True, "true")
+            if pos == self.index:
+                return
+            item.bgcolor = c.colors["card_hover"] if hovering else None
+            try:
+                item.update()
+            except Exception:
+                pass
+
+        box.on_hover = _hover
+        self._rows.append((box, glyph))
+        return box
+
+    def _paint_selection(self) -> None:
+        """Destaca a linha ativa sem reconstruir a lista (transição suave)."""
+        colors = self.config.colors
+        for position, (box, glyph) in enumerate(self._rows):
+            selected = position == self.index
+            box.bgcolor = colors["selected"] if selected else None
+            glyph.color = colors["gold"] if selected else colors["faint"]
+        try:
+            self.results.update()
+        except Exception:
+            pass
 
     def _render(self, query: str = "") -> None:
         c = self.config
         self.items = []
+        self._rows = []
         controls: list[ft.Control] = []
         for group, entries in self._collect(query):
             controls.append(ft.Container(ui.ui_text(c, group, size=12, weight=ui.W600, color=c.colors["faint"]), padding=ft.Padding.only(left=s(8), top=s(8), bottom=s(4))))
@@ -92,6 +122,7 @@ class CommandPalette:
             controls.append(ft.Container(ui.ui_text(c, f"Nada encontrado para “{query}”.", size=13, color=c.colors["faint"]), padding=s(12)))
         self.index = min(self.index, max(len(self.items) - 1, 0))
         self.results.controls = controls
+        self._paint_selection()
 
     def _run(self, position: int) -> None:
         if not 0 <= position < len(self.items):
@@ -163,8 +194,7 @@ class CommandPalette:
                 return True
             step = 1 if key == "Arrow Down" else -1
             self.index = max(0, min(len(self.items) - 1, self.index + step))
-            self._render(self.query.value or "")
-            self.results.update()
+            self._paint_selection()
             return True
         if key == "Escape":
             self.close()

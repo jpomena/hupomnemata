@@ -197,14 +197,49 @@ class WorksComposer(WorksTableMixin, WorksToolbarMixin, WorksInspectorMixin):
                 ui.button(c, "Nova obra", icon_name="plus", variant="primary", on_click=lambda _e: self.on_navigate("work_insert")),
             ],
         )
+        self.toolbar_host = ft.Container(self._compose_toolbar())
         self.table_host = ft.Container(self._compose_table(), expand=True)
-        inspector = self._compose_inspector()
+        self.inspector_host = ft.Container(
+            content=self._compose_inspector(framed=False),
+            width=self._inspector_width(),
+            bgcolor=c.colors["surface"] if self._inspector_visible() else None,
+            border=ft.Border.only(left=ft.BorderSide(1, c.colors["border"])) if self._inspector_visible() else None,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            opacity=1.0 if self._inspector_visible() else 0.0,
+            animate=ui.motion(ui.MOTION_SLOW),
+            animate_opacity=ui.fade(ui.MOTION_SLOW),
+        )
         split = ft.Container(
-            ft.Row([self.table_host] + ([inspector] if inspector is not None else []), spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH, expand=True),
+            ft.Row([self.table_host, self.inspector_host], spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH, expand=True),
             expand=True,
             border=ft.Border.only(top=ft.BorderSide(1, c.colors["border"])),
         )
-        return ft.Column([header, self._compose_toolbar(), split], spacing=0, expand=True)
+        return ft.Column([header, self.toolbar_host, split], spacing=0, expand=True)
+
+    def _inspector_visible(self) -> bool:
+        resource = self._work(self.selected_id)
+        return resource is not None and not self._is_magazine(resource)
+
+    def _inspector_width(self) -> float:
+        return s(self.config.ui.get("inspector_width", 380)) if self._inspector_visible() else 0
+
+    def _render_inspector(self) -> bool:
+        """Atualiza só o painel; devolve ``False`` se os hosts ainda não existem."""
+        host = getattr(self, "inspector_host", None)
+        if host is None:
+            return False
+        c = self.config
+        visible = self._inspector_visible()
+        host.content = self._compose_inspector(framed=False) if visible else host.content
+        host.width = self._inspector_width()
+        host.opacity = 1.0 if visible else 0.0
+        host.bgcolor = c.colors["surface"] if visible else None
+        host.border = ft.Border.only(left=ft.BorderSide(1, c.colors["border"])) if visible else None
+        try:
+            host.update()
+        except Exception:
+            pass
+        return True
 
     def compose(self) -> ft.Container:
         self.root = ft.Container(content=self._compose_body(), expand=True, bgcolor=self.config.colors["bg"])

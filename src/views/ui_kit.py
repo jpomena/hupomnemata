@@ -24,6 +24,26 @@ W700 = ft.FontWeight.W_700
 
 UI_TRACKING = -0.08
 
+# ── movimento ───────────────────────────────────────────────
+# Curvas e durações únicas do app. Microinterações (hover, foco, seleção)
+# ficam entre 90 e 160 ms; sobreposições (painéis, diálogos) entre 180 e 220.
+# Não há animação de entrada de página — ver design/DESIGN.md, princípio 6.
+
+MOTION_INSTANT = 90
+MOTION_FAST = 180
+MOTION_BASE = 360
+MOTION_SLOW = 720
+
+
+def motion(duration: int = MOTION_FAST, curve: ft.AnimationCurve | None = None) -> ft.Animation:
+    """Animação implícita padrão para cores, bordas, opacidade e escala."""
+    return ft.Animation(duration, curve or ft.AnimationCurve.EASE_OUT)
+
+
+def fade(duration: int = MOTION_FAST) -> ft.Animation:
+    """Animação de opacidade com entrada suave."""
+    return ft.Animation(duration, ft.AnimationCurve.EASE_OUT)
+
 
 def set_scale(scale: float) -> None:
     global _SCALE
@@ -170,7 +190,7 @@ def button(
         tooltip=tooltip,
         expand=expand,
         opacity=0.5 if disabled else 1.0,
-        animate=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
+        animate=motion(MOTION_INSTANT),
         on_click=None if disabled else on_click,
     )
     box.data = {"label": text, "variant": variant}
@@ -230,6 +250,7 @@ def icon_button(
     btn_size = 22 if small else size
     glyph_size = 11 if small else 13
     glyph = fa_icon(icon_name, size=s(glyph_size), color=color or colors["faint"], style=style)
+    glyph.animate_scale = motion(MOTION_FAST)
     box = ft.Container(
         content=glyph,
         width=s(btn_size),
@@ -239,7 +260,8 @@ def icon_button(
         border=ft.Border.all(1, colors["border_strong"]) if boxed else None,
         tooltip=tooltip,
         opacity=0.35 if disabled else 1.0,
-        animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+        animate=motion(MOTION_FAST),
+        animate_opacity=fade(MOTION_FAST),
         on_click=None if disabled else on_click,
     )
 
@@ -251,6 +273,7 @@ def icon_button(
         if boxed:
             box.border = ft.Border.all(1, colors["gold"] if hovering else colors["border_strong"])
         glyph.color = (hover_color or colors["gold"]) if hovering else (color or colors["faint"])
+        glyph.scale = 1.08 if hovering else 1.0
         try:
             box.update()
         except Exception:
@@ -266,14 +289,20 @@ def link_button(c: ViewConfig, label: str, on_click: Callable | None = None, tra
     glyph = None
     if trailing_icon:
         glyph = fa_icon(trailing_icon, size=s(10), color=c.colors["muted"])
+        glyph.animate_offset = motion(MOTION_FAST)
         controls.append(glyph)
-    box = ft.Container(content=ft.Row(controls, spacing=s(4), tight=True), on_click=on_click)
+    box = ft.Container(
+        content=ft.Row(controls, spacing=s(4), tight=True),
+        on_click=on_click,
+        animate=motion(MOTION_FAST),
+    )
 
     def _hover(e):
         hovering = e.data in (True, "true")
         text.color = c.colors["gold"] if hovering else c.colors["muted"]
         if glyph is not None:
             glyph.color = text.color
+            glyph.offset = ft.Offset(0.18, 0) if hovering else ft.Offset(0, 0)
         box.update()
 
     box.on_hover = _hover
@@ -361,7 +390,7 @@ def card(
         clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         expand=expand,
         on_click=on_click,
-        animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT) if (interactive or on_click or on_hover) else None,
+        animate=motion(MOTION_BASE) if (interactive or on_click or on_hover) else None,
     )
 
     if interactive or on_click or on_hover:
@@ -574,21 +603,35 @@ def segmented(
     buttons: list[ft.Control] = []
     for key, label, count in options:
         active = key == selected
-        parts: list[ft.Control] = [ui_text(c, label, size=13, color=colors["text"] if active else colors["muted"])]
+        label_ctrl = ui_text(c, label, size=13, color=colors["text"] if active else colors["muted"])
+        parts: list[ft.Control] = [label_ctrl]
         if count is not None:
             parts.append(ui_text(c, str(count), size=12, color=colors["faint"], tabular=True))
-        buttons.append(
-            ft.Container(
-                content=ft.Row(parts, spacing=s(6), tight=True),
-                height=s(26),
-                padding=ft.Padding.symmetric(horizontal=s(10)),
-                border_radius=ft.BorderRadius.all(s(4)),
-                bgcolor=colors["surface"] if active else None,
-                border=ft.Border.all(1, colors["border_strong"]) if active else None,
-                alignment=ft.Alignment.CENTER,
-                on_click=lambda _e, k=key: on_select(k),
-            )
+        option_box = ft.Container(
+            content=ft.Row(parts, spacing=s(6), tight=True),
+            height=s(26),
+            padding=ft.Padding.symmetric(horizontal=s(10)),
+            border_radius=ft.BorderRadius.all(s(4)),
+            bgcolor=colors["surface"] if active else None,
+            border=ft.Border.all(1, colors["border_strong"]) if active else None,
+            alignment=ft.Alignment.CENTER,
+            animate=motion(MOTION_BASE),
+            on_click=lambda _e, k=key: on_select(k),
         )
+
+        def _hover(e, box=option_box, text=label_ctrl, is_active=active):
+            hovering = e.data in (True, "true")
+            if is_active:
+                return
+            box.bgcolor = colors["card_hover"] if hovering else None
+            text.color = colors["text"] if hovering else colors["muted"]
+            try:
+                box.update()
+            except Exception:
+                pass
+
+        option_box.on_hover = _hover
+        buttons.append(option_box)
     return ft.Container(
         content=ft.Row(buttons, spacing=s(2), tight=True),
         padding=s(2),
@@ -624,8 +667,9 @@ def chip_filter(
             bgcolor=colors["surface"],
             border=ft.Border.all(1, colors["border_strong"]),
             border_radius=ft.BorderRadius.all(s(6)),
+            animate=motion(MOTION_FAST),
         )
-    return ft.Container(
+    trigger = ft.Container(
         content=ft.Row(
             [fa_icon("plus", size=s(11), color=colors["muted"]), ui_text(c, label, size=13, color=colors["muted"])],
             spacing=s(6),
@@ -635,8 +679,21 @@ def chip_filter(
         padding=ft.Padding.symmetric(horizontal=s(10)),
         border=ft.Border.all(1, colors["border_strong"]),
         border_radius=ft.BorderRadius.all(s(6)),
+        animate=motion(MOTION_FAST),
         on_click=on_click,
     )
+
+    def _hover(e):
+        hovering = e.data in (True, "true")
+        trigger.bgcolor = colors["card_hover"] if hovering else None
+        trigger.border = ft.Border.all(1, colors["gold"] if hovering else colors["border_strong"])
+        try:
+            trigger.update()
+        except Exception:
+            pass
+
+    trigger.on_hover = _hover
+    return trigger
 
 
 def tabs(
@@ -650,7 +707,8 @@ def tabs(
     controls: list[ft.Control] = []
     for key, label, count in items:
         active = key == selected
-        parts: list[ft.Control] = [ui_text(c, label, size=13, weight=W600 if active else W500, color=colors["text"] if active else colors["faint"])]
+        label_ctrl = ui_text(c, label, size=13, weight=W600 if active else W500, color=colors["text"] if active else colors["faint"])
+        parts: list[ft.Control] = [label_ctrl]
         if count is not None:
             parts.append(
                 ft.Container(
@@ -660,15 +718,33 @@ def tabs(
                     padding=ft.Padding.symmetric(horizontal=s(5)),
                 )
             )
-        controls.append(
-            ft.Container(
-                content=ft.Row(parts, spacing=s(6), tight=True),
-                height=s(40),
-                alignment=ft.Alignment.CENTER,
-                border=ft.Border.only(bottom=ft.BorderSide(2, colors["gold"] if active else "transparent")),
-                on_click=lambda _e, k=key: on_select(k),
-            )
+        tab_box = ft.Container(
+            content=ft.Row(parts, spacing=s(6), tight=True),
+            height=s(40),
+            padding=ft.Padding.symmetric(horizontal=s(8)),
+            border_radius=ft.BorderRadius.only(top_left=s(4), top_right=s(4)),
+            alignment=ft.Alignment.CENTER,
+            border=ft.Border.only(bottom=ft.BorderSide(2, colors["gold"] if active else "transparent")),
+            animate=motion(MOTION_BASE),
+            on_click=lambda _e, k=key: on_select(k),
         )
+
+        def _hover(e, box=tab_box, text=label_ctrl, is_active=active):
+            hovering = e.data in (True, "true")
+            if is_active:
+                return
+            box.bgcolor = alpha(colors["gold"], 0.05) if hovering else None
+            box.border = ft.Border.only(
+                bottom=ft.BorderSide(2, alpha(colors["gold"], 0.45) if hovering else "transparent")
+            )
+            text.color = colors["text"] if hovering else colors["faint"]
+            try:
+                box.update()
+            except Exception:
+                pass
+
+        tab_box.on_hover = _hover
+        controls.append(tab_box)
     return ft.Container(
         content=ft.Row(controls, spacing=s(24)),
         padding=ft.Padding.only(left=s(padding_left), right=s(padding_left)),
@@ -680,7 +756,7 @@ def hover_surface(
     c: ViewConfig,
     content: ft.Control,
     on_click: Callable | None = None,
-    selected: bool = False,
+    selected: bool | Callable[[], bool] = False,
     padding: ft.Padding | float | None = None,
     height: float | None = None,
     radius: float | ft.BorderRadius = 6,
@@ -691,7 +767,8 @@ def hover_surface(
     accent_left: bool = False,
 ) -> ft.Container:
     colors = c.colors
-    base_bg = colors["selected"] if selected else base
+    is_selected = selected if callable(selected) else (lambda: selected)
+    base_bg = colors["selected"] if is_selected() else base
     normal_border = border
     if accent_left and hover_border is None:
         hover_border = ft.Border(
@@ -715,12 +792,12 @@ def hover_surface(
         bgcolor=base_bg,
         border=normal_border,
         border_radius=b_radius,
-        animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+        animate=motion(MOTION_FAST),
     )
 
     def _hover(e):
         hovering = e.data in (True, "true")
-        if not selected:
+        if not is_selected():
             box.bgcolor = colors["card_hover"] if hovering else base
             if hover_border is not None:
                 box.border = hover_border if hovering else normal_border

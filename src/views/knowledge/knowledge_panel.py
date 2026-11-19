@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 import flet as ft
 
 from src.utils.types import ViewConfig
+from src.views.ui_kit import MOTION_FAST, MOTION_SLOW, motion
 
 
 class KnowledgePanel:
@@ -126,11 +127,15 @@ class KnowledgePanel:
         )
 
         self.panel_container = ft.Container(
-            visible=False,
-            width=380 * self.scale,
+            visible=True,
+            width=0,
+            opacity=0.0,
             bgcolor=self.config.colors["surface"],
             border=ft.Border(left=ft.BorderSide(1, self.config.colors["border"])),
-            padding=16 * self.scale,
+            padding=0,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            animate=motion(MOTION_SLOW),
+            animate_opacity=motion(MOTION_SLOW),
             content=self._build_content(),
         )
 
@@ -302,7 +307,12 @@ class KnowledgePanel:
                 card = self._build_fragment_card(frag)
                 self.fragments_column.controls.append(card)
 
-        self.panel_container.visible = True
+        self.panel_container.width = 380 * self.scale
+        self.panel_container.padding = 16 * self.scale
+        self.panel_container.opacity = 1.0
+        self.panel_container.border = ft.Border(
+            left=ft.BorderSide(1, self.config.colors["border"])
+        )
         try:
             self.panel_container.update()
         except Exception:
@@ -376,7 +386,19 @@ class KnowledgePanel:
             border=ft.Border.all(1, self.config.colors["border"]),
             border_radius=self.config.ui.get("card_radius", 6),
             padding=8 * self.scale,
+            animate=motion(MOTION_FAST),
         )
+
+        def _hover(event, box=card):
+            hovering = event.data in (True, "true")
+            box.bgcolor = self.config.colors.get("card_hover", self.config.colors["surface"]) if hovering else self.config.colors["surface"]
+            box.border = ft.Border.all(1, self.config.colors["border_strong"] if hovering else self.config.colors["border"])
+            try:
+                box.update()
+            except Exception:
+                pass
+
+        card.on_hover = _hover
         return card
 
     def _copy_text(self, text: str) -> None:
@@ -400,7 +422,7 @@ class KnowledgePanel:
         target_node = res.get("target_node") or res
 
         badge_bg = self.config.colors.get("card_hover", self.config.colors["surface"])
-        return ft.Container(
+        card = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
@@ -456,7 +478,23 @@ class KnowledgePanel:
             padding=8 * self.scale,
             on_click=lambda _, tn=target_node: self.on_select_resonance(tn),
             tooltip="Clique para pivotar a este nó",
+            animate=motion(MOTION_FAST),
         )
+
+        def _hover(event, box=card):
+            hovering = event.data in (True, "true")
+            box.bgcolor = self.config.colors.get("card_hover", self.config.colors["surface"]) if hovering else self.config.colors["surface"]
+            box.border = ft.Border.all(
+                1,
+                self.config.colors["gold"] if hovering else self.config.colors["border"],
+            )
+            try:
+                box.update()
+            except Exception:
+                pass
+
+        card.on_hover = _hover
+        return card
 
     def _handle_compilation_click(self, _e: ft.ControlEvent) -> None:
         if not self.list_compilations:
@@ -512,7 +550,10 @@ class KnowledgePanel:
     def close(self) -> None:
         self.current_node = None
         self.current_resonances = []
-        self.panel_container.visible = False
+        self.panel_container.opacity = 0.0
+        self.panel_container.width = 0
+        self.panel_container.padding = 0
+        self.panel_container.border = None
         self.on_close()
         try:
             self.panel_container.update()

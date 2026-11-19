@@ -6,6 +6,8 @@ Movimentação literal: métodos sem ``__init__``, colaborando com
 
 import flet as ft
 
+from src.views.ui_kit import MOTION_BASE, motion
+
 
 class SettingsThemeMixin:
     """Card de tema da tela de Configurações."""
@@ -69,13 +71,16 @@ class SettingsThemeMixin:
             bgcolor=bg_color,
             padding=ft.Padding.symmetric(vertical=16, horizontal=8),
             expand=True,
+            animate=motion(MOTION_BASE),
+            animate_scale=motion(MOTION_BASE),
             on_click=lambda _: self.on_change_theme(key),
         )
 
         def handle_hover(event: ft.Event[ft.Container]) -> None:
             if is_active:
                 return
-            if event.data == "true":
+            hovering = event.data in (True, "true")
+            if hovering:
                 container.bgcolor = self.config.colors["card_hover"]
                 container.border = ft.Border.all(
                     1, self.config.colors["text"]
@@ -85,6 +90,7 @@ class SettingsThemeMixin:
                 container.border = ft.Border.all(
                     1, self.config.colors["border"]
                 )
+            container.scale = 1.01 if hovering else 1.0
             container.update()
 
         container.on_hover = handle_hover

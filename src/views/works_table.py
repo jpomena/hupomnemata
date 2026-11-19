@@ -123,12 +123,18 @@ class WorksTableMixin:
         except Exception:
             pass
 
-    def _refresh_table_only(self) -> None:
+    def _refresh_table_only(self, toolbar: bool = False) -> None:
         if getattr(self, "table_host", None) is None:
             return self._refresh()
         self.table_host.content = self._compose_table()
-        self.count_text.value = self._count_label()
-        for control in (self.table_host, self.count_text):
+        targets: list[ft.Control] = [self.table_host]
+        if toolbar and getattr(self, "toolbar_host", None) is not None:
+            self.toolbar_host.content = self._compose_toolbar()
+            targets.append(self.toolbar_host)
+        if getattr(self, "count_text", None) is not None:
+            self.count_text.value = self._count_label()
+            targets.append(self.count_text)
+        for control in targets:
             try:
                 control.update()
             except Exception:
@@ -136,14 +142,16 @@ class WorksTableMixin:
 
     def select(self, resource_id: int | None) -> None:
         self.selected_id = resource_id
-        self._refresh()
+        self._refresh_table_only()
+        if not self._render_inspector():
+            self._refresh()
 
     def toggle_checked(self, resource_id: int) -> None:
         if resource_id in self.checked:
             self.checked.discard(resource_id)
         else:
             self.checked.add(resource_id)
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def set_sort(self, key: str) -> None:
         if self.sort_key == key:
@@ -151,15 +159,15 @@ class WorksTableMixin:
         else:
             self.sort_key = key
             self.sort_desc = key in {"year", "frag", "created"}
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def set_type_filter(self, value: str | None) -> None:
         self.type_filter = value
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def set_compilation_filter(self, value: int | None) -> None:
         self.compilation_filter = value
-        self._refresh()
+        self._refresh_table_only(toolbar=True)
 
     def move_selection(self, step: int) -> None:
         ids = [
@@ -209,8 +217,32 @@ class WorksTableMixin:
             border_radius=ft.BorderRadius.all(s(4)),
             border=ft.Border.all(1, c.colors["gold"] if (checked or partial) else c.colors["faint"]),
             bgcolor=c.colors["gold"] if (checked or partial) else c.colors["bg"],
+            animate=ui.motion(ui.MOTION_FAST),
+            animate_scale=ui.motion(ui.MOTION_FAST),
             on_click=on_click,
+            on_hover=lambda e: self._checkbox_hover(e, checked or partial),
         )
+
+    def _checkbox_hover(self, event, marked: bool) -> None:
+        if marked:
+            return
+        hovering = event.data in (True, "true")
+        event.control.border = ft.Border.all(1, self.config.colors["muted"] if hovering else self.config.colors["faint"])
+        event.control.scale = 1.12 if hovering else 1.0
+        try:
+            event.control.update()
+        except Exception:
+            pass
+
+    def _header_hover(self, event, text: ft.Text, active: bool) -> None:
+        if active:
+            return
+        hovering = event.data in (True, "true")
+        text.color = self.config.colors["text"] if hovering else self.config.colors["faint"]
+        try:
+            text.update()
+        except Exception:
+            pass
 
     def _visible_columns(self) -> list[tuple[str, str, int | None, bool]]:
         if self.selected_id is not None:
@@ -238,22 +270,21 @@ class WorksTableMixin:
                 self.checked.difference_update(ids)
             else:
                 self.checked.update(ids)
-            self._refresh()
+            self._refresh_table_only(toolbar=True)
 
         cells: list[ft.Control] = [
             ft.Container(self._checkbox(all_checked, toggle_all, partial=0 < n_checked < len(ids)), width=s(64), padding=ft.Padding.only(left=s(32)), alignment=ft.Alignment.CENTER_LEFT),
         ]
         for key, label, width, right in self._visible_columns():
             active = self.sort_key == key
-            parts: list[ft.Control] = [
-                ui.ui_text(
-                    c,
-                    label,
-                    size=12,
-                    weight=ui.W600 if active else ui.W500,
-                    color=c.colors["gold"] if active else c.colors["faint"],
-                )
-            ]
+            label_ctrl = ui.ui_text(
+                c,
+                label,
+                size=12,
+                weight=ui.W600 if active else ui.W500,
+                color=c.colors["gold"] if active else c.colors["faint"],
+            )
+            parts: list[ft.Control] = [label_ctrl]
             if active:
                 parts.append(
                     fa_icon(
@@ -262,7 +293,12 @@ class WorksTableMixin:
                         color=c.colors["gold"],
                     )
                 )
-            header = ft.Container(ft.Row(parts, spacing=s(4), tight=True), on_click=lambda _e, k=key: self.set_sort(k))
+            header = ft.Container(
+                ft.Row(parts, spacing=s(4), tight=True),
+                on_click=lambda _e, k=key: self.set_sort(k),
+                animate=ui.motion(ui.MOTION_FAST),
+                on_hover=lambda e, text=label_ctrl, is_active=active: self._header_hover(e, text, is_active),
+            )
             cells.append(self._cell(key, width, header, right))
         return ft.Container(
             content=ft.Row(cells, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -400,7 +436,7 @@ class WorksTableMixin:
             self.collapsed_magazines.remove(magazine_id)
         else:
             self.collapsed_magazines.add(magazine_id)
-        self._refresh()
+        self._refresh_table_only()
 
     def _magazine_banner_row(
         self, resource: BibliographicResource, child_count: int

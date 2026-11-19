@@ -152,42 +152,52 @@ class PdfFragmentsMixin:
                 elif item.location_value:
                     loc_txt = f'p. {item.location_value}'
 
-                cards.append(
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ui.badge(
-                                            c,
-                                            'Citação' if item.fragment_type == 'quote' else 'Paráfrase',
-                                            accent=(item.fragment_type == 'quote'),
-                                        ),
-                                        ui.ui_text(c, loc_txt, size=11, color=colors['muted']),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                ),
-                                ui.ui_text(
-                                    c,
-                                    f'“{item.excerpt}”' if item.fragment_type == 'quote' else item.excerpt,
-                                    size=12,
-                                    max_lines=3,
-                                    color=colors['text'],
-                                    align=ft.TextAlign.JUSTIFY,
-                                ),
-                            ],
-                            spacing=s(6),
-                            tight=True,
-                        ),
-                        bgcolor=colors['bg'],
-                        border=ft.Border.all(1, colors['border']),
-                        border_radius=ft.BorderRadius.all(s(6)),
-                        padding=s(10),
-                        ink=True,
-                        tooltip='Clique para editar este fragmento',
-                        on_click=lambda _e, f=item: self._handle_fragment_card_click(f),
-                    )
+                card = ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ui.badge(
+                                        c,
+                                        'Citação' if item.fragment_type == 'quote' else 'Paráfrase',
+                                        accent=(item.fragment_type == 'quote'),
+                                    ),
+                                    ui.ui_text(c, loc_txt, size=11, color=colors['muted']),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            ui.ui_text(
+                                c,
+                                f'“{item.excerpt}”' if item.fragment_type == 'quote' else item.excerpt,
+                                size=12,
+                                max_lines=3,
+                                color=colors['text'],
+                                align=ft.TextAlign.JUSTIFY,
+                            ),
+                        ],
+                        spacing=s(6),
+                        tight=True,
+                    ),
+                    bgcolor=colors['bg'],
+                    border=ft.Border.all(1, colors['border']),
+                    border_radius=ft.BorderRadius.all(s(6)),
+                    padding=s(10),
+                    ink=True,
+                    tooltip='Clique para editar este fragmento',
+                    animate=ui.motion(ui.MOTION_FAST),
+                    on_click=lambda _e, f=item: self._handle_fragment_card_click(f),
                 )
+
+                def _card_hover(event, box=card):
+                    hovering = event.data in (True, 'true')
+                    box.border = ft.Border.all(1, colors['gold'] if hovering else colors['border'])
+                    try:
+                        box.update()
+                    except Exception:
+                        pass
+
+                card.on_hover = _card_hover
+                cards.append(card)
             self.fragments_column.controls = cards
 
         try:

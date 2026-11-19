@@ -103,6 +103,7 @@ class CompilationsComposer:
         self.active_hub: CompilationHubComposer | None = None
         self.root: ft.Container | None = None
         self.table_host: ft.Container | None = None
+        self.table_switcher: ft.AnimatedSwitcher | None = None
         self.count_text: ft.Text | None = None
         self.rows: list[ft.Container] = []
         self.compilation_search = ui.search_field(
@@ -358,8 +359,9 @@ class CompilationsComposer:
                 if len(visible) != len(self.compilations)
                 else str(len(self.compilations))
             )
+        target = self.table_switcher or self.table_host
         if not self.compilations:
-            self.table_host.content = ft.Container(
+            target.content = ft.Container(
                 ui.empty_state(
                     c,
                     'folder-open',
@@ -377,12 +379,12 @@ class CompilationsComposer:
                 padding=ft.Padding.only(top=s(24), left=s(4)),
             )
         elif not visible:
-            self.table_host.content = ft.Container(
+            target.content = ft.Container(
                 ui.empty_state(c, 'magnifying-glass', 'Nada encontrado', 'Nenhuma compilação corresponde à busca.'),
                 padding=ft.Padding.only(top=s(24), left=s(4)),
             )
         else:
-            self.table_host.content = ui.card(c, [self._compose_table_header(), *self.rows])
+            target.content = ui.card(c, [self._compose_table_header(), *self.rows])
 
     def _compose_header(self) -> ft.Container:
         c = self.config
@@ -397,7 +399,16 @@ class CompilationsComposer:
     def compose(self, open_create: bool = False) -> ft.Container:
         c = self.config
         self.count_text = ui.ui_text(c, '', size=12, color=c.colors['faint'], tabular=True)
-        self.table_host = ft.Container()
+        self.table_switcher = ft.AnimatedSwitcher(
+            content=ft.Container(),
+            duration=ui.MOTION_SLOW,
+            reverse_duration=ui.MOTION_FAST,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            expand=True,
+        )
+        self.table_host = ft.Container(self.table_switcher, expand=True)
         self.root = ft.Container(
             content=ft.Column(
                 [

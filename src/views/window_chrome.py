@@ -11,7 +11,7 @@ from src.utils.fa import fa_icon
 from src.utils.fa import glyph as fa_glyph
 from src.views import ui_kit as ui
 from src.views.sidebar import SidebarData
-from src.views.ui_kit import s
+from src.views.ui_kit import MOTION_FAST, motion, s
 
 if TYPE_CHECKING:
     from src.views.core_composer import CoreComposer
@@ -38,6 +38,8 @@ class WindowChromeComposer:
             height=s(c.ui.get("titlebar_height", 40)),
             alignment=ft.Alignment.CENTER,
             tooltip=tooltip,
+            animate=motion(MOTION_FAST),
+            animate_opacity=motion(MOTION_FAST),
             on_click=on_click,
         )
 
@@ -92,7 +94,7 @@ class WindowChromeComposer:
             alignment=ft.Alignment.CENTER,
             border=ft.Border.only(right=ft.BorderSide(1, c.colors["border"])),
             on_click=lambda _e: composer.on_navigate("dashboard"),
-            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+            animate=motion(MOTION_FAST),
         )
 
         def _on_hover_brand(e):

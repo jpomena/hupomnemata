@@ -248,7 +248,7 @@ class DashboardComposer:
             padding=s(16),
             expand=True,
             border=normal_border,
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_BASE),
             on_click=on_click,
         )
         cell.data = {'kpi': label, 'value': value}

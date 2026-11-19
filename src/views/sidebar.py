@@ -6,9 +6,10 @@ from dataclasses import dataclass, field
 import flet as ft
 
 from src.utils.fa import fa_icon
+from src.utils.fa import glyph as fa_glyph
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
-from src.views.ui_kit import s
+from src.views.ui_kit import MOTION_FAST, MOTION_SLOW, motion, s
 
 
 @dataclass
@@ -62,11 +63,28 @@ class SidebarComposer:
         if self.current.startswith("compilacao:"):
             self.compilations_expanded = True
         self.on_toggle_compilations = on_toggle_compilations
+        self._items: dict[str, dict] = {}
+        self._project_signature: tuple[tuple[int, str], ...] = ()
 
     def _toggle_compilations(self) -> None:
         self.compilations_expanded = not self.compilations_expanded
+        self._rebuild_projects()
+        self._sync_chevron()
         if self.on_toggle_compilations is not None:
             self.on_toggle_compilations(self.compilations_expanded)
+
+    def _rebuild_projects(self) -> None:
+        switcher = getattr(self, "_projects_switcher", None)
+        if switcher is None:
+            return
+        for key in [item for item in self._items if item.startswith("compilacao:")]:
+            self._items.pop(key, None)
+        switcher.content = self._projects_content()
+        self._project_signature = tuple(self.data.compilations)
+        try:
+            switcher.update()
+        except Exception:
+            pass
 
     # ── peças ──────────────────────────────────────────────
 
@@ -79,13 +97,23 @@ class SidebarComposer:
         leading: ft.Control | None = None,
         indent: float = 0,
         trailing: ft.Control | None = None,
+        count_key: str | None = None,
     ) -> ft.Container:
         c = self.config
         active = self.current == destination
+        state = {"active": active}
         glyph = leading or fa_icon(
             icon_name or "circle",
             size=s(13),
             color=c.colors["gold"] if active else c.colors["faint"],
+        )
+        if isinstance(glyph, ft.Container):
+            glyph.animate = motion(MOTION_FAST)
+        glyph_box = ft.Container(
+            glyph,
+            width=s(18),
+            alignment=ft.Alignment.CENTER,
+            animate_scale=motion(MOTION_FAST),
         )
         label_text = ui.serif_text(
             c, label, size=16 if indent > 0 else 17,
@@ -97,7 +125,7 @@ class SidebarComposer:
         )
         label_text.tooltip = label
         controls: list[ft.Control] = [
-            ft.Container(glyph, width=s(18), alignment=ft.Alignment.CENTER),
+            glyph_box,
             label_text,
         ]
         count_ctrl = None
@@ -127,12 +155,13 @@ class SidebarComposer:
         )
 
         def _on_hover_item(hovering: bool) -> None:
-            if not active:
+            if not state["active"]:
                 if isinstance(glyph, ft.Text):
                     glyph.color = c.colors["gold"] if hovering else c.colors["faint"]
                 elif isinstance(glyph, ft.Container) and hasattr(glyph, "bgcolor"):
                     glyph.border = ft.Border.all(1.5, c.colors["gold"]) if hovering else ft.Border.all(1.5, c.colors["faint"])
                     glyph.bgcolor = c.colors["gold"] if hovering else None
+                glyph_box.scale = 1.12 if hovering else 1.0
                 label_text.color = c.colors["gold"] if hovering else c.colors["muted"]
                 if count_ctrl is not None:
                     count_ctrl.color = c.colors["gold"] if hovering else c.colors["faint"]
@@ -141,7 +170,7 @@ class SidebarComposer:
             c,
             ft.Row(controls, spacing=s(8 if indent > 0 else 10), vertical_alignment=ft.CrossAxisAlignment.CENTER),
             on_click=lambda _e: self.on_navigate(destination),
-            selected=active,
+            selected=lambda: state["active"],
             padding=ft.Padding.only(left=s(8 + indent), right=s(6 if trailing else 8)),
             height=s(32 if indent > 0 else 34),
             radius=item_radius,
@@ -150,6 +179,15 @@ class SidebarComposer:
             on_hover=_on_hover_item,
         )
         item.data = destination
+        self._items[destination] = {
+            "box": item,
+            "glyph": glyph,
+            "label": label_text,
+            "count": count_ctrl,
+            "count_key": count_key,
+            "state": state,
+            "active_border": active_border,
+        }
         return item
 
     def _group_head(self, label: str, action: ft.Control | None = None) -> ft.Container:
@@ -198,10 +236,104 @@ class SidebarComposer:
             padding=ft.Padding.only(left=s(12), right=s(12), top=s(12), bottom=s(8)),
         )
 
+    def _projects_content(self) -> ft.Control:
+        """Lista de cadernos, montada à parte para animar o recolhimento."""
+        c = self.config
+        if not self.compilations_expanded or not self.data.compilations:
+            return ft.Container(height=0)
+        controls: list[ft.Control] = []
+        for comp_id, name in self.data.compilations:
+            destination = f"compilacao:{comp_id}"
+            active = self.current == destination
+            dot = ft.Container(
+                width=s(8), height=s(8),
+                border_radius=ft.BorderRadius.all(s(2)),
+                border=ft.Border.all(1.5, c.colors["gold"] if active else c.colors["faint"]),
+                bgcolor=c.colors["gold"] if active else None,
+            )
+            controls.append(self._item(destination, None, name, leading=dot, indent=14))
+        return ft.Column(controls, spacing=s(1), tight=True)
+
+    def _sync_chevron(self) -> None:
+        """Troca o glifo do chevron sem recriar a barra lateral."""
+        button = getattr(self, "_chevron_btn", None)
+        if button is None:
+            return
+        glyph = button.content
+        char, family = fa_glyph("chevron-down" if self.compilations_expanded else "chevron-right", "solid")
+        glyph.value = char
+        glyph.font_family = family
+        button.tooltip = "Recolher cadernos" if self.compilations_expanded else "Expandir cadernos"
+        try:
+            button.update()
+        except Exception:
+            pass
+
+    def update_state(self, current: str, data: SidebarData | None = None) -> None:
+        """Atualiza item ativo e contadores sem reconstruir a barra lateral."""
+        previous_expanded = self.compilations_expanded
+        self.current = current
+        if current.startswith("compilacao:"):
+            self.compilations_expanded = True
+        if data is not None:
+            self.data = data
+        for destination, ref in list(self._items.items()):
+            self._paint_item(destination, ref)
+        if previous_expanded != self.compilations_expanded:
+            self._rebuild_projects()
+        else:
+            self._sync_projects()
+        self._sync_chevron()
+
+    def _paint_item(self, destination: str, ref: dict) -> None:
+        c = self.config
+        active = self.current == destination
+        ref["state"]["active"] = active
+        ref["label"].weight = ui.W700 if active else ui.W600
+        ref["label"].color = c.colors["text"] if active else c.colors["muted"]
+        ref["box"].bgcolor = c.colors["selected"] if active else None
+        ref["box"].border = ref["active_border"] if active else None
+        glyph = ref["glyph"]
+        if isinstance(glyph, ft.Text):
+            glyph.color = c.colors["gold"] if active else c.colors["faint"]
+        elif isinstance(glyph, ft.Container):
+            glyph.border = ft.Border.all(1.5, c.colors["gold"] if active else c.colors["faint"])
+            glyph.bgcolor = c.colors["gold"] if active else None
+        count = ref["count"]
+        key = ref["count_key"]
+        if count is not None and key:
+            value = len(self.data.compilations) if key == "compilations" else getattr(self.data, key, None)
+            if value is not None:
+                count.value = str(value)
+        try:
+            ref["box"].update()
+        except Exception:
+            pass
+
+    def _sync_projects(self) -> None:
+        signature = tuple(self.data.compilations)
+        switcher = getattr(self, "_projects_switcher", None)
+        if switcher is None:
+            self._project_signature = signature
+            return
+        if signature != self._project_signature:
+            for key in [item for item in self._items if item.startswith("compilacao:")]:
+                self._items.pop(key, None)
+            self._project_signature = signature
+            switcher.content = self._projects_content()
+            try:
+                switcher.update()
+            except Exception:
+                pass
+        else:
+            for destination, ref in list(self._items.items()):
+                if destination.startswith("compilacao:"):
+                    self._paint_item(destination, ref)
+
     def _compose_navigation(self) -> ft.Container:
         c = self.config
         counts = {"works": self.data.works, "fragments": self.data.fragments}
-        main = [self._item(dest, ic, label, counts.get(key) if key else None) for dest, ic, label, key in MAIN_ITEMS]
+        main = [self._item(dest, ic, label, counts.get(key) if key else None, count_key=key) for dest, ic, label, key in MAIN_ITEMS]
 
         add_comp = ui.icon_button(
             c, "plus",
@@ -217,32 +349,31 @@ class SidebarComposer:
             on_click=lambda _e: self._toggle_compilations(),
         )
 
+        self._chevron_btn = chevron_btn
         root_comp = self._item(
             "Compilações",
             "folder-open",
             "Todas as compilações",
             len(self.data.compilations),
             trailing=chevron_btn,
+            count_key="compilations",
         )
 
-        projects = []
-        for comp_id, name in self.data.compilations:
-            destination = f"compilacao:{comp_id}"
-            active = self.current == destination
-            dot = ft.Container(
-                width=s(8), height=s(8),
-                border_radius=ft.BorderRadius.all(s(2)),
-                border=ft.Border.all(1.5, c.colors["gold"] if active else c.colors["faint"]),
-                bgcolor=c.colors["gold"] if active else None,
-            )
-            projects.append(self._item(destination, None, name, leading=dot, indent=14))
+        self._projects_switcher = ft.AnimatedSwitcher(
+            content=self._projects_content(),
+            duration=MOTION_SLOW,
+            reverse_duration=MOTION_FAST,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+        )
+        self._project_signature = tuple(self.data.compilations)
 
         compilations_section: list[ft.Control] = [
             self._group_head("Compilações", add_comp),
             root_comp,
+            self._projects_switcher,
         ]
-        if self.compilations_expanded and projects:
-            compilations_section.extend(projects)
 
         explore = [self._item(dest, ic, label) for dest, ic, label in EXPLORE_ITEMS]
 
@@ -295,6 +426,7 @@ class SidebarComposer:
 
     def compose(self) -> ft.Container:
         """Monta a barra lateral completa."""
+        self._items = {}
         return ft.Container(
             width=s(self.config.ui["sidebar_width"]),
             bgcolor=self.config.colors["chrome"],

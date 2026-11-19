@@ -217,6 +217,8 @@ class CoreComposer:
         self.on_delete_magazine = on_delete_magazine
         self.fragment_dialog_composer: FragmentsComposer | None = None
         self.sidebar_compilations_expanded: bool = True
+        self.sidebar_composer = None
+        self.sidebar_control: ft.Container | None = None
 
     # ── fábrica de telas (lazy) ────────────────────────────
 
@@ -310,28 +312,32 @@ class CoreComposer:
     def _compose_sidebar(self) -> ft.Container:
         if self.current_destination.startswith("compilacao:"):
             self.sidebar_compilations_expanded = True
-        return SidebarComposer(
-            scale=self.scale,
-            config=self.config,
-            on_navigate=self.on_navigate,
-            current=self.current_destination,
-            data=self.get_sidebar_data() if self.get_sidebar_data else SidebarData(),
-            on_search=self.open_palette,
-            on_new_work=lambda: self.on_navigate("work_insert"),
-            on_new_compilation=self.on_new_compilation,
-            on_toggle_theme=self.on_toggle_theme,
-            compilations_expanded=self.sidebar_compilations_expanded,
-            on_toggle_compilations=self._on_toggle_sidebar_compilations,
-        ).compose()
+        data = self.get_sidebar_data() if self.get_sidebar_data else SidebarData()
+        composer = getattr(self, "sidebar_composer", None)
+        if composer is None or getattr(self, "sidebar_control", None) is None:
+            composer = SidebarComposer(
+                scale=self.scale,
+                config=self.config,
+                on_navigate=self.on_navigate,
+                current=self.current_destination,
+                data=data,
+                on_search=self.open_palette,
+                on_new_work=lambda: self.on_navigate("work_insert"),
+                on_new_compilation=self.on_new_compilation,
+                on_toggle_theme=self.on_toggle_theme,
+                compilations_expanded=self.sidebar_compilations_expanded,
+                on_toggle_compilations=self._on_toggle_sidebar_compilations,
+            )
+            self.sidebar_composer = composer
+            self.sidebar_control = composer.compose()
+        else:
+            composer.update_state(self.current_destination, data)
+        return self.sidebar_control
 
     def _on_toggle_sidebar_compilations(self, expanded: bool) -> None:
+        # O SidebarComposer já anima o grupo localmente; aqui só persistimos o
+        # estado para a próxima recomposição da barra.
         self.sidebar_compilations_expanded = expanded
-        if getattr(self, "sidebar_host", None) is not None:
-            self.sidebar_host.content = self._compose_sidebar()
-            try:
-                self.sidebar_host.update()
-            except Exception:
-                pass
 
     def set_history_state(self, can_back: bool, can_forward: bool) -> None:
         self._chrome().set_history_state(can_back, can_forward)
@@ -339,11 +345,13 @@ class CoreComposer:
     def refresh_chrome(self) -> None:
         """Atualiza sidebar e breadcrumb depois de uma navegação."""
         if getattr(self, "sidebar_host", None) is not None:
-            self.sidebar_host.content = self._compose_sidebar()
-            try:
-                self.sidebar_host.update()
-            except Exception:
-                pass
+            sidebar = self._compose_sidebar()
+            if self.sidebar_host.content is not sidebar:
+                self.sidebar_host.content = sidebar
+                try:
+                    self.sidebar_host.update()
+                except Exception:
+                    pass
         self._chrome().refresh_crumbs()
 
     def update_window_state(self, is_maximized: bool) -> None:
@@ -352,8 +360,17 @@ class CoreComposer:
     def compose_main(self) -> ft.Column:
         """Monta barra de título, barra lateral e área de conteúdo."""
         ui.set_scale(self.scale)
-        self.content = ft.Container(
+        self.page_switcher = ft.AnimatedSwitcher(
             content=self._compose_dashboard(),
+            duration=ui.MOTION_SLOW,
+            reverse_duration=ui.MOTION_FAST,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            expand=True,
+        )
+        self.content = ft.Container(
+            content=self.page_switcher,
             expand=True,
             bgcolor=self.config.colors["bg"],
         )
@@ -406,14 +423,23 @@ class CoreComposer:
             if destination not in self.config.core_menus:
                 return
             self.current_destination = destination
-            self.content.content = factory.placeholder(destination)
+            view = factory.placeholder(destination)
         else:
             self.current_destination = destination
-            self.content.content = view_factory()
-        try:
-            self.content.update()
-        except (RuntimeError, AttributeError):
-            pass
+            view = view_factory()
+        switcher = getattr(self, "page_switcher", None)
+        if switcher is not None:
+            switcher.content = view
+            try:
+                switcher.update()
+            except (RuntimeError, AttributeError):
+                pass
+        else:
+            self.content.content = view
+            try:
+                self.content.update()
+            except (RuntimeError, AttributeError):
+                pass
         self.refresh_chrome()
 
     # ── paleta ⌘K ──────────────────────────────────────────

@@ -390,7 +390,7 @@ class AuthorSearchMixin:
                 spacing=ui.s(16),
                 width=ui.s(400),
             ),
-            animate_size=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            animate_size=ui.motion(ui.MOTION_SLOW),
         )
         dialog.title = ui.ui_text(c, "Classificar autor", size=15, weight=ui.W600)
         dialog.actions = [

@@ -137,7 +137,7 @@ class MultipleAuthorsPopup:
                     spacing=ui.s(16),
                     width=ui.s(460),
                 ),
-                animate_size=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+                animate_size=ui.motion(ui.MOTION_SLOW),
             ),
             actions=[
                 ui.button(

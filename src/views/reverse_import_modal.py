@@ -318,7 +318,14 @@ class ReverseImportModalDialog:
         )
 
         # Contêiner de conteúdo dinâmico (troca conforme a fase)
-        self.content_container = ft.Container()
+        self.content_container = ft.AnimatedSwitcher(
+            content=ft.Container(),
+            duration=ui.MOTION_SLOW,
+            reverse_duration=ui.MOTION_FAST,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+        )
 
     def show(self) -> None:
         """Apresenta o diálogo de importação reversa."""
