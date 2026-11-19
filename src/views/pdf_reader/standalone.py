@@ -26,6 +26,7 @@ from src.configs.settings import (
     TEXTS,
     UI,
 )
+from src.db.bootstrap import bootstrap_user_environment
 from src.db.db import SessionLocal, init_db
 from src.domains import BibliographicResource
 from src.services.pdf_service import PdfService
@@ -79,6 +80,7 @@ def open_pdf_standalone_window(
 
 def run_standalone_reader(resource_id: int) -> None:
     """Ponto de entrada que inicializa a aplicação Flet da janela dedicada."""
+    bootstrap_user_environment()
     init_db()
     settings_service = SettingsService()
     settings = settings_service.load_settings()

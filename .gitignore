@@ -229,6 +229,21 @@ TODO.md
 # User preferences
 *user_preferences.json
 
+# Cofre de segredos de contingência (quando o keyring do SO não existe)
+*secrets.json
+src/db/secrets.json
+
+# Artefatos locais de análise
+scratch/
+.ci-data/
+
+# Banco de dados local e artefatos de integridade/migração
+src/db/hupomnemata.db
+src/db/hupomnemata.db-wal
+src/db/hupomnemata.db-shm
+src/db/backups/
+data/backups/
+
 # Cloud Sync & Google Drive OAuth tokens and backups
 *credentials.json
 *credentials_user.json
