@@ -250,9 +250,15 @@ class CadernoOutlineMixin:
                     items.append(
                         self._wrap_drop(
                             ft.Container(
-                                child_box,
-                                padding=ft.Padding.only(left=s(20)),
-                                border=ft.Border.only(left=ft.BorderSide(1, c.colors['border_strong'])),
+                                content=ft.Row(
+                                    [
+                                        ft.Container(width=1, bgcolor=c.colors['border_strong']),
+                                        ft.Container(child_box, expand=True),
+                                    ],
+                                    spacing=s(20),
+                                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                                ),
+                                padding=ft.Padding.only(left=s(18)),
                             ),
                             child['id'],
                         )

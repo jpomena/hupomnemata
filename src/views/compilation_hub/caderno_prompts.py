@@ -307,13 +307,22 @@ class CadernoPromptsMixin:
             self._reload()
             paint(search.value or '')
 
+        closed = {'done': False}
+
         def create_new(_e=None) -> None:
+            closed['done'] = True
             close_dialog(self.page)
             self._prompt_create_section(fragment_id)
 
         def finish(_e=None) -> None:
+            closed['done'] = True
             close_dialog(self.page)
             self.refresh()
+
+        def dismissed(_e=None) -> None:
+            if not closed['done']:
+                closed['done'] = True
+                self.refresh()
 
         search = ui.search_field(
             c,
@@ -350,6 +359,8 @@ class CadernoPromptsMixin:
                 ui.button(c, 'Concluir', on_click=finish, variant='primary'),
             ],
             width=520,
+            dismissible=True,
+            on_dismiss=dismissed,
         )
         modal.data = {'paint': paint, 'toggle': toggle, 'finish': finish}
         open_dialog(self.page, modal)

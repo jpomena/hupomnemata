@@ -342,7 +342,14 @@ class CompilationHubWorksMixin:
         chevron = chevron_btn.content
         chevron.animate_rotation = ui.motion(ui.MOTION_BASE)
         chevron.rotate = 0 if collapsed else 3.141592653589793 / 2
-        title_text = ui.ui_text(c, work['title'], size=13, weight=ui.W600, selectable=True)
+        title_text = ui.serif_text(
+            c,
+            work['title'],
+            size=18.5,
+            weight=ui.W600,
+            max_lines=1,
+            selectable=True,
+        )
         title_host = ft.Container(
             content=ft.Column(
                 [title_text, ui.meta_text(c, meta)],

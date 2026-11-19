@@ -1154,6 +1154,7 @@ def dialog(
     subtitle: str | None = None,
     page: ft.Page | None = None,
     on_dismiss: Callable | None = None,
+    dismissible: bool = False,
 ) -> ft.AlertDialog:
     """Diálogo modal padrão do redesign: superfície, raio 10, título em Montserrat 15/600."""
     head: list[ft.Control] = [ui_text(c, title, size=15, weight=W600)]
@@ -1174,7 +1175,7 @@ def dialog(
                 pass
 
     dlg = ft.AlertDialog(
-        modal=True,
+        modal=not dismissible,
         bgcolor=c.colors["surface"],
         title=ft.Column(head, spacing=s(4), tight=True),
         title_padding=ft.Padding.only(left=s(20), right=s(20), top=s(18), bottom=s(4)),

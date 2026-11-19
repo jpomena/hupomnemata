@@ -1152,6 +1152,13 @@ def test_compilation_page_works_tab_membership_and_destination():
     work_texts = _texts(work_card)
     assert 'Obra existente' in work_texts
     assert 'Ana Autora · 3 fragmentos' in work_texts
+    work_title = next(
+        item for item in _find_all(
+            work_card,
+            lambda control: isinstance(control, ft.Text) and control.value == 'Obra existente',
+        )
+    )
+    assert work_title.font_family == hub.config.font_families['cormorant']
     assert 'Sem autoria · 0 fragmentos' in _texts(hub._compose_work(1))
     openers = _find_all(
         work_card,
@@ -1195,6 +1202,7 @@ def test_compilation_page_works_tab_membership_and_destination():
     assert alloc_labels.count('A organizar') == 2
 
     allocation = hub._prompt_allocate_fragment(compilation['works'][0]['fragments'][0])
+    assert allocation.modal is False
     allocation.data['toggle'](31)
     assert recorder.named('link')[-1] == (1, 20, 31)
     allocation.data['finish']()
