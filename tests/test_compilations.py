@@ -1079,11 +1079,14 @@ def test_compilation_page_section_and_fragment_actions():
     assert recorder.named('create_section') == [(1, 'Nova ideia', 'Papel da ideia')]
 
     labels = menu_labels(fragment_menu)
-    assert 'Mover para “Conclusão”' in labels
+    assert 'Alocar em ideias…' in labels
+    assert not any(label.startswith('Mover para “') for label in labels)
     assert 'Devolver para A organizar' in labels
     assert labels[-1] == 'Retirar do caderno'
-    run_menu_item(fragment_menu, 'Mover para “Conclusão”')
-    assert recorder.named('assign')[-1] == (1, 20, 31)
+    run_menu_item(fragment_menu, 'Alocar em ideias…')
+    allocation = recorder.dialogs[-1]
+    assert allocation.modal is False
+    assert allocation.data['search'].hint_text == 'Buscar capítulo ou argumento'
     run_menu_item(fragment_menu, 'Devolver para A organizar')
     assert recorder.named('assign')[-1] == (1, 20, None)
     run_menu_item(fragment_menu, 'Editar fragmento')
@@ -1160,14 +1163,11 @@ def test_compilation_page_works_tab_membership_and_destination():
     )
     assert work_title.font_family == hub.config.font_families['cormorant']
     assert 'Sem autoria · 0 fragmentos' in _texts(hub._compose_work(1))
-    openers = _find_all(
-        work_card,
-        lambda item: isinstance(item, ft.Container)
-        and item.tooltip == 'Abrir no Acervo',
-    )
-    assert openers
-    openers[0].on_click(None)
-    assert recorder.named('open_work')[-1] == (10,)
+    title_host = work_card.content.controls[0].content.controls[1]
+    assert title_host.on_click is None
+    assert title_host.on_hover is None
+    assert title_host.tooltip is None
+    assert recorder.named('open_work') == []
     fragment_row = _find_all(
         work_card,
         lambda item: isinstance(item, ft.Container) and item.data == 20,
@@ -1203,6 +1203,11 @@ def test_compilation_page_works_tab_membership_and_destination():
 
     allocation = hub._prompt_allocate_fragment(compilation['works'][0]['fragments'][0])
     assert allocation.modal is False
+    allocation_search = allocation.data['search']
+    assert allocation_search.expand is False
+    assert allocation_search.multiline is False
+    assert allocation_search.max_lines == 1
+    assert allocation_search.height == hub.work_search.height
     allocation.data['toggle'](31)
     assert recorder.named('link')[-1] == (1, 20, 31)
     allocation.data['finish']()
@@ -1234,6 +1239,41 @@ def test_compilation_page_works_tab_membership_and_destination():
     hub.work_matches.controls[0].on_click(None)
     assert recorder.named('add_work') == [(1, 11)]
     assert hub.work_matches.visible is False
+
+
+def test_compilation_allocation_preserves_scroll_and_tab_context():
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    hub._select_tab('obras')
+
+    works_scroll = hub.works_scroll
+    outline_host = hub.works_outline_host
+    outline_scroll = outline_host.content.content
+    tab_content = hub.tab_switcher.content
+    hub._on_works_scroll(SimpleNamespace(pixels=240))
+
+    hub._allocate_fragment(21, 30)
+
+    assert recorder.named('link')[-1] == (1, 21, 30)
+    assert hub.works_scroll is works_scroll
+    assert hub.works_outline_host is outline_host
+    assert outline_host.content.content is outline_scroll
+    assert hub.tab_switcher.content is tab_content
+    assert hub.selected_tab == 'obras'
+    assert hub.works_scroll_offset == 240
+
+    # Os callbacks reconstruídos devem apontar para o host preservado.
+    outline_group = outline_scroll.controls[0]
+    header_row = outline_group.controls[0].content
+    header_row.controls[0].controls[0].on_click(None)
+    assert hub._outline_roteiro_collapsed is True
+    assert hub.works_outline_host is outline_host
+    current_outline_scroll = outline_host.content.content
+    assert len(current_outline_scroll.controls[0].controls) == 1
 
 
 def test_compilation_page_overview_details_and_delete():

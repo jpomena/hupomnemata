@@ -1,11 +1,9 @@
 """Aba Obras e fragmentos: obras do projeto e o que entra no caderno.
 
-Um card por obra (título, autoria, contagem, “Fragmento” e ``⋯``) com uma
-linha por fragmento: checkbox “Incluir no caderno”, citação em Cormorant e o
-seletor “Destino no caderno”, desabilitado enquanto o fragmento está fora.
+Um card recolhível por obra e uma linha por fragmento, com inclusão no
+caderno, alocação por busca e arrasto para o roteiro lateral. Atualizações de
+dados preservam as colunas roláveis para não devolver a tela ao início.
 """
-
-import asyncio
 
 import flet as ft
 
@@ -179,46 +177,38 @@ class CompilationHubWorksMixin:
                 pass
 
     def _on_works_scroll(self, event) -> None:
-        pixels = float(getattr(event, 'pixels', 0) or 0)
-        if pixels == 0 and getattr(self, '_restoring_scroll', False):
-            return
-        self.works_scroll_offset = pixels
+        self.works_scroll_offset = float(getattr(event, 'pixels', 0) or 0)
 
-    def _restore_works_scroll(self) -> None:
-        column = getattr(self, 'works_scroll', None)
-        offset = getattr(self, 'works_scroll_offset', 0.0)
-        if column is None or not offset or self.selected_tab != 'obras':
-            self._restoring_scroll = False
-            return
-        run_task = getattr(self.page, 'run_task', None)
-        if run_task is None:
-            self._restoring_scroll = False
-            return
+    def _refresh_works_in_place(self) -> bool:
+        """Atualiza os filhos sem destruir os controles que detêm a rolagem."""
+        if self.selected_tab != 'obras' or self.root is None:
+            return False
+        current_scroll = getattr(self, 'works_scroll', None)
+        current_outline = getattr(self, 'works_outline_host', None)
+        if current_scroll is None or current_outline is None:
+            return False
+        current_outline_scroll = current_outline.content.content
+        self._compose_works_and_fragments()
+        new_scroll = self.works_scroll
 
-        async def restore() -> None:
-            try:
-                await asyncio.sleep(0.02)
-                await column.scroll_to(offset=offset, duration=0)
-            except Exception:
-                pass
-            finally:
-                self._restoring_scroll = False
+        # A identidade dos Columns roláveis é preservada; só seus filhos mudam.
+        current_scroll.controls = list(new_scroll.controls)
+        rebuilt_outline = self._compose_outline(
+            on_focus=self._focus_idea_in_works,
+            host=current_outline,
+        )
+        current_outline_scroll.controls = list(rebuilt_outline.content.controls)
+        self.works_scroll = current_scroll
+        self.works_outline_host = current_outline
 
-        try:
-            run_task(restore)
-        except Exception:
-            self._restoring_scroll = False
-
-    def _destination_options(self) -> list[tuple[str, str]]:
-        options: list[tuple[str, str]] = [('unassigned', 'A organizar')]
-        chapters = self._root_chapters() if hasattr(self, '_root_chapters') else self._sorted_sections()
-        for ch in chapters:
-            options.append((str(ch['id']), f"Capítulo: {ch['title']}"))
-            if hasattr(self, '_child_sections'):
-                for child in self._child_sections(ch['id']):
-                    options.append((str(child['id']), f"  ↳ {child['title']}"))
-        options.append(('create_section', '+ Novo Capítulo…'))
-        return options
+        header_host = getattr(self, 'header_host', None)
+        tab_bar_host = getattr(self, 'tab_bar_host', None)
+        if header_host is not None:
+            header_host.content = self._compose_header()
+        if tab_bar_host is not None:
+            tab_bar_host.content = self._compose_tabs()
+        self.page.update()
+        return True
 
     def _compose_fragment(
         self,
@@ -357,23 +347,9 @@ class CompilationHubWorksMixin:
                 expand=True,
                 tight=True,
             ),
-            on_click=(lambda _e, wid=work['id']: self.on_open_work(wid)) if self.on_open_work else None,
-            tooltip='Abrir no Acervo' if self.on_open_work else None,
             padding=ft.Padding.symmetric(vertical=s(2)),
-            border_radius=ft.BorderRadius.all(s(4)),
-            animate=ui.motion(ui.MOTION_FAST),
             expand=True,
         )
-
-        def _title_hover(event) -> None:
-            hovering = event.data in (True, 'true')
-            title_text.color = c.colors['gold'] if hovering else c.colors['text']
-            try:
-                title_host.update()
-            except Exception:
-                pass
-
-        title_host.on_hover = _title_hover
         head = ft.Container(
             content=ft.Row(
                 [
@@ -479,7 +455,6 @@ class CompilationHubWorksMixin:
             on_focus=self._focus_idea_in_works,
             host=self.works_outline_host,
         )
-        self._restore_outline_scroll(self.works_outline_host)
         return ft.Row(
             [
                 self.works_outline_host,

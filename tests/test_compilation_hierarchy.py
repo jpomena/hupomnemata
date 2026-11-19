@@ -373,8 +373,9 @@ def test_outline_counter_is_additive_across_arguments(view_config):
 
 
 def test_outline_chapters_start_collapsed_and_toggle(view_config):
-    """Valida que no menu lateral do Roteiro os capítulos iniciam recolhidos por padrão e podem ser alternados."""
+    """Valida recolhimento pelos botões reais e indentação efetiva dos argumentos."""
     from types import SimpleNamespace
+    import flet as ft
     from src.views.compilation_hub.hub_composer import CompilationHubComposer
 
     dummy_page = SimpleNamespace(
@@ -442,25 +443,45 @@ def test_outline_chapters_start_collapsed_and_toggle(view_config):
     assert 10 in hub._collapsed_set()
     assert 20 in hub._collapsed_set()
 
-    # Monta a árvore do outline
-    hub._compose_outline()
+    # Monta a árvore no host real e aciona os botões, não apenas os métodos.
+    host = ft.Container()
+    hub.outline_host = host
+    host.content = hub._compose_outline(host=host)
 
-    # Apenas os 2 capítulos raízes devem estar visíveis; o argumento 1.1 está recolhido
-    titles = [item.data for item in hub.outline_items]
-    assert titles == ['Capítulo 1', 'Capítulo 2']
+    def roteiro_group():
+        return host.content.content.controls[0]
 
-    # 2. Alterna expansão do Capítulo 1
-    hub._toggle_outline_chapter(10)
-    assert 10 not in hub._collapsed_set()
+    def roteiro_toggle():
+        header_row = roteiro_group().controls[0].content
+        return header_row.controls[0].controls[0]
 
-    hub._compose_outline()
-    titles_expanded = [item.data for item in hub.outline_items]
-    # Agora o Argumento 1.1 está visível sob o Capítulo 1
-    assert titles_expanded == ['Capítulo 1', 'Argumento 1.1', 'Capítulo 2']
-
-    # 3. Recolhe o Capítulo 1 novamente
-    hub._toggle_outline_chapter(10)
-    assert 10 in hub._collapsed_set()
-
-    hub._compose_outline()
     assert [item.data for item in hub.outline_items] == ['Capítulo 1', 'Capítulo 2']
+    assert len(roteiro_group().controls) == 3  # cabeçalho + dois capítulos
+
+    roteiro_toggle().on_click(None)
+    assert hub._outline_roteiro_collapsed is True
+    assert len(roteiro_group().controls) == 1
+
+    roteiro_toggle().on_click(None)
+    assert hub._outline_roteiro_collapsed is False
+    assert len(roteiro_group().controls) == 3
+
+    chapter_box = roteiro_group().controls[1].content
+    chapter_box.content.controls[0].on_click(None)
+    assert 10 not in hub._collapsed_set()
+    assert [item.data for item in hub.outline_items] == [
+        'Capítulo 1', 'Argumento 1.1', 'Capítulo 2',
+    ]
+    assert len(roteiro_group().controls) == 4
+
+    from src.views.ui_kit import s
+    child_box = roteiro_group().controls[2].content
+    assert child_box.margin.left == s(32)
+    assert child_box.padding.left == s(16)
+    assert child_box.border.left.color == view_config.colors['border_strong']
+
+    chapter_box = roteiro_group().controls[1].content
+    chapter_box.content.controls[0].on_click(None)
+    assert 10 in hub._collapsed_set()
+    assert [item.data for item in hub.outline_items] == ['Capítulo 1', 'Capítulo 2']
+    assert len(roteiro_group().controls) == 3

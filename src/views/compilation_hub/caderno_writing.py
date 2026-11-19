@@ -102,21 +102,12 @@ class CadernoWritingMixin:
             if index < total - 1:
                 items.append(('arrow-down', 'Mover para baixo', lambda: self._move_section_fragment(section_id, index, 1), False))
             items.append(None)
-        for section in self._sorted_sections():
-            if section['id'] == section_id:
-                continue
-            items.append((
-                'arrow-right',
-                f'Mover para “{section["title"]}”',
-                lambda sid=section['id']: self._set_fragment_destination(
-                    fragment['id'],
-                    str(sid),
-                    current_section_id=section_id,
-                ),
-                False,
-            ))
-        items.append(('plus', 'Mover para uma nova ideia', lambda: self._prompt_create_section(fragment['id']), False))
-        items.append(('link', 'Vincular também a...', lambda: self._prompt_link_fragment_to_section(fragment), False))
+        items.append((
+            'location-dot',
+            'Alocar em ideias…',
+            lambda: self._prompt_allocate_fragment(fragment),
+            False,
+        ))
         if section_id is not None:
             items.append((
                 'inbox',
@@ -779,7 +770,6 @@ class CadernoWritingMixin:
             on_focus=self._focus_idea,
             host=self.outline_host,
         )
-        self._restore_outline_scroll(self.outline_host)
         controls: list[ft.Control] = [self.outline_host, self._compose_writing()]
         if getattr(self, 'show_rail', False):
             self.rail_host = self._compose_rail()

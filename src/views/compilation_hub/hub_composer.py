@@ -167,8 +167,7 @@ class CompilationHubComposer(
         return False
 
     def refresh(self) -> None:
-        """Relê a compilação do banco e redesenha a página no lugar."""
-        self._restoring_scroll = bool(getattr(self, 'works_scroll_offset', 0.0)) and self.selected_tab == 'obras'
+        """Relê a compilação e preserva o contexto visual sempre que possível."""
         if not self._reload():
             self.deleted = True
             if self.on_navigate is not None:
@@ -183,13 +182,13 @@ class CompilationHubComposer(
             self.work_search.value = ''
         if self.on_data_changed is not None:
             self.on_data_changed(self.compilation)
-        self._render()
+        if not self._refresh_works_in_place():
+            self._render()
 
     def _render(self) -> None:
         if self.root is not None:
             self.root.content = self._compose_body()
         self.page.update()
-        self._restore_works_scroll()
 
     def _select_tab(self, key: str) -> None:
         if key not in TABS:

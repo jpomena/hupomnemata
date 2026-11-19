@@ -5,8 +5,6 @@ Movimentação literal: sem ``__init__``, colabora com o hub via ``self``.
 
 from collections.abc import Callable
 
-import asyncio
-
 import flet as ft
 
 from src.contracts import CompilationSectionRecord
@@ -246,23 +244,16 @@ class CadernoOutlineMixin:
                         child_active,
                         lambda _e, sid=child['id']: focus(sid),
                     )
-                    outline_items.append(child_box)
-                    items.append(
-                        self._wrap_drop(
-                            ft.Container(
-                                content=ft.Row(
-                                    [
-                                        ft.Container(width=1, bgcolor=c.colors['border_strong']),
-                                        ft.Container(child_box, expand=True),
-                                    ],
-                                    spacing=s(20),
-                                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-                                ),
-                                padding=ft.Padding.only(left=s(18)),
-                            ),
-                            child['id'],
-                        )
+                    # Margem e padding deslocam efetivamente número e título.
+                    # Não usar Row com STRETCH aqui: a coluna rolável não fornece
+                    # altura finita para esse eixo no layout do Flutter.
+                    child_box.margin = ft.Margin.only(left=s(32))
+                    child_box.padding = ft.Padding.only(left=s(16), right=s(8))
+                    child_box.border = ft.Border.only(
+                        left=ft.BorderSide(1, c.colors['border_strong'])
                     )
+                    outline_items.append(child_box)
+                    items.append(self._wrap_drop(child_box, child['id']))
         if not chapters:
             items.append(
                 ft.Container(
@@ -348,28 +339,6 @@ class CadernoOutlineMixin:
 
     def _on_outline_scroll(self, event) -> None:
         self.outline_scroll_offset = float(getattr(event, 'pixels', 0) or 0)
-
-    def _restore_outline_scroll(self, host: ft.Container | None) -> None:
-        offset = getattr(self, 'outline_scroll_offset', 0.0)
-        if host is None or not offset:
-            return
-        run_task = getattr(self.page, 'run_task', None)
-        if run_task is None:
-            return
-
-        async def restore() -> None:
-            try:
-                await asyncio.sleep(0.02)
-                column = host.content
-                if column is not None and hasattr(column, 'scroll_to'):
-                    await column.scroll_to(offset=offset, duration=0)
-            except Exception:
-                pass
-
-        try:
-            run_task(restore)
-        except Exception:
-            pass
 
     def _focus_idea(self, key: int | str) -> None:
         uncollapsed = False

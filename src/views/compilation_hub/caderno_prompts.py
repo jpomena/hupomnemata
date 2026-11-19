@@ -329,9 +329,13 @@ class CadernoPromptsMixin:
             'Buscar capítulo ou argumento',
             on_change=lambda event: paint(event.control.value or ''),
             width=None,
-            expand=True,
+            expand=False,
             autofocus=True,
         )
+        # ``expand`` não deve competir com a altura de uma linha no diálogo.
+        search.multiline = False
+        search.min_lines = 1
+        search.max_lines = 1
         paint()
         modal = dialog(
             c,
@@ -362,7 +366,13 @@ class CadernoPromptsMixin:
             dismissible=True,
             on_dismiss=dismissed,
         )
-        modal.data = {'paint': paint, 'toggle': toggle, 'finish': finish}
+        modal.data = {
+            'paint': paint,
+            'toggle': toggle,
+            'finish': finish,
+            'search': search,
+            'dismiss': dismissed,
+        }
         open_dialog(self.page, modal)
         return modal
 
