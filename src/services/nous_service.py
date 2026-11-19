@@ -152,7 +152,11 @@ class NousAIService:
                         try:
                             err_data = response.json()
                             msg = err_data.get("error", {}).get("message", "Chave de API inválida.")
-                        except Exception:
+                        except Exception as exc:
+                            log_exception(
+                                "NousAIService.test_connection: erro HTTP não-JSON",
+                                exc,
+                            )
                             msg = f"Erro de autenticação HTTP {response.status_code}"
 
                         # Se for explicitamente chave inválida, encerra imediatamente
@@ -274,7 +278,11 @@ class NousAIService:
                         else:
                             try:
                                 msg = response.json().get("error", {}).get("message", response.text)
-                            except Exception:
+                            except Exception as exc:
+                                log_exception(
+                                    "NousAIService.generate_work_description: erro HTTP não-JSON",
+                                    exc,
+                                )
                                 msg = response.text
                             return False, f"Erro da API Gemini (HTTP {response.status_code}): {msg}"
                 except Exception as exc:
@@ -572,7 +580,11 @@ class NousAIService:
                     else:
                         try:
                             msg = response.json().get("error", {}).get("message", response.text)
-                        except Exception:
+                        except Exception as exc:
+                            log_exception(
+                                "NousAIService.extract_reference_metadata: erro HTTP não-JSON",
+                                exc,
+                            )
                             msg = response.text
                         return False, {}, f"Erro da API Gemini (HTTP {response.status_code}): {msg}"
             except json.JSONDecodeError as exc:

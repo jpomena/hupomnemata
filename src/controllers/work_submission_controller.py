@@ -264,6 +264,7 @@ class WorkSubmissionController:
         try:
             self.page.update()
         except Exception:
+            # Atualização de página é best-effort durante a abertura do modal.
             pass
 
     def _select_existing_author(self, index: int, author_id: int) -> None:

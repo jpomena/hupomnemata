@@ -317,7 +317,8 @@ class CloudSyncService:
             finally:
                 connection.close()
             return str(result[0]) if result else "unknown"
-        except Exception:
+        except Exception as error:
+            log_exception("CloudSyncService.get_current_schema_version", error)
             return "unknown"
 
     def build_manifest(self, db_sha256: str) -> dict[str, Any]:

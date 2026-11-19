@@ -229,7 +229,8 @@ class CoreController(
                 (record["id"], record["name"])
                 for record in self.compilation_service.list_compilations()
             ]
-        except Exception:
+        except Exception as error:
+            log_exception("CoreController.sidebar_data", error)
             return SidebarData()
         return SidebarData(works=works, fragments=fragments, compilations=compilations)
 
@@ -503,9 +504,11 @@ class CoreController(
                 icon_name="circle-exclamation" if is_error else "circle-check",
             )
         except Exception:
+            # Guarda de UI: se o toast rico falhar, cai para SnackBar nativo.
             self.page.show_dialog(ft.SnackBar(content=ft.Text(value=message)))
             if hasattr(self.page, "update"):
                 try:
                     self.page.update()
                 except Exception:
+                    # Atualização de página é best-effort durante o desmonte.
                     pass

@@ -22,6 +22,7 @@ from src.services.semantic_engine import (
 )
 
 from src.configs.settings import CLUSTER_PALETTE_LIGHT
+from src.utils.error_log import log_exception
 
 PALETTE_COLORS = CLUSTER_PALETTE_LIGHT or [
     "#7A5C00",  # Ouro / Bronze Nobre
@@ -146,8 +147,9 @@ class KnowledgeService:
         # Recalcula clusters para reorganizar a constelação
         try:
             self.clusterize_mesh()
-        except Exception:
-            pass
+        except Exception as error:
+            # A revetorização já foi persistida; falha de clusterização não a desfaz.
+            log_exception("KnowledgeService.revectorize_work: clusterize_mesh", error)
 
         return True
 

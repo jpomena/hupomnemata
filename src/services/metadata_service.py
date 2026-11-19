@@ -23,6 +23,7 @@ from src.domains import (
     PeriodicalCollection,
     PeriodicalProceedings,
 )
+from src.utils.error_log import log_exception
 
 
 class IdentifierType(str, Enum):
@@ -155,8 +156,9 @@ def check_local_duplicate(
                             res_id = getattr(w, "bib_res_id", None)
                             if res_id is not None:
                                 return res_id, getattr(w, "title", "Obra sem título")
-    except Exception:
-        # Se ocorrer falha no banco de dados (ex.: durante testes sem migração), não bloquear
+    except Exception as error:
+        # Falha no banco (ex.: testes sem migração) não deve bloquear a importação.
+        log_exception("MetadataService.check_local_duplicate", error)
         return None
 
     return None
@@ -420,8 +422,11 @@ class MetadataService:
                         loc = str(resp.json().get("message", {}).get("location", "") or "").strip()
                         self._MEMBER_CACHE[member_id] = loc
                         return loc
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(
+                f"MetadataService._get_member_location: Crossref member {member_id}",
+                error,
+            )
         return ""
 
     def resolve(
@@ -848,8 +853,8 @@ class MetadataService:
             b_data = self._fetch_brasil_api_isbn(clean, client)
             if b_data and (b_data.get("title") or b_data.get("authors")):
                 b_meta = self._map_brasil_api(b_data, raw_isbn=isbn, normalized_isbn=clean)
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(f"MetadataService.fetch_isbn: BrasilAPI para {clean}", error)
 
         # 2. Tentar Open Library
         # Se for ISBN brasileiro mas faltou autor ou ano ou página no BrasilAPI,
@@ -866,8 +871,8 @@ class MetadataService:
                 ol_data = self._fetch_open_library_isbn(clean, client)
                 if ol_data and ol_data.get("title"):
                     ol_meta = self._map_open_library(ol_data, raw_isbn=isbn, normalized_isbn=clean, client=client)
-            except Exception:
-                pass
+            except Exception as error:
+                log_exception(f"MetadataService.fetch_isbn: Open Library para {clean}", error)
 
         if b_meta and ol_meta:
             return self._merge_isbn_metadata(b_meta, ol_meta)
@@ -997,8 +1002,8 @@ class MetadataService:
                     resp = local_client.get(url, headers=self.HEADERS)
                     if resp.status_code == 200:
                         return resp.json()
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(f"MetadataService._fetch_brasil_api_isbn: {isbn}", error)
         return None
 
     def _map_brasil_api(
@@ -1116,8 +1121,11 @@ class MetadataService:
                     resp = local_client.get(url, headers=self.HEADERS, follow_redirects=True)
                     if resp.status_code == 200:
                         return resp.json()
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(
+                f"MetadataService._fetch_open_library_work: {work_key}",
+                error,
+            )
         return None
 
     def _fetch_open_library_isbn(
@@ -1137,8 +1145,11 @@ class MetadataService:
                     resp = local_client.get(url_data, headers=self.HEADERS, follow_redirects=True)
                     if resp.status_code == 200:
                         res_dict = resp.json().get(f"ISBN:{isbn}") or {}
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(
+                f"MetadataService._fetch_open_library_isbn: dados de {isbn}",
+                error,
+            )
 
         url_edition = f"https://openlibrary.org/isbn/{isbn}.json"
         try:
@@ -1167,8 +1178,11 @@ class MetadataService:
                         res_dict["series"] = ed_json["series"]
                     if "edition_name" not in res_dict and "edition_name" in ed_json:
                         res_dict["edition_name"] = ed_json["edition_name"]
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception(
+                f"MetadataService._fetch_open_library_isbn: edição de {isbn}",
+                error,
+            )
 
         return res_dict if res_dict else None
 

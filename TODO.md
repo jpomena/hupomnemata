@@ -155,7 +155,12 @@
 - [x] `PdfReaderView._build_layout` reduzido a orquestração: topbar, área de
   leitura e sidebar extraídas para `PdfLayoutMixin`, com concatenação de
   statements verificada por AST contra o método original.
-- [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
+- [x] Serviços e controllers: catches silenciosos substituídos por
+  `log_exception` com contexto (`metadata_service`, `nous_service`,
+  `knowledge_service`, `cloud_sync_service`, `core_controller`); guardas de UI
+  remanescentes documentadas.
+- [ ] Views: auditar os `except Exception` silenciosos restantes, separando
+  guardas de ciclo de vida de falhas reais.
 - [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
 - [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).
 
