@@ -2,12 +2,17 @@
 
 from collections.abc import Callable
 
+from typing import TYPE_CHECKING
+
 import flet as ft
 
 from src.utils.fa import fa_icon
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+
+if TYPE_CHECKING:
+    from src.views.core_composer import CoreComposer
 
 Action = tuple[str, str, str | None, Callable[[], None]]
 
@@ -165,3 +170,81 @@ class CommandPalette:
             self.close()
             return True
         return False
+
+
+class CommandPaletteController:
+    """Abre e opera a paleta ⌘K em nome de um ``CoreComposer``.
+
+    Separa a montagem das ações e o roteamento de teclas do shell principal;
+    o objeto ``CommandPalette`` resultante continua exposto em
+    ``composer.palette`` para inspeção e testes.
+    """
+
+    def __init__(self, composer: "CoreComposer") -> None:
+        self.composer = composer
+
+    def _actions(self) -> list[Action]:
+        c = self.composer
+        return [
+            (
+                "plus",
+                "Inserir nova obra",
+                "⌘N",
+                lambda: c.on_navigate("work_insert"),
+            ),
+            (
+                "file-import",
+                "Importar obra (DOI, ISBN, ISSN)",
+                "⌘I",
+                lambda: c.on_import_work() if c.on_import_work else None,
+            ),
+            (
+                "file-lines",
+                "Importar por referências (texto / Nous)",
+                "⌘R",
+                lambda: c.on_reverse_import() if c.on_reverse_import else None,
+            ),
+            (
+                "circle-half-stroke",
+                "Alternar tema",
+                None,
+                lambda: c.on_toggle_theme() if c.on_toggle_theme else None,
+            ),
+            ("book", "Ir para Acervo", None, lambda: c.on_navigate("Acervo")),
+            (
+                "quote-left",
+                "Ir para Fragmentos",
+                None,
+                lambda: c.on_navigate("Fragmentos"),
+            ),
+            (
+                "folder-open",
+                "Ir para Compilações",
+                None,
+                lambda: c.on_navigate("Compilações"),
+            ),
+        ]
+
+    def open(self) -> None:
+        c = self.composer
+        if c.page is None:
+            return
+        c.palette = CommandPalette(
+            page=c.page,
+            config=c.config,
+            search=c.palette_search,
+            on_open_work=lambda work_id: c.on_navigate_with(
+                "Acervo", focus_work_id=work_id
+            ),
+            on_open_fragments=lambda query: c.on_navigate_with(
+                "Fragmentos", query=query
+            ),
+            actions=self._actions(),
+        )
+        c.palette.open()
+
+    def handle_key(self, key: str) -> bool:
+        palette = getattr(self.composer, "palette", None)
+        if palette is None or not palette.is_open:
+            return False
+        return palette.handle_key(key)

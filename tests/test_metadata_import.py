@@ -511,7 +511,7 @@ async def test_import_modal_execute_remote_search_async():
         assert modal.loading is False
 
 
-def test_find_or_create_magazine():
+def test_find_or_create_magazine(clean_db):
     from src.services.metadata_service import find_or_create_magazine
     from src.db.db import SessionLocal
     from src.domains.core_domain import BibliographicResource
@@ -537,7 +537,7 @@ def test_find_or_create_magazine():
         session.commit()
 
 
-def test_work_insert_modal_auto_provisions_magazine_for_journal_article():
+def test_work_insert_modal_auto_provisions_magazine_for_journal_article(clean_db):
     from types import SimpleNamespace
     from src.views.work_insert_modal import WorkInsertModalComposer
     from src.services.metadata_service import ImportedMetadata, IdentifierType

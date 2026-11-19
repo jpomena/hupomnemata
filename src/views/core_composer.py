@@ -27,6 +27,7 @@ from src.views.sidebar import SidebarData
 from src.views import ui_kit as ui
 
 if TYPE_CHECKING:
+    from src.views.command_palette import CommandPaletteController
     from src.views.view_factory import ViewFactory
     from src.views.window_chrome import WindowChromeComposer
 
@@ -417,34 +418,19 @@ class CoreComposer:
 
     # ── paleta ⌘K ──────────────────────────────────────────
 
-    def open_palette(self) -> None:
-        if self.page is None:
-            return
-        from src.views.command_palette import CommandPalette
+    def _palette_controller(self) -> "CommandPaletteController":
+        controller = getattr(self, "_palette", None)
+        if controller is None:
+            from src.views.command_palette import CommandPaletteController
+            controller = CommandPaletteController(self)
+            self._palette = controller
+        return controller
 
-        self.palette = CommandPalette(
-            page=self.page,
-            config=self.config,
-            search=self.palette_search,
-            on_open_work=lambda work_id: self.on_navigate_with("Acervo", focus_work_id=work_id),
-            on_open_fragments=lambda query: self.on_navigate_with("Fragmentos", query=query),
-            actions=[
-                ("plus", "Inserir nova obra", "⌘N", lambda: self.on_navigate("work_insert")),
-                ("file-import", "Importar obra (DOI, ISBN, ISSN)", "⌘I", lambda: self.on_import_work() if self.on_import_work else None),
-                ("file-lines", "Importar por referências (texto / Nous)", "⌘R", lambda: self.on_reverse_import() if self.on_reverse_import else None),
-                ("circle-half-stroke", "Alternar tema", None, lambda: self.on_toggle_theme() if self.on_toggle_theme else None),
-                ("book", "Ir para Acervo", None, lambda: self.on_navigate("Acervo")),
-                ("quote-left", "Ir para Fragmentos", None, lambda: self.on_navigate("Fragmentos")),
-                ("folder-open", "Ir para Compilações", None, lambda: self.on_navigate("Compilações")),
-            ],
-        )
-        self.palette.open()
+    def open_palette(self) -> None:
+        self._palette_controller().open()
 
     def handle_palette_key(self, key: str) -> bool:
-        palette = getattr(self, "palette", None)
-        if palette is None or not palette.is_open:
-            return False
-        return palette.handle_key(key)
+        return self._palette_controller().handle_key(key)
 
     def open_fragment_create(self) -> None:
         """Abre o diálogo de novo fragmento sem sair da tela atual."""
