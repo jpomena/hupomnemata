@@ -1,7 +1,7 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
+from src.db.sqlite_runtime import create_sqlite_engine
 from sqlalchemy.orm import Session
 
 from src.controllers.core_controller import CoreController
@@ -193,7 +193,7 @@ def test_online_audio_form_requires_a_url_for_streaming_carriers():
 
 
 def test_audio_part_is_created_with_parent_publication_data():
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     Base.metadata.create_all(engine)
     form_service = WorkFormService()
 
@@ -246,7 +246,7 @@ def test_audio_part_is_created_with_parent_publication_data():
 def test_existing_audio_schema_gets_new_part_and_physical_columns(
     monkeypatch,
 ):
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     with engine.begin() as connection:
         connection.exec_driver_sql(
             'CREATE TABLE bibliographic_resources '
@@ -290,7 +290,7 @@ def test_existing_audio_schema_gets_new_part_and_physical_columns(
 def test_conflicting_specific_work_types_are_split_without_data_loss(
     monkeypatch,
 ):
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.exec_driver_sql(

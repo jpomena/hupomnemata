@@ -1,7 +1,8 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from src.db.sqlite_runtime import create_sqlite_engine
 from sqlalchemy.orm import Session
 
 from src.controllers.core_controller import CoreController
@@ -183,7 +184,7 @@ def test_musical_score_is_partial_and_controller_dispatches_formatter():
 
 
 def test_form_and_repository_create_score_part_with_parent_link():
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     Base.metadata.create_all(engine)
     form_service = WorkFormService()
 
@@ -245,7 +246,7 @@ def test_score_part_form_does_not_require_publication_date():
 def test_existing_musical_score_table_receives_partial_and_reference_fields(
     monkeypatch,
 ):
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     with engine.begin() as connection:
         connection.exec_driver_sql(
             'CREATE TABLE musical_scores ('

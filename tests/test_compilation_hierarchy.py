@@ -1,7 +1,7 @@
 """Tests for hierarchical sections (Capítulos & Argumentos) and multi-allocation of fragments."""
 
 import pytest
-from sqlalchemy import create_engine
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.db import db as db_module
 from src.domains import (
@@ -14,7 +14,7 @@ from src.services.fragment_service import FragmentService
 
 @pytest.fixture
 def compilation_database(tmp_path, monkeypatch):
-    engine = create_engine(
+    engine = create_sqlite_engine(
         f"sqlite:///{(tmp_path / 'compilations_hierarchy.db').as_posix()}"
     )
     monkeypatch.setattr(db_module, 'engine', engine)

@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import flet as ft
 import pytest
-from sqlalchemy import create_engine
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.db import db as db_module
 from src.domains import (
@@ -58,7 +58,7 @@ from src.utils import error_log
 @pytest.fixture(autouse=True)
 def clean_test_db():
     from sqlalchemy.pool import StaticPool
-    engine = create_engine(
+    engine = create_sqlite_engine(
         'sqlite://',
         connect_args={'check_same_thread': False},
         poolclass=StaticPool,

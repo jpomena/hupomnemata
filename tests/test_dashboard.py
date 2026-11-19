@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import flet as ft
 import pytest
-from sqlalchemy import create_engine
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.configs.settings import (
     COLORS_DARK,
@@ -361,7 +361,7 @@ def test_core_composer_dashboard_uses_controller_data():
 def dashboard_database(tmp_path, monkeypatch):
     from src.db import db as db_module
 
-    engine = create_engine(f"sqlite:///{(tmp_path / 'dashboard.db').as_posix()}")
+    engine = create_sqlite_engine(f"sqlite:///{(tmp_path / 'dashboard.db').as_posix()}")
     monkeypatch.setattr(db_module, 'engine', engine)
     db_module.SessionLocal.configure(bind=engine)
     db_module.Base.metadata.create_all(bind=engine)

@@ -1,22 +1,20 @@
-import sys
-
+import logging
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, or_, select, text
+from sqlalchemy import inspect, or_, select, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from src.configs.paths import resolve_backups_dir, resolve_database_path
+from src.db.integrity import ensure_referential_integrity
+from src.db.sqlite_runtime import create_sqlite_engine
 from src.utils.error_log import log_exception
 
-if getattr(sys, 'frozen', False):
-    base_path = Path(sys.executable).parent
-else:
-    base_path = Path(__file__).resolve().parents[0]
-
-DATABASE_PATH = base_path / 'hupomnemata.db'
+DATABASE_PATH = resolve_database_path()
 DATABASE_URL = f'sqlite:///{DATABASE_PATH.as_posix()}'
 
-engine = create_engine(DATABASE_URL)
+engine = create_sqlite_engine(DATABASE_URL)
+BACKUP_DIR = resolve_backups_dir()
 
 
 class Base(DeclarativeBase):
@@ -27,9 +25,10 @@ def _import_domain_models() -> None:
     import src.domains  # noqa: F401
 
 
-def _rename_legacy_citations_table() -> None:
+def _rename_legacy_citations_table(target_engine=None) -> None:
     """Move the original citations table to the fragments table name."""
-    with engine.begin() as conn:
+    eng = target_engine or engine
+    with eng.begin() as conn:
         tables = {
             row[0]
             for row in conn.execute(
@@ -40,8 +39,9 @@ def _rename_legacy_citations_table() -> None:
             conn.execute(text('ALTER TABLE citations RENAME TO fragments'))
 
 
-def _cleanup_duplicate_specific_works() -> None:
+def _cleanup_duplicate_specific_works(target_engine=None) -> None:
     """Remove registros antigos de obras específicas duplicadas por recurso."""
+    eng = target_engine or engine
     tables = [
         'editorial_monographs',
         'academic_monographs',
@@ -62,7 +62,7 @@ def _cleanup_duplicate_specific_works() -> None:
         'cartographic_documents',
         'musical_scores',
     ]
-    with engine.begin() as conn:
+    with eng.begin() as conn:
         for table_name in tables:
             try:
                 rows = conn.execute(
@@ -97,7 +97,8 @@ def _cleanup_duplicate_specific_works() -> None:
                 continue
 
 
-def _split_resources_with_multiple_work_types() -> None:
+def _split_resources_with_multiple_work_types(target_engine=None) -> None:
+    eng = target_engine or engine
     """Move works of conflicting types to separate bibliographic resources."""
     work_tables = (
         'editorial_monographs',
@@ -143,7 +144,7 @@ def _split_resources_with_multiple_work_types() -> None:
     }
 
     try:
-        with engine.begin() as conn:
+        with eng.begin() as conn:
             available_tables = {
                 row[0]
                 for row in conn.execute(text(
@@ -211,10 +212,11 @@ def _split_resources_with_multiple_work_types() -> None:
         raise
 
 
-def _ensure_legacy_columns() -> None:
+def _ensure_legacy_columns(target_engine=None) -> None:
     """Adiciona colunas faltantes em bancos já existentes."""
     _import_domain_models()
-    with engine.begin() as conn:
+    eng = target_engine or engine
+    with eng.begin() as conn:
         table_columns = {
             row[0]: {column[1] for column in conn.execute(
                 text(f'PRAGMA table_info("{row[0]}")')
@@ -306,10 +308,6 @@ def _ensure_legacy_columns() -> None:
                       AND (start_page IS NOT NULL OR end_page IS NOT NULL)
                     """
                 ))
-        if 'statutes' in table_columns and 'publication_date' not in table_columns['statutes']:  # noqa: E501
-            conn.execute(
-                text('ALTER TABLE statutes ADD COLUMN publication_date DATE')
-            )
         if 'audio_documents' in table_columns:
             audio_columns_present = table_columns['audio_documents']
             if (
@@ -425,8 +423,9 @@ def _ensure_legacy_columns() -> None:
                     ))
 
 
-def _ensure_compilation_fragment_columns() -> None:
-    with engine.begin() as conn:
+def _ensure_compilation_fragment_columns(target_engine=None) -> None:
+    eng = target_engine or engine
+    with eng.begin() as conn:
         tables = {
             row[0]
             for row in conn.execute(
@@ -481,8 +480,9 @@ def _ensure_compilation_fragment_columns() -> None:
                 positions[key] = position + 1
 
 
-def _ensure_compilation_outline_columns() -> None:
-    with engine.begin() as conn:
+def _ensure_compilation_outline_columns(target_engine=None) -> None:
+    eng = target_engine or engine
+    with eng.begin() as conn:
         tables = {
             row[0]
             for row in conn.execute(
@@ -505,8 +505,9 @@ def _ensure_compilation_outline_columns() -> None:
             ))
 
 
-def _migrate_periodical_parent_links() -> None:
+def _migrate_periodical_parent_links(target_engine=None) -> None:
     """Cria Revistas para registros legados e as vincula como obra-pai."""
+    eng = target_engine or engine
     from src.domains import (
         BibliographicResource,
         JournalArticle,
@@ -515,7 +516,7 @@ def _migrate_periodical_parent_links() -> None:
     )
 
     try:
-        with Session(engine) as session:
+        with Session(eng) as session:
             for model in (JournalArticle, PeriodicalCollection):
                 magazine_resources = select(Magazine.bib_res_id)
                 pending_works = select(model).where(
@@ -576,46 +577,104 @@ def _migrate_periodical_parent_links() -> None:
         raise
 
 
-def apply_migrations(target_engine=None) -> None:
-    """Apply Alembic migrations or stamp baseline on pre-existing databases."""
-    _import_domain_models()
-    eng = target_engine or engine
-
+def _alembic_config(eng) -> Config:
     ini_path = Path(__file__).resolve().parents[2] / 'alembic.ini'
     if not ini_path.exists():
         ini_path = Path.cwd() / 'alembic.ini'
-
     alembic_cfg = Config(str(ini_path))
     alembic_cfg.attributes['engine'] = eng
+    return alembic_cfg
 
-    inspector = inspect(eng)
-    table_names = set(inspector.get_table_names())
 
-    if 'alembic_version' not in table_names:
-        if 'bibliographic_resources' in table_names:
-            command.stamp(alembic_cfg, 'head')
-        else:
-            command.upgrade(alembic_cfg, 'head')
-    else:
-        command.upgrade(alembic_cfg, 'head')
+def schema_differences(eng) -> list:
+    """Compara o esquema materializado com ``Base.metadata`` via Alembic."""
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+
+    with eng.connect() as connection:
+        context = MigrationContext.configure(
+            connection,
+            opts={'compare_type': True},
+        )
+        return list(compare_metadata(context, Base.metadata))
+
+
+def adopt_legacy_database(eng) -> None:
+    """Reconcilia um banco sem ``alembic_version`` e só então marca o head.
+
+    Este é o **único** caminho que ainda usa ``create_all``: ele existe para
+    adotar bancos criados antes do Alembic. Depois do stamp, o banco entra no
+    fluxo normal (``upgrade head``) e as rotinas de reparo não rodam mais.
+    """
+    _rename_legacy_citations_table(eng)
+    Base.metadata.create_all(bind=eng)
+    _ensure_legacy_columns(eng)
+    _ensure_compilation_fragment_columns(eng)
+    _ensure_compilation_outline_columns(eng)
+    _cleanup_duplicate_specific_works(eng)
+    _split_resources_with_multiple_work_types(eng)
+    _migrate_periodical_parent_links(eng)
+
+    differences = schema_differences(eng)
+    if differences:
+        # Divergências residuais conhecidas (nullable/default em tabelas
+        # legadas) são reportadas, mas não impedem a adoção: o banco entra no
+        # fluxo versionado e futuras revisões corrigem o restante.
+        logging.getLogger('hupomnemata.db').warning(
+            'Adoção legada com %d divergência(s) de esquema: %s',
+            len(differences),
+            differences[:5],
+        )
+
+    # Marca a última revisão cujo esquema o legado já satisfazia e deixa o
+    # restante a cargo das revisões posteriores (ex.: colunas obsoletas).
+    command.stamp(_alembic_config(eng), LEGACY_BASELINE_REVISION)
+    command.upgrade(_alembic_config(eng), 'head')
+
+
+def apply_migrations(target_engine=None) -> None:
+    """Leva o banco ao head do Alembic (fonte única para schema novo)."""
+    _import_domain_models()
+    eng = target_engine or engine
+    command.upgrade(_alembic_config(eng), 'head')
 
 
 _initialized_engine = None
+
+# Última revisão cujo esquema é garantido pelas rotinas de adoção legada.
+LEGACY_BASELINE_REVISION = '5e1748a58b4a'
+
+
+def _backup_dir_for(eng) -> Path:
+    """Diretório de backups coerente com o arquivo de banco da engine."""
+    database = eng.url.database
+    if database and database != ':memory:':
+        return Path(database).parent / 'backups'
+    return BACKUP_DIR
 
 
 def init_db(target_engine=None):
     global _initialized_engine
     eng = target_engine or engine
     _import_domain_models()
-    _rename_legacy_citations_table()
-    Base.metadata.create_all(bind=eng)
-    _ensure_legacy_columns()
-    _ensure_compilation_fragment_columns()
-    _ensure_compilation_outline_columns()
-    _cleanup_duplicate_specific_works()
-    _split_resources_with_multiple_work_types()
-    _migrate_periodical_parent_links()
-    apply_migrations(eng)
+
+    tables = set(inspect(eng).get_table_names())
+    if 'bibliographic_resources' not in tables:
+        # Banco novo: o Alembic é a única fonte de verdade do esquema.
+        apply_migrations(eng)
+    elif 'alembic_version' not in tables:
+        # Banco legado (pré-Alembic): reconciliação explícita e adoção.
+        adopt_legacy_database(eng)
+    else:
+        apply_migrations(eng)
+
+    # A auditoria só faz sentido com o esquema já reconciliado no head.
+    integrity = ensure_referential_integrity(eng, _backup_dir_for(eng))
+    if integrity['violations'] or integrity['purged_derived']:
+        logging.getLogger('hupomnemata.db').warning(
+            'Reparos de integridade referencial aplicados: %s', integrity
+        )
+
     _initialized_engine = eng
 
 

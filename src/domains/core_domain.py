@@ -328,6 +328,9 @@ class PartialWorkMixin:
 class WorkMixin(Base):
     __abstract__ = True
     __table_args__ = (UniqueConstraint('bib_res_id'),)
+    # Com foreign_keys=ON, o SQLite aplica ON DELETE CASCADE antes de o ORM
+    # contabilizar a remoção; a confirmação de linhas deixaria de bater.
+    __mapper_args__ = {'confirm_deleted_rows': False}
 
     # ---------------------------- Identidade ---------------------------------
     id: Mapped[int] = mapped_column(primary_key=True)

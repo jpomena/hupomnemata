@@ -12,11 +12,18 @@ from src.domains.knowledge import (
     KnowledgeEmbedding,
     KnowledgeLink,
 )
+from src.utils.embedding_contract import EMBEDDING_ENGINE_VERSION
 
 
 def compute_text_hash(text: str) -> str:
-    """Gera hash SHA-256 normalizado para identificação de mudanças no texto."""
-    return hashlib.sha256(text.strip().encode('utf-8')).hexdigest()
+    """Gera hash SHA-256 normalizado, vinculado à versão do motor de embeddings.
+
+    A versão entra no digest de propósito: ao trocar o algoritmo de vetorização,
+    todos os hashes persistidos deixam de coincidir e os vetores antigos são
+    tratados como obsoletos, sendo recalculados por ``sync_pending_embeddings``.
+    """
+    payload = f'{EMBEDDING_ENGINE_VERSION}\x1f{text.strip()}'
+    return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
 def compute_work_signature(resource: BibliographicResource) -> str:

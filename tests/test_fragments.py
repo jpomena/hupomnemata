@@ -3,7 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 import flet as ft
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.configs.settings import (
     COLORS_LIGHT,
@@ -35,7 +36,7 @@ from src.utils.clipboard import reference_text
 @pytest.fixture
 def fragment_database(tmp_path, monkeypatch):
     orig_engine = db_module.engine
-    engine = create_engine(
+    engine = create_sqlite_engine(
         f"sqlite:///{(tmp_path / 'fragments.db').as_posix()}"
     )
     monkeypatch.setattr(db_module, 'engine', engine)

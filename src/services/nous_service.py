@@ -14,10 +14,11 @@ from src.services.settings_service import SettingsService
 from src.services.knowledge_service import KnowledgeService
 from src.utils.error_log import log_exception
 
-# Modelos conhecidos em ordem de preferência analítica
+# Modelos conhecidos em ordem de preferência analítica. A lista é apenas um
+# desempate local: a disponibilidade real é sempre confirmada via API.
 KNOWN_MODELS = [
     "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite"
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
@@ -55,11 +56,19 @@ class NousAIService:
         settings.gemini_api_key = api_key.strip()
         return self.settings_service.save_settings(settings)
 
+    @staticmethod
+    def _client_with_key(key: str, timeout: float) -> httpx.Client:
+        """Cria cliente autenticado sem expor a chave em URL (evita logs/proxies)."""
+        return httpx.Client(
+            timeout=timeout,
+            headers={'x-goog-api-key': key},
+        )
+
     def discover_available_models(self, key: str) -> List[str]:
         """Consulta na API do Google quais modelos exatos estão ativos e provisionados para esta chave."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+        url = "https://generativelanguage.googleapis.com/v1beta/models"
         try:
-            with httpx.Client(timeout=12.0) as client:
+            with self._client_with_key(key, 12.0) as client:
                 if not hasattr(client, "get"):
                     return []
                 res = client.get(url)
@@ -129,9 +138,9 @@ class NousAIService:
 
         last_error = ""
         for model in candidates:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             try:
-                with httpx.Client(timeout=15.0) as client:
+                with self._client_with_key(key, 15.0) as client:
                     response = client.post(url, json=payload)
                     if response.status_code == 200:
                         self.preferred_model = model
@@ -241,9 +250,9 @@ class NousAIService:
             last_err = ""
 
             for model in models_to_try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 try:
-                    with httpx.Client(timeout=30.0) as client:
+                    with self._client_with_key(key, 30.0) as client:
                         response = client.post(url, json=payload)
                         if response.status_code == 200:
                             data = response.json()
@@ -486,9 +495,9 @@ class NousAIService:
 
         last_err = ""
         for model in models_to_try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             try:
-                with httpx.Client(timeout=30.0) as client:
+                with self._client_with_key(key, 30.0) as client:
                     response = client.post(url, json=payload)
                     if response.status_code == 200:
                         data = response.json()

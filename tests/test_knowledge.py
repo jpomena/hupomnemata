@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from sqlalchemy import create_engine
+from src.db.sqlite_runtime import create_sqlite_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.db.db import Base
@@ -28,7 +28,7 @@ from src.views.knowledge.knowledge_composer import compute_graph_layout
 
 @pytest.fixture
 def memory_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()

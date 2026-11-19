@@ -1,14 +1,15 @@
 from pathlib import Path
 import pytest
 
-from src.db.db import SessionLocal, init_db
+from src.db.db import SessionLocal
 from src.domains import BibliographicResource, EditorialMonograph
 from src.services.pdf_service import PdfService
 
 
 @pytest.fixture(autouse=True)
-def setup_database():
-    init_db()
+def setup_database(clean_db):
+    """Toda a suíte roda em banco isolado em memória (nunca no banco real)."""
+    yield clean_db
 
 
 @pytest.fixture

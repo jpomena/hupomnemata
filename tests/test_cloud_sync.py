@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.db.db import engine
 from src.services.cloud_sync_service import (
     MANIFEST_FILE_NAME,
     SNAPSHOT_FILE_NAME,
@@ -26,8 +25,8 @@ def sync_service(tmp_path, clean_db):
     config_dir.mkdir(parents=True, exist_ok=True)
 
     db_file = base_dir / "test_hupomnemata.db"
-    # Create valid SQLite DB by vacuuming clean_db
-    with engine.connect() as conn:
+    # Create valid SQLite DB by vacuuming the isolated in-memory database.
+    with clean_db.connect() as conn:
         conn.exec_driver_sql(f'VACUUM INTO "{db_file.as_posix()}"')
 
     service = CloudSyncService(base_dir=base_dir, config_dir=config_dir, db_path=db_file)
@@ -165,14 +164,14 @@ def test_sync_conflict_creates_safety_fork(sync_service):
     assert "hupomnemata_conflict_" in result.conflict_backup_path
 
 
-def test_sync_pull_remote_changes(sync_service, tmp_path):
+def test_sync_pull_remote_changes(sync_service, tmp_path, clean_db):
     """When remote is ahead and local has no divergent edits, download and restore."""
     _, local_sha = sync_service.create_local_snapshot()
     sync_service._set_last_synced_sha256(local_sha)
 
     # Create dummy remote snapshot
     dummy_remote_db = tmp_path / "remote.db"
-    with engine.connect() as conn:
+    with clean_db.connect() as conn:
         conn.exec_driver_sql(f'VACUUM INTO "{dummy_remote_db.as_posix()}"')
 
     with sqlite3.connect(dummy_remote_db) as s_conn:

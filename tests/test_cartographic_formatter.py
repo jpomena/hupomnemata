@@ -1,7 +1,8 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.controllers.core_controller import CoreController
 from src.controllers.work_submission_controller import (
@@ -156,7 +157,7 @@ def test_form_payload_and_controller_dispatch_cartographic_formatter():
 def test_existing_cartographic_table_gets_physical_description_column(
     monkeypatch,
 ):
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     with engine.begin() as connection:
         connection.exec_driver_sql(
             'CREATE TABLE cartographic_documents ('

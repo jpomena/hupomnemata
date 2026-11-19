@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 import flet as ft
 import pytest
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import inspect, select, text
+from src.db.sqlite_runtime import create_sqlite_engine
 from sqlalchemy.exc import IntegrityError
 
 from src.contracts import CompilationRecord
@@ -23,7 +24,7 @@ from src.services.fragment_service import FragmentService
 
 @pytest.fixture
 def compilation_database(tmp_path, monkeypatch):
-    engine = create_engine(
+    engine = create_sqlite_engine(
         f"sqlite:///{(tmp_path / 'compilations.db').as_posix()}"
     )
     monkeypatch.setattr(db_module, 'engine', engine)
@@ -414,6 +415,9 @@ def test_migrates_existing_caderno_membership_positions(compilation_database):
             'second_id': second_id,
             'first_id': first_id,
         })
+        # Simula um banco pré-Alembic: a adoção legada é o caminho que
+        # reconcilia o esquema antigo antes do stamp.
+        connection.execute(text('DROP TABLE IF EXISTS alembic_version'))
 
     db_module.init_db()
 

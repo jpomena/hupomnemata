@@ -9,6 +9,11 @@ import re
 from typing import ClassVar
 import numpy as np
 
+from src.utils.embedding_contract import (
+    EMBEDDING_ENGINE_VERSION,
+    deterministic_token_hash,
+)
+
 
 def vector_to_bytes(vec: np.ndarray | list[float]) -> bytes:
     """Converte um vetor numérico em bytes compactos float32."""
@@ -33,6 +38,8 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 class BaseSemanticEngine(ABC):
     """Interface abstrata para motores de vetorização semântica."""
+
+    ENGINE_VERSION: ClassVar[str] = EMBEDDING_ENGINE_VERSION
 
     @abstractmethod
     def encode(self, text: str) -> np.ndarray:
@@ -76,9 +83,10 @@ class StatisticalTFIDFEngine(BaseSemanticEngine):
 
         for token, count in freqs.items():
             tf = count / total
-            # Hash determinístico para dispersão nos buckets do vetor
-            token_hash = hash(token)
-            bucket = abs(token_hash) % self.DIMENSION
+            # Hash determinístico entre processos (BLAKE2b), para que vetores
+            # persistidos permaneçam comparáveis após reinícios da aplicação.
+            token_hash = deterministic_token_hash(token)
+            bucket = token_hash % self.DIMENSION
             sign = 1.0 if (token_hash // self.DIMENSION) % 2 == 0 else -1.0
             idf_weight = 1.0 + math.log(1.0 + len(token))
             vec[bucket] += sign * tf * idf_weight
@@ -90,24 +98,19 @@ class StatisticalTFIDFEngine(BaseSemanticEngine):
 
 
 class NeuralONNXEngine(BaseSemanticEngine):
-    """Motor neural baseado em ONNX Runtime para modelos multilíngues Sentence-Transformers."""
+    """Motor neural baseado em ONNX Runtime — **não implementado**.
+
+    A inferência real exige tokenizador dedicado e pooling, que ainda não
+    existem no projeto. A versão anterior fingia executar a inferência e
+    delegava silenciosamente ao fallback estatístico; isso foi removido para
+    não prometer uma capacidade inexistente. Use ``StatisticalTFIDFEngine``.
+    """
 
     def __init__(self, model_path: str):
-        import onnxruntime as ort  # type: ignore
-        self.session = ort.InferenceSession(
-            model_path,
-            providers=['CPUExecutionProvider'],
+        raise NotImplementedError(
+            'NeuralONNXEngine ainda não implementa inferência ONNX. '
+            'Use StatisticalTFIDFEngine.'
         )
-        self.input_name = self.session.get_inputs()[0].name
-        self.fallback = StatisticalTFIDFEngine()
-
-    def encode(self, text: str) -> np.ndarray:
-        # Quando implementado com tokenizador ONNX dedicado, executa a inferência
-        # e pooling. Caso ocorra erro ou modelo parcial, recorre com segurança ao fallback.
-        try:
-            return self.fallback.encode(text)
-        except Exception:
-            return self.fallback.encode(text)
 
 
 class SemanticEngineManager:

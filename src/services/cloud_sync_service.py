@@ -7,7 +7,10 @@ atomic SQLite VACUUM snapshots, Alembic schema versioning, and Safety Fork confl
 import gzip
 import hashlib
 import json
+import logging
+import os
 import shutil
+import sqlite3
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -21,11 +24,12 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-from sqlalchemy import text
 
+from src.configs.paths import resolve_data_dir
 from src.configs.settings import CONFIG_DIR
-from src.db.db import DATABASE_PATH, apply_migrations, engine
+from src.db.db import DATABASE_PATH, apply_migrations
 from src.services.pdf_service import DEFAULT_PDF_STORAGE_DIR
+from src.services.secret_store import FileBackend, SecretStore
 from src.utils.error_log import log_exception
 
 if getattr(sys, "frozen", False):
@@ -36,6 +40,9 @@ else:
 SCOPES = ["https://www.googleapis.com/auth/drive.appdata"]
 SNAPSHOT_FILE_NAME = "snapshot.db.gz"
 MANIFEST_FILE_NAME = "sync_manifest.json"
+TOKEN_SECRET_NAME = "google_drive_token"
+
+logger = logging.getLogger("hupomnemata.cloud_sync")
 
 
 class SyncStatus(str, Enum):
@@ -71,11 +78,19 @@ class CloudSyncService:
         base_dir: Path | None = None,
         config_dir: Path | None = None,
         db_path: Path | None = None,
+        secret_store: SecretStore | None = None,
     ) -> None:
-        self.base_dir = Path(base_dir or _BASE_DIR)
+        self._explicit_base_dir = base_dir is not None
+        self.base_dir = (
+            Path(base_dir) if base_dir is not None else resolve_data_dir()
+        )
         self.config_dir = Path(config_dir or CONFIG_DIR)
         self.db_path = Path(db_path or DATABASE_PATH)
-        self.sync_dir = self.base_dir / "data" / "sync"
+        self.sync_dir = (
+            self.base_dir / "data" / "sync"
+            if base_dir is not None
+            else resolve_data_dir() / "sync"
+        )
         self.sync_dir.mkdir(parents=True, exist_ok=True)
         self.pdf_storage_dir = Path(DEFAULT_PDF_STORAGE_DIR)
 
@@ -83,7 +98,50 @@ class CloudSyncService:
         self.bundled_credentials_path = self.config_dir / "credentials.json"
         self.user_credentials_path = self.config_dir / "credentials_user.json"
 
+        if secret_store is not None:
+            self.secret_store = secret_store
+        elif config_dir is not None and self.config_dir != CONFIG_DIR:
+            # Instância isolada (testes): cofre de arquivo, sem tocar no SO.
+            fallback = self.config_dir / "secrets.json"
+            self.secret_store = SecretStore(
+                fallback_path=fallback,
+                backend=FileBackend(fallback),
+            )
+        else:
+            self.secret_store = SecretStore()
+
         self._drive_service: Resource | None = None
+
+    # ── credenciais OAuth ─────────────────────────────────────
+
+    def _load_credentials(self) -> Credentials | None:
+        """Lê o token do cofre; migra ``token.json`` legado e o remove."""
+        raw = self.secret_store.get_secret(TOKEN_SECRET_NAME)
+        if not raw and self.token_path.exists():
+            try:
+                raw = self.token_path.read_text(encoding='utf-8')
+                if raw.strip():
+                    self.secret_store.set_secret(TOKEN_SECRET_NAME, raw)
+                    self.token_path.unlink()
+                    logger.info(
+                        'Token OAuth legado migrado para o cofre do sistema.'
+                    )
+            except OSError:
+                raw = None
+        if not raw:
+            return None
+        try:
+            info = json.loads(raw)
+            return Credentials.from_authorized_user_info(info, SCOPES)
+        except (ValueError, TypeError):
+            return None
+
+    def _save_credentials(self, creds: Credentials) -> None:
+        self.secret_store.set_secret(TOKEN_SECRET_NAME, creds.to_json())
+        try:
+            self.token_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def get_device_id(self) -> str:
         """Retrieve persistent device identifier or generate one if absent."""
@@ -99,16 +157,14 @@ class CloudSyncService:
 
     def is_authenticated(self) -> bool:
         """Check whether valid Google Drive credentials exist."""
-        if not self.token_path.exists():
+        creds = self._load_credentials()
+        if creds is None:
             return False
 
         try:
-            creds = Credentials.from_authorized_user_file(
-                str(self.token_path), SCOPES
-            )
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                self.token_path.write_text(creds.to_json(), encoding="utf-8")
+                self._save_credentials(creds)
             return bool(creds and creds.valid)
         except Exception as error:
             log_exception("Failed checking Google Drive credentials", error)
@@ -130,7 +186,7 @@ class CloudSyncService:
         try:
             flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), SCOPES)
             creds = flow.run_local_server(port=0)
-            self.token_path.write_text(creds.to_json(), encoding="utf-8")
+            self._save_credentials(creds)
             self._drive_service = None
             return True
         except Exception as error:
@@ -138,27 +194,26 @@ class CloudSyncService:
             raise
 
     def logout(self) -> bool:
-        """Purge saved authentication tokens."""
+        """Purge saved authentication tokens (keyring and legacy file)."""
         self._drive_service = None
-        if self.token_path.exists():
-            self.token_path.unlink()
-            return True
-        return False
+        removed = self.secret_store.delete_secret(TOKEN_SECRET_NAME)
+        legacy_existed = self.token_path.exists()
+        if legacy_existed:
+            self.token_path.unlink(missing_ok=True)
+        return removed or legacy_existed
 
     def get_drive_service(self) -> Resource:
         """Initialize or return cached Google Drive v3 API resource."""
         if self._drive_service is not None:
             return self._drive_service
 
-        if not self.token_path.exists():
+        creds = self._load_credentials()
+        if creds is None:
             raise RuntimeError("Cannot build Drive service: Unauthenticated.")
 
-        creds = Credentials.from_authorized_user_file(
-            str(self.token_path), SCOPES
-        )
-        if creds and creds.expired and creds.refresh_token:
+        if creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            self.token_path.write_text(creds.to_json(), encoding="utf-8")
+            self._save_credentials(creds)
 
         self._drive_service = build("drive", "v3", credentials=creds)
         return self._drive_service
@@ -179,8 +234,12 @@ class CloudSyncService:
             temp_db_path.unlink()
 
         try:
-            with engine.connect() as conn:
-                conn.exec_driver_sql(f'VACUUM INTO "{temp_db_path.as_posix()}"')
+            connection = sqlite3.connect(str(self.db_path))
+            try:
+                connection.execute('VACUUM INTO ?', (str(temp_db_path),))
+                connection.commit()
+            finally:
+                connection.close()
 
             gz_path = self.sync_dir / SNAPSHOT_FILE_NAME
             with open(temp_db_path, "rb") as src_file, open(gz_path, "wb") as raw_out:
@@ -202,30 +261,63 @@ class CloudSyncService:
         with gzip.open(gz_path, "rb") as gz_file, open(temp_restored, "wb") as dst_file:
             shutil.copyfileobj(gz_file, dst_file)
 
-        # Dispose active connection pool before atomic file replacement
-        engine.dispose()
-        shutil.copy2(temp_restored, self.db_path)
-        temp_restored.unlink()
+        # Preflight: só promove um snapshot estruturalmente íntegro.
+        check = sqlite3.connect(str(temp_restored))
+        try:
+            integrity = check.execute('PRAGMA integrity_check').fetchone()
+            if not integrity or str(integrity[0]).lower() != 'ok':
+                raise RuntimeError(
+                    'Snapshot remoto corrompido: integrity_check falhou.'
+                )
+        finally:
+            check.close()
+
+        # Preserva o estado atual antes de substituir (rollback primário).
+        self.create_conflict_backup()
+
+        # Dispose do pool e remoção dos sidecars WAL antes da troca atômica.
+        from src.db import db as db_module
+        db_module.engine.dispose()
+        for suffix in ('-wal', '-shm'):
+            sidecar = Path(str(self.db_path) + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        os.replace(temp_restored, self.db_path)
 
         # Execute Alembic migrations to ensure schema parity if remote was newer
         apply_migrations()
 
     def create_conflict_backup(self) -> Path:
-        """Create dated safety fork of the current local database."""
+        """Create dated safety fork of the current local database (WAL-safe)."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = self.base_dir / "data" / f"hupomnemata_conflict_{timestamp}.db"
+        backup_root = (
+            self.base_dir / "data"
+            if self._explicit_base_dir
+            else self.base_dir
+        )
+        backup_path = backup_root / f"hupomnemata_conflict_{timestamp}.db"
         backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(self.db_path, backup_path)
+        source = sqlite3.connect(str(self.db_path))
+        destination = sqlite3.connect(str(backup_path))
+        try:
+            with destination:
+                source.backup(destination)
+        finally:
+            destination.close()
+            source.close()
         return backup_path
 
     def get_current_schema_version(self) -> str:
-        """Query the active Alembic revision from database."""
+        """Query the active Alembic revision from the local database."""
         try:
-            with engine.connect() as conn:
-                result = conn.execute(
-                    text("SELECT version_num FROM alembic_version")
-                ).scalar()
-                return str(result or "unknown")
+            connection = sqlite3.connect(str(self.db_path))
+            try:
+                result = connection.execute(
+                    "SELECT version_num FROM alembic_version"
+                ).fetchone()
+            finally:
+                connection.close()
+            return str(result[0]) if result else "unknown"
         except Exception:
             return "unknown"
 

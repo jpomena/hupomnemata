@@ -1,7 +1,8 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from src.db.sqlite_runtime import create_sqlite_engine
 
 from src.controllers.core_controller import CoreController
 from src.controllers.work_submission_controller import (
@@ -151,7 +152,7 @@ def test_three_dimensional_form_and_controller_dispatch():
 def test_existing_three_dimensional_table_gets_description_columns(
     monkeypatch,
 ):
-    engine = create_engine('sqlite://')
+    engine = create_sqlite_engine('sqlite://')
     with engine.begin() as connection:
         connection.exec_driver_sql(
             'CREATE TABLE three_dimensional_documents ('

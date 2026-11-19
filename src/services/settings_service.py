@@ -8,6 +8,7 @@ from typing import Any
 import flet as ft
 
 from src.configs.settings import CONFIG_DIR
+from src.services.secret_store import FileBackend, SecretStore
 from src.utils.error_log import log_exception
 from src.utils.ft_responsiveness import Responsive
 
@@ -98,31 +99,86 @@ def resolve_effective_scale(
 class SettingsService:
     """Persistência e recuperação das preferências visuais do usuário."""
 
-    def __init__(self, storage_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        storage_path: Path | None = None,
+        secret_store: 'SecretStore | None' = None,
+    ) -> None:
         self.storage_path = (
             storage_path
             if storage_path is not None
             else (CONFIG_DIR / "user_preferences.json")
         )
+        if secret_store is not None:
+            self.secret_store = secret_store
+        elif storage_path is not None:
+            # Configuração/personalizada (testes, instâncias isoladas): usa um
+            # cofre de arquivo irmão e nunca toca no keyring do sistema.
+            fallback = self.storage_path.parent / "secrets.json"
+            self.secret_store = SecretStore(
+                fallback_path=fallback,
+                backend=FileBackend(fallback),
+            )
+        else:
+            self.secret_store = SecretStore()
+
+    # ── segredos (BYOK) ────────────────────────────────────────
+
+    def get_api_key(self) -> str:
+        """Lê a chave Gemini do cofre (keyring ou fallback local)."""
+        return self.secret_store.get_secret('gemini_api_key') or ""
+
+    def set_api_key(self, api_key: str) -> bool:
+        """Persiste a chave Gemini no cofre do sistema."""
+        cleaned = (api_key or "").strip()
+        if not cleaned:
+            return self.secret_store.delete_secret('gemini_api_key')
+        return self.secret_store.set_secret('gemini_api_key', cleaned)
+
+    def delete_api_key(self) -> bool:
+        """Remove a chave Gemini do cofre."""
+        return self.secret_store.delete_secret('gemini_api_key')
+
+    # ── preferências ───────────────────────────────────────────
+
+    def _write_payload(self, payload: dict[str, Any]) -> None:
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.storage_path, "w", encoding="utf-8") as file:
+            json.dump(payload, file, indent=2, ensure_ascii=False)
 
     def load_settings(self) -> AppearanceSettings:
         """Carrega configurações persistidas ou retorna o padrão."""
         if not self.storage_path.exists():
-            return AppearanceSettings()
+            settings = AppearanceSettings()
+            settings.gemini_api_key = self.get_api_key()
+            return settings
         try:
             with open(self.storage_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
-            return AppearanceSettings.from_dict(data)
+            settings = AppearanceSettings.from_dict(data)
+
+            legacy_key = settings.gemini_api_key.strip()
+            if legacy_key:
+                # Migração: chave antiga em texto puro sai do JSON.
+                self.set_api_key(legacy_key)
+                payload = settings.to_dict()
+                payload['gemini_api_key'] = ''
+                self._write_payload(payload)
+
+            settings.gemini_api_key = self.get_api_key()
+            return settings
         except Exception as error:
             log_exception("Falha ao carregar configurações de aparência", error)
             return AppearanceSettings()
 
     def save_settings(self, settings: AppearanceSettings) -> bool:
-        """Persiste as preferências do usuário no arquivo de configuração local."""
+        """Persiste as preferências, roteando a chave para o cofre."""
         try:
-            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.storage_path, "w", encoding="utf-8") as file:
-                json.dump(settings.to_dict(), file, indent=2, ensure_ascii=False)
+            if settings.gemini_api_key.strip():
+                self.set_api_key(settings.gemini_api_key)
+            payload = settings.to_dict()
+            payload['gemini_api_key'] = ''
+            self._write_payload(payload)
             return True
         except Exception as error:
             log_exception("Falha ao persistir configurações de aparência", error)
