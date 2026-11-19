@@ -82,7 +82,7 @@ A suíte de testes cobre formatadores, validações de domínio, repositórios, 
 python -m pytest
 ```
 
-Atualmente, **702 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
+Atualmente, **704 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
 
 ```powershell
 python -m flake8 src tests main.py

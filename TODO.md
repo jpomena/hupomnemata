@@ -147,13 +147,14 @@
   `caderno_outline.py` e `caderno_writing.py` (movimentação literal por AST);
   `_copy_references` permanece na fachada para preservar o monkeypatch de
   `copy_references` em `test_compilations.py`.
-- [x] `PdfReaderView` reduzido de 1834 para 810 linhas: `pdf_tools_mixin.py`,
+- [x] `PdfReaderView` reduzido de 1834 para 325 linhas: `pdf_tools_mixin.py`,
   `pdf_pan_mixin.py`, `pdf_navigation_mixin.py`, `pdf_fragments_mixin.py`,
-  `pdf_render_mixin.py` e `pdf_common.py` (movimentação literal por AST);
-  `__init__`, propriedades, `_build_layout` e ciclo de vida permanecem na
+  `pdf_render_mixin.py`, `pdf_layout_mixin.py` e `pdf_common.py` (movimentação
+  literal por AST); `__init__`, propriedades e ciclo de vida permanecem na
   fachada, preservando os 87 acessos privados de `test_pdf_service.py`.
-- [ ] Decompor `PdfReaderView._build_layout` (~500 linhas) em construtores de
-  seção, agora que os colaboradores já estão separados.
+- [x] `PdfReaderView._build_layout` reduzido a orquestração: topbar, área de
+  leitura e sidebar extraídas para `PdfLayoutMixin`, com concatenação de
+  statements verificada por AST contra o método original.
 - [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
 - [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
 - [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).

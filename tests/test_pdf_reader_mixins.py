@@ -5,6 +5,7 @@ import flet as ft
 from src.views.pdf_reader import PdfReaderView
 from src.views.pdf_reader.pdf_common import BASE_PAGE_HEIGHT
 from src.views.pdf_reader.pdf_fragments_mixin import PdfFragmentsMixin
+from src.views.pdf_reader.pdf_layout_mixin import PdfLayoutMixin
 from src.views.pdf_reader.pdf_navigation_mixin import PdfNavigationMixin
 from src.views.pdf_reader.pdf_pan_mixin import PdfPanSelectionMixin
 from src.views.pdf_reader.pdf_render_mixin import PdfRenderMixin
@@ -12,7 +13,8 @@ from src.views.pdf_reader.pdf_tools_mixin import PdfToolsMixin
 
 
 def test_reader_mro_places_mixins_before_container():
-    assert PdfReaderView.__mro__[1:7] == (
+    assert PdfReaderView.__mro__[1:8] == (
+        PdfLayoutMixin,
         PdfToolsMixin,
         PdfPanSelectionMixin,
         PdfNavigationMixin,
@@ -76,7 +78,7 @@ def test_facade_keeps_lifecycle_and_layout():
 
 def test_no_method_is_defined_twice_among_custom_mixins():
     owners: dict[str, list[str]] = {}
-    custom_classes = PdfReaderView.__mro__[:6]
+    custom_classes = PdfReaderView.__mro__[:7]
     for klass in custom_classes:
         for name, value in vars(klass).items():
             if name.startswith("__") or not callable(value):
@@ -96,6 +98,23 @@ def test_mixins_have_no_initializer():
         PdfRenderMixin,
     ):
         assert "__init__" not in mixin.__dict__
+
+
+def test_layout_builders_live_in_layout_mixin():
+    for name in ("_build_top_bar", "_build_reading_area", "_build_sidebar"):
+        assert name in PdfLayoutMixin.__dict__
+    assert "_build_layout" in PdfReaderView.__dict__
+
+
+def test_build_layout_delegates_to_section_builders():
+    import inspect
+
+    source = inspect.getsource(PdfReaderView._build_layout)
+
+    assert "self._build_top_bar()" in source
+    assert "self._build_reading_area()" in source
+    assert "self._build_sidebar()" in source
+    assert "self.content = ft.Column(" in source
 
 
 def test_base_page_height_is_reexported():
