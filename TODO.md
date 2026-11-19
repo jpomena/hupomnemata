@@ -142,7 +142,12 @@
   `settings_scale.py`, `settings_preview.py` e `settings_cloud.py` (movimentação
   literal por AST), com shell, `_compose_header` e `_compose_card_container` na
   fachada e métodos resolvidos por MRO.
-- [ ] Decompor os demais god objects de views (`PdfReaderView`, `CadernoMixin`).
+- [x] `CompilationHubCadernoMixin` reduzido de 1855 para 53 linhas:
+  `caderno_data.py`, `caderno_actions.py`, `caderno_prompts.py`,
+  `caderno_outline.py` e `caderno_writing.py` (movimentação literal por AST);
+  `_copy_references` permanece na fachada para preservar o monkeypatch de
+  `copy_references` em `test_compilations.py`.
+- [ ] Decompor o último god object de views (`PdfReaderView`).
 - [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
 - [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
 - [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).
