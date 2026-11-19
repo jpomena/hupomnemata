@@ -1,0 +1,10 @@
+[project]
+name = "hupomnemata"
+version = "0.1.0"
+description = "Ambiente pessoal de pesquisa, gestão bibliográfica ABNT e cadernos de escrita"
+requires-python = ">=3.12"
+license = { text = "MPL-2.0" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

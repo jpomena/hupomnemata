@@ -76,19 +76,23 @@ Inspirado no conceito clássico foucaultiano dos *hupomnēmata* — os cadernos 
 
 ## Testes Automatizados
 
-A suíte de testes cobre formatadores, validações de domínio, repositórios, serviços de metadados, parsers de referências e fluxos visuais Flet:
+A suíte de testes cobre formatadores, validações de domínio, repositórios, serviços de metadados, parsers de referências, integridade do SQLite, migrações Alembic e fluxos visuais Flet:
 
 ```powershell
 python -m pytest
 ```
 
-Atualmente, **343 testes automatizados** garantem a integridade operacional e visual do sistema.
+Atualmente, **636 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
+
+```powershell
+python -m flake8 src tests main.py
+```
 
 ---
 
 ## Estrutura do Projeto
 
-* `main.py`: Ponto de entrada da aplicação Flet.
+* `main.py`: Ponto de entrada da aplicação Flet (executa o bootstrap de dados).
 * `src/controllers`: Orquestração de fluxos de navegação e submissão de dados.
 * `src/views`: Interfaces Flet, componentes modulares (`ui_kit`), modais de importação e telas principais.
 * `src/domains`: Entidades de domínio e mapeamentos relacionais SQLAlchemy.
@@ -97,18 +101,23 @@ Atualmente, **343 testes automatizados** garantem a integridade operacional e vi
 * `src/services`: Regras de negócio, coalescência de metadados (`metadata_service`), integração Nous (`nous_service`) e gerenciamento de compilações.
 * `src/strategies`: Formatadores bibliográficos segundo normas ABNT.
 * `src/utils`: Parsers de referência (`reference_parser`), formatadores de datas e manipuladores de estilo.
-* `src/configs`: Textos, paletas de cores (`colors.yaml`), tipografia e parâmetros visuais.
+* `src/configs`: Textos, paletas de cores (`params.json`), tipografia, caminhos de dados (`paths.py`) e parâmetros visuais.
+* `src/db`: Engine SQLite instrumentada (`sqlite_runtime.py`), auditoria referencial (`integrity.py`), bootstrap e adoção legada.
+* `migrations`: Revisões Alembic — fonte única do esquema.
 * `tests`: Suíte completa de testes automatizados unitários e de integração.
 
 ---
 
 ## Arquitetura e Fluxo de Dados
 
-As views operam de modo puramente declarativo e reativo, interagindo com os controladores exclusivamente via callbacks e estruturas de dados de `src/contracts.py`.
+As views compõem a interface e conversam com os controladores por callbacks e
+estruturas de `src/contracts.py`. Views podem chamar serviços diretamente (por
+exemplo, o compositor do Nous instancia `NousAIService`), mas **não** importam
+repositórios nem estratégias — essa fronteira é verificada pela suíte.
 
 ```
 [View / Flet UI] ──(Callbacks / Contracts)──> [Controllers]
-                                                    │
+                                                     │
                  ┌──────────────────────────────────┴──────────────────────────────────┐
                  ▼                                                                     ▼
            [Services]                                                            [Strategies]
@@ -118,12 +127,29 @@ As views operam de modo puramente declarativo e reativo, interagindo com os cont
           [Repositories]
                  │
                  ▼
-       [SQLite / SQLAlchemy]
+       [SQLite / SQLAlchemy] ──(PRAGMAs, WAL, FK)──> [src/db/sqlite_runtime]
+                 │
+                 ▼
+        [Alembic — fonte única do esquema]
 ```
 
 ---
 
 ## Observações de Desenvolvimento
 
-* **Banco de Dados**: Em ambiente de desenvolvimento, o arquivo SQLite reside em `src/db/hupomnemata.db`.
-* **Auditoria de Logs**: Exceções tratadas e diagnósticos de execução são registrados com stack trace completo em `logs/hupomnemata.txt`.
+* **Banco de Dados**: o arquivo SQLite reside no diretório de dados do usuário:
+  * Windows: `%LOCALAPPDATA%\Hupomnemata\hupomnemata.db`
+  * Linux: `$XDG_DATA_HOME/hupomnemata/hupomnemata.db` (padrão `~/.local/share/hupomnemata/`)
+  * macOS: `~/Library/Application Support/Hupomnemata/hupomnemata.db`
+
+  `HUPOMNEMATA_DATA_DIR` sobrescreve o diretório; `HUPOMNEMATA_DATABASE_PATH`
+  aponta diretamente para o arquivo. Na primeira execução, um banco legado em
+  `src/db/hupomnemata.db` é adotado via `VACUUM INTO` e preservado como backup.
+  Backups e quarentenas ficam em `backups/` dentro do diretório de dados.
+* **Integridade**: toda conexão ativa `foreign_keys`, `busy_timeout` e WAL
+  (quando o volume suporta). Violações legadas são quarentenadas com os
+  registros completos antes do reparo.
+* **Credenciais**: a chave Gemini e o token OAuth do Google Drive são guardados
+  no cofre do sistema via `keyring`; o fallback local é `secrets.json` com
+  permissões restritas e nunca é versionado.
+* **Auditoria de Logs**: exceções tratadas e diagnósticos de execução são registrados com stack trace completo em `logs/hupomnemata.txt`.

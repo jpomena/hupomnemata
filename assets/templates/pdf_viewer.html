@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="__THEME_MODE__">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>__TITLE__ — Leitor Hupomnemata</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: __BG_COLOR__;
+      color: __TEXT_COLOR__;
+      font-family: 'Montserrat', sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: __SURFACE_COLOR__;
+      border-bottom: 1px solid __BORDER_COLOR__;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: __GOLD_ACCENT__;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 40vw;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    button {
+      background: transparent;
+      border: 1px solid __BORDER_COLOR__;
+      color: __TEXT_COLOR__;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      border-color: __GOLD_ACCENT__;
+      color: __GOLD_ACCENT__;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    #viewer-container {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      gap: 20px;
+    }
+    canvas {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+      background: white;
+    }
+    .page-info {
+      font-size: 13px;
+      color: #A0A0A0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">__TITLE__</div>
+    <div class="toolbar">
+      <button id="prev">‹ Anterior</button>
+      <span class="page-info">Pág. <span id="page-num">1</span> de <span id="page-count">-</span></span>
+      <button id="next">Próxima ›</button>
+      <span style="border-left: 1px solid __BORDER_COLOR__; height: 20px; margin: 0 4px;"></span>
+      <button id="zoom-out">−</button>
+      <span id="zoom-text" class="page-info">100%</span>
+      <button id="zoom-in">+</button>
+    </div>
+  </header>
+
+  <div id="viewer-container">
+    <canvas id="pdf-canvas"></canvas>
+  </div>
+
+  <script>
+    const initialAnnotations = __ANNOTATIONS_JSON__;
+    const pdfData = atob("__PDF_BASE64__");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let pdfDoc = null;
+    let pageNum = 1;
+    let scale = 1.25;
+    const canvas = document.getElementById('pdf-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+    loadingTask.promise.then(pdf => {
+      pdfDoc = pdf;
+      document.getElementById('page-count').textContent = pdf.numPages;
+      renderPage(pageNum);
+    }).catch(err => {
+      console.error('Falha ao carregar documento PDF:', err);
+    });
+
+    function renderPage(num) {
+      pdfDoc.getPage(num).then(page => {
+        const viewport = page.getViewport({ scale: scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+        page.render(renderContext);
+        document.getElementById('page-num').textContent = num;
+        document.getElementById('prev').disabled = num <= 1;
+        document.getElementById('next').disabled = num >= pdfDoc.numPages;
+      });
+    }
+
+    document.getElementById('prev').addEventListener('click', () => {
+      if (pageNum <= 1) return;
+      pageNum--;
+      renderPage(pageNum);
+    });
+
+    document.getElementById('next').addEventListener('click', () => {
+      if (pageNum >= pdfDoc.numPages) return;
+      pageNum++;
+      renderPage(pageNum);
+    });
+
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      scale += 0.25;
+      document.getElementById('zoom-text').textContent = Math.round((scale / 1.25) * 100) + '%';
+      renderPage(pageNum);
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      if (scale <= 0.5) return;
+      scale -= 0.25;
+      document.getElementById('zoom-text').textContent = Math.round((scale / 1.25) * 100) + '%';
+      renderPage(pageNum);
+    });
+  </script>
+</body>
+</html>

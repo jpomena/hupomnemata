@@ -96,11 +96,40 @@
 
 ## 8. Próximas Funcionalidades Planejadas
 
+- [x] **Portabilidade de Dados — banco**: migração para `%LOCALAPPDATA%\Hupomnemata`
+  (XDG/macOS equivalentes), adoção única do banco legado via `VACUUM INTO`,
+  backups e quarentena em `backups/`.
+- [ ] **Portabilidade de Dados — PDFs e preferências**: mover
+  `data/storage/pdfs` e `user_preferences.json` para o mesmo diretório de dados,
+  preservando a resolução dos caminhos relativos já gravados.
 - [ ] **Exportação Abrangente**:
   - Exportação de obras e referências em formatos de intercâmbio bibliográfico (BibTeX, RIS, CSL-JSON).
 - [ ] **Grafo Conceitual (Malha de Conhecimento)**:
-  - Integração nativa da visualização interativa da malha conceitual na interface desktop (atualmente prototipada em `data/knowledge_mesh.html`).
+  - [x] Visualização interativa integrada (`src/views/knowledge/`) — o artefato
+    HTML em `data/` deixou de ser a única via.
+  - [ ] Extrair o template D3 para `assets/templates/` com tokens do design system.
 - [ ] **Taxonomia Transversal**:
   - Sistema de etiquetas (tags) unificado para obras, fragmentos e ideias.
-- [ ] **Portabilidade de Dados**:
-  - Mecanismo de exportação/importação de backups e migração do caminho do banco SQLite para o diretório padrão de dados do usuário do sistema operacional (AppData/XDG).
+
+---
+
+## 9. Confiabilidade de Dados e Engenharia (ciclo de correção)
+
+- [x] Embeddings determinísticos entre processos (BLAKE2b) com versionamento de motor
+  e reindexação incremental; stub ONNX tornado explícito.
+- [x] SQLite com `foreign_keys=ON`, WAL, `busy_timeout` e `synchronous=NORMAL`
+  por conexão (`src/db/sqlite_runtime.py`).
+- [x] Auditoria `PRAGMA foreign_key_check` com snapshot, quarentena JSONL e reparo
+  conservador (`src/db/integrity.py`).
+- [x] Alembic como fonte única do esquema; adoção legada explícita e baseline
+  `5e1748a58b4a`; remoção idempotente de `statutes.publication_date`.
+- [x] `init_db(target_engine)` isolado — nenhuma rotina auxiliar toca a engine global.
+- [x] Credenciais em `keyring` (Gemini + token OAuth), com migração do JSON legado.
+- [x] Suíte de testes isolada do banco real (`HUPOMNEMATA_DATA_DIR` sandbox).
+- [x] CI (GitHub Actions): Flake8 + Pytest em Windows/Linux (3.12/3.14) +
+  determinismo + paridade de migrações.
+- [ ] Decompor god objects de views e extrair templates HTML (ver `.opencode/agents/`).
+- [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
+- [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
+- [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).
+
