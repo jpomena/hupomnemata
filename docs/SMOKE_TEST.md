@@ -53,7 +53,19 @@ Marque apenas o que foi observado; qualquer falha vira item no TODO.
 - [ ] Abrir o leitor de PDF: barra, paginação, zoom e marcações legíveis nos
       dois temas.
 
-## 6. Qualidade automatizada
+## 6. Thread-safety da interface
+
+- [ ] Gerar síntese de uma obra no Nous: snackbar aparece, lista atualiza e a janela
+      permanece responsiva (sem congelamento).
+- [ ] Processar lote no Nous: barra de progresso avança e pode ser observada em
+      tempo real.
+- [ ] Importação reversa: rótulo/barra de progresso avançam por referência e a
+      fase final renderiza uma única vez, sem `RuntimeError`.
+- [ ] Sincronização e autenticação do Google Drive em Configurações: status
+      atualiza durante a operação e o modal de conflito abre corretamente.
+- [ ] Nenhum `page.update()` chamado de thread de trabalho aparece no log.
+
+## 7. Qualidade automatizada
 
 ```powershell
 python -m pytest -q

@@ -25,6 +25,7 @@ from src.utils.reference_parser import (
     split_references_block,
 )
 from src.utils.types import ViewConfig
+from src.utils.ui_thread import run_on_ui
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 
@@ -805,22 +806,28 @@ class ReverseImportModalDialog:
                         meta["work_type"] = suggested
 
                 # Atualiza progresso
-                self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
-                self.progress_bar.value = idx / total
+                def _apply_progress() -> None:
+                    self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
+                    self.progress_bar.value = idx / total
+                    try:
+                        self.page.update()
+                    except Exception:
+                        pass
+
+                run_on_ui(self.page, _apply_progress)
+
+        except Exception as exc:
+            log_exception("ReverseImportModalDialog._run_extraction_background", exc)
+        finally:
+            def _apply_finished() -> None:
+                self.is_processing = False
+                self._render_current_phase()
                 try:
                     self.page.update()
                 except Exception:
                     pass
 
-        except Exception as exc:
-            log_exception("ReverseImportModalDialog._run_extraction_background", exc)
-        finally:
-            self.is_processing = False
-            self._render_current_phase()
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            run_on_ui(self.page, _apply_finished)
 
     def _compose_phase3(self) -> ft.Container:
         c = self.config

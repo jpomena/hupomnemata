@@ -9,6 +9,7 @@ import flet as ft
 
 from src.services.cloud_sync_service import CloudSyncService, SyncStatus
 from src.utils.types import ViewConfig
+from src.utils.ui_thread import run_on_ui
 from src.views import ui_kit as ui
 
 
@@ -655,17 +656,20 @@ class SettingsComposer:
         modal_ref: list[ft.AlertDialog | None] = [None]
 
         def safe_update(ctrl: ft.Control | None = None) -> None:
-            if ctrl is not None:
-                try:
-                    ctrl.update()
-                    return
-                except Exception:
-                    pass
-            if page is not None:
-                try:
-                    page.update()
-                except Exception:
-                    pass
+            def _apply() -> None:
+                if ctrl is not None:
+                    try:
+                        ctrl.update()
+                        return
+                    except Exception:
+                        pass
+                if page is not None:
+                    try:
+                        page.update()
+                    except Exception:
+                        pass
+
+            run_on_ui(page, _apply)
 
         def close_modal():
             ui.close_dialog(page)
@@ -806,18 +810,22 @@ class SettingsComposer:
         feedback_banner = ft.Container(visible=False)
 
         def safe_update(ctrl: ft.Control | None = None) -> None:
-            if ctrl is not None:
-                try:
-                    ctrl.update()
-                    return
-                except Exception:
-                    pass
             page = self.page or getattr(status_text, "page", None)
-            if page is not None:
-                try:
-                    page.update()
-                except Exception:
-                    pass
+
+            def _apply() -> None:
+                if ctrl is not None:
+                    try:
+                        ctrl.update()
+                        return
+                    except Exception:
+                        pass
+                if page is not None:
+                    try:
+                        page.update()
+                    except Exception:
+                        pass
+
+            run_on_ui(page, _apply)
 
         def on_sync_click(_):
             status_text.value = "Sincronizando com o Google Drive..."

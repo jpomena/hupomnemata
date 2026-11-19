@@ -126,6 +126,9 @@
 - [x] `init_db(target_engine)` isolado — nenhuma rotina auxiliar toca a engine global.
 - [x] Credenciais em `keyring` (Gemini + token OAuth), com migração do JSON legado.
 - [x] Suíte de testes isolada do banco real (`HUPOMNEMATA_DATA_DIR` sandbox).
+- [x] Mutações de UI oriundas de threads de trabalho passam por `run_on_ui`
+  (`src/utils/ui_thread.py`), que usa `page.run_task` e executa inline quando não
+  há loop real.
 - [x] CI (GitHub Actions): Flake8 + Pytest em Windows/Linux (3.12/3.14) +
   determinismo + paridade de migrações.
 - [ ] Decompor god objects de views e extrair templates HTML (ver `.opencode/agents/`).

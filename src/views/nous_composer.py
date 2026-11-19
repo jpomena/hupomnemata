@@ -12,6 +12,7 @@ import flet as ft
 
 from src.services.nous_service import NousAIService
 from src.utils.types import ViewConfig
+from src.utils.ui_thread import run_on_ui
 
 
 class NousComposer:
@@ -763,14 +764,8 @@ class NousComposer:
             except Exception:
                 pass
 
-        async def _async_generate():
-            try:
-                ok, msg = await asyncio.to_thread(self.nous_service.generate_work_description, work_id)
-            except Exception as err:
-                ok, msg = False, str(err)
-            finally:
-                self.generating_work_ids.discard(work_id)
-
+        def _apply_generation_result(ok: bool, msg: str) -> None:
+            self.generating_work_ids.discard(work_id)
             if ok:
                 if hasattr(self.page, "overlay") and self.page.overlay is not None:
                     res_snack = ft.SnackBar(ft.Text("✓ Síntese gerada e salva com sucesso!"))
@@ -795,6 +790,14 @@ class NousComposer:
             except Exception:
                 pass
 
+        async def _async_generate():
+            try:
+                ok, msg = await asyncio.to_thread(self.nous_service.generate_work_description, work_id)
+            except Exception as err:
+                ok, msg = False, str(err)
+
+            _apply_generation_result(ok, msg)
+
         run_task = getattr(self.page, "run_task", None)
         if run_task is not None:
             run_task(_async_generate)
@@ -804,31 +807,8 @@ class NousComposer:
                     ok, msg = self.nous_service.generate_work_description(work_id)
                 except Exception as err:
                     ok, msg = False, str(err)
-                finally:
-                    self.generating_work_ids.discard(work_id)
-                if ok:
-                    if hasattr(self.page, "overlay") and self.page.overlay is not None:
-                        res_snack = ft.SnackBar(ft.Text("✓ Síntese gerada e salva com sucesso!"))
-                        self.page.overlay.append(res_snack)
-                        res_snack.open = True
-                    self._update_single_work_ui(work_id)
-                else:
-                    if hasattr(self.page, "overlay") and self.page.overlay is not None:
-                        res_snack = ft.SnackBar(ft.Text(f"Erro: {msg}"))
-                        self.page.overlay.append(res_snack)
-                        res_snack.open = True
-                    target_w = next((w for w in self.works_data if w["id"] == work_id), None)
-                    act_box = self.work_actions_containers.get(work_id)
-                    if act_box is not None and target_w is not None:
-                        act_box.content = self._build_work_actions(target_w)
-                        try:
-                            act_box.update()
-                        except Exception:
-                            pass
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                run_on_ui(self.page, lambda: _apply_generation_result(ok, msg))
+
             threading.Thread(target=_thread_fallback, daemon=True).start()
 
     def _handle_batch_generation(self, _e: ft.ControlEvent) -> None:
@@ -847,16 +827,34 @@ class NousComposer:
             pass
 
         def update_progress(curr: int, total: int, title: str) -> None:
-            self.batch_progress_bar.value = curr / max(1, total)
-            self.batch_progress_text.value = f"Processando ({curr}/{total}): {title}"
-            try:
-                self.batch_progress_bar.update()
-                self.batch_progress_text.update()
-            except Exception:
-                pass
+            def _apply() -> None:
+                self.batch_progress_bar.value = curr / max(1, total)
+                self.batch_progress_text.value = f"Processando ({curr}/{total}): {title}"
+                try:
+                    self.batch_progress_bar.update()
+                    self.batch_progress_text.update()
+                except Exception:
+                    pass
+
+            run_on_ui(self.page, _apply)
 
         def on_item_completed(w_id: int, ok: bool, msg: str) -> None:
-            self._update_single_work_ui(w_id)
+            run_on_ui(self.page, lambda: self._update_single_work_ui(w_id))
+
+        def _apply_batch_completion(res_msg: str) -> None:
+            self.is_batch_running = False
+            self.batch_progress_bar.visible = False
+            self.batch_progress_text.visible = False
+
+            if hasattr(self.page, "overlay") and self.page.overlay is not None:
+                snack = ft.SnackBar(ft.Text(res_msg))
+                self.page.overlay.append(snack)
+                snack.open = True
+            self._refresh_works_data()
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
         async def _async_batch():
             try:
@@ -868,20 +866,8 @@ class NousComposer:
                 res_msg = f"Concluído: {results['success']} obras processadas com sucesso, {results['failed']} falhas."
             except Exception as err:
                 res_msg = f"Falha no processamento em lote: {err}"
-            finally:
-                self.is_batch_running = False
-                self.batch_progress_bar.visible = False
-                self.batch_progress_text.visible = False
 
-            if hasattr(self.page, "overlay") and self.page.overlay is not None:
-                snack = ft.SnackBar(ft.Text(res_msg))
-                self.page.overlay.append(snack)
-                snack.open = True
-            self._refresh_works_data()
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            _apply_batch_completion(res_msg)
 
         run_task = getattr(self.page, "run_task", None)
         if run_task is not None:
@@ -896,20 +882,8 @@ class NousComposer:
                     res_msg = f"Concluído: {results['success']} obras processadas com sucesso, {results['failed']} falhas."
                 except Exception as err:
                     res_msg = f"Falha no processamento em lote: {err}"
-                finally:
-                    self.is_batch_running = False
-                    self.batch_progress_bar.visible = False
-                    self.batch_progress_text.visible = False
 
-                if hasattr(self.page, "overlay") and self.page.overlay is not None:
-                    snack = ft.SnackBar(ft.Text(res_msg))
-                    self.page.overlay.append(snack)
-                    snack.open = True
-                self._refresh_works_data()
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                run_on_ui(self.page, lambda: _apply_batch_completion(res_msg))
 
             threading.Thread(target=_thread_batch_fallback, daemon=True).start()
 
