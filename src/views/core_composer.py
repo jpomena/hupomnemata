@@ -11,12 +11,10 @@ from src.contracts import (
 )
 
 from collections.abc import Awaitable, Callable
-from src.views.dashboard import DashboardComposer
-from src.views.works import WorksComposer
+from typing import TYPE_CHECKING
 from src.views.fragments import FragmentsComposer
 from src.views.compilations import CompilationsComposer
 from src.views.sidebar import SidebarComposer
-from src.views.settings import SettingsComposer
 from src.views.knowledge import KnowledgeComposer
 from src.views.nous_composer import NousComposer
 from src.services.nous_service import NousAIService
@@ -29,6 +27,9 @@ from src.views.sidebar import SidebarData
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from src.utils.fa import fa_icon, glyph as fa_glyph
+
+if TYPE_CHECKING:
+    from src.views.view_factory import ViewFactory
 
 
 class CoreComposer:
@@ -216,6 +217,62 @@ class CoreComposer:
         self.on_delete_magazine = on_delete_magazine
         self.fragment_dialog_composer: FragmentsComposer | None = None
         self.sidebar_compilations_expanded: bool = True
+
+    # ── fábrica de telas (lazy) ────────────────────────────
+
+    def _view_factory(self) -> "ViewFactory":
+        """Instancia a fábrica sob demanda para funcionar com ``__new__``."""
+        factory = getattr(self, "_views", None)
+        if factory is None:
+            from src.views.view_factory import ViewFactory
+            factory = ViewFactory(self)
+            self._views = factory
+        return factory
+
+    def _compose_dashboard(self) -> ft.Control:
+        return self._view_factory().dashboard()
+
+    def _compose_works(
+        self,
+        works: list[BibliographicResource] | None,
+    ) -> ft.Control:
+        return self._view_factory().works(works)
+
+    def _compose_fragments(
+        self,
+        fragments: list[FragmentRecord] | None,
+    ) -> ft.Control:
+        return self._view_factory().fragments(fragments)
+
+    def _compose_compilations(
+        self,
+        compilations: list[CompilationRecord] | None,
+    ) -> ft.Control:
+        return self._view_factory().compilations(compilations)
+
+    def _compose_compilation_page(
+        self,
+        compilations: list[CompilationRecord] | None,
+        compilation_id: int,
+    ) -> ft.Control:
+        return self._view_factory().compilation_page(
+            compilations, compilation_id
+        )
+
+    def _compose_pdf_reader(self, work_id: int) -> ft.Control:
+        return self._view_factory().pdf_reader(work_id)
+
+    def _compose_placeholder_dashboard(self, section: str) -> ft.Control:
+        return self._view_factory().placeholder(section)
+
+    def _compose_settings(self) -> ft.Control:
+        return self._view_factory().settings()
+
+    def _compose_nous(self) -> ft.Control:
+        return self._view_factory().nous()
+
+    def _compose_knowledge(self) -> ft.Control:
+        return self._view_factory().knowledge()
 
     # ── shell: barra de título, sidebar, breadcrumb ────────
 
@@ -462,30 +519,31 @@ class CoreComposer:
         **options,
     ) -> None:
         self.view_options = options
+        factory = self._view_factory()
         views = {
-            "dashboard": self._compose_dashboard,
-            "Acervo": lambda: self._compose_works(works),
-            "Fragmentos": lambda: self._compose_fragments(fragments),
-            "Compilações": lambda: self._compose_compilations(compilations),
-            "Estruturas de Saber": self._compose_knowledge,
-            "Nous": self._compose_nous,
-            "Configurações": self._compose_settings,
+            "dashboard": factory.dashboard,
+            "Acervo": lambda: factory.works(works),
+            "Fragmentos": lambda: factory.fragments(fragments),
+            "Compilações": lambda: factory.compilations(compilations),
+            "Estruturas de Saber": factory.knowledge,
+            "Nous": factory.nous,
+            "Configurações": factory.settings,
         }
         if destination.startswith("compilacao:"):
             compilation_id = int(destination.split(":", 1)[1])
-            view_factory = lambda: self._compose_compilation_page(compilations, compilation_id)
+            view_factory = lambda: factory.compilation_page(
+                compilations, compilation_id
+            )
         elif destination.startswith("pdf_reader:"):
             work_id = int(destination.split(":", 1)[1])
-            view_factory = lambda: self._compose_pdf_reader(work_id)
+            view_factory = lambda: factory.pdf_reader(work_id)
         else:
             view_factory = views.get(destination)
         if not view_factory:
             if destination not in self.config.core_menus:
                 return
             self.current_destination = destination
-            self.content.content = self._compose_placeholder_dashboard(
-                destination
-            )
+            self.content.content = factory.placeholder(destination)
         else:
             self.current_destination = destination
             self.content.content = view_factory()
@@ -494,58 +552,6 @@ class CoreComposer:
         except (RuntimeError, AttributeError):
             pass
         self.refresh_chrome()
-
-    def _compose_compilation_page(
-        self,
-        compilations: list[CompilationRecord] | None,
-        compilation_id: int,
-    ) -> ft.Control:
-        """Página de uma compilação; se ela não existe mais, cai na lista."""
-        control = self._compose_compilations(compilations)
-        if self.compilations_composer is not None:
-            return self.compilations_composer.open_compilation_page(compilation_id) or control
-        return control
-
-    def _compose_pdf_reader(self, work_id: int) -> ft.Control:
-        """Espaço imersivo de leitura e anotação do PDF da obra."""
-        from src.db.db import SessionLocal
-        from src.domains import BibliographicResource
-        from src.services.pdf_service import PdfService
-        from src.views.pdf_reader import PdfReaderView
-
-        pdf_service = PdfService()
-        with SessionLocal() as session:
-            resource = session.get(BibliographicResource, work_id)
-            if resource is None:
-                return ui.empty_state(
-                    self.config,
-                    "triangle-exclamation",
-                    "Obra não encontrada",
-                    "A obra solicitada para leitura não pôde ser localizada.",
-                )
-
-            work = resource.specific_work
-            work_title = (work.title if work else '') or (resource.pdf_filename or 'Obra')
-            if self.page:
-                ui.toast(self.page, self.config, f"Carregando leitor: {work_title}...", icon_name="book-open")
-
-            reader_holder: list[PdfReaderView] = []
-
-            def on_back():
-                if reader_holder:
-                    reader_holder[0].close()
-                self.on_navigate_with("Acervo", focus_work_id=work_id)
-
-            reader_view = PdfReaderView(
-                config=self.config,
-                resource=resource,
-                on_back=on_back,
-                pdf_service=pdf_service,
-                page=self.page,
-            )
-            reader_holder.append(reader_view)
-            self.pdf_reader_view = reader_view
-            return reader_view
 
     # ── paleta ⌘K ──────────────────────────────────────────
 
@@ -578,19 +584,6 @@ class CoreComposer:
             return False
         return palette.handle_key(key)
 
-    def _compose_dashboard(self) -> ft.Control:
-        return DashboardComposer(
-            scale=self.scale,
-            config=self.config,
-            on_navigate=self.on_navigate,
-            get_dashboard_data=getattr(self, "get_dashboard_data", None),
-            on_navigate_with=getattr(self, "on_navigate_with", None),
-            on_new_fragment=self.open_fragment_create,
-            on_open_palette=self.open_palette,
-            on_import_work=getattr(self, "on_import_work", None),
-            on_reverse_import=getattr(self, "on_reverse_import", None),
-        ).compose()
-
     def open_fragment_create(self) -> None:
         """Abre o diálogo de novo fragmento sem sair da tela atual."""
         self.fragment_dialog_composer = FragmentsComposer(
@@ -604,106 +597,6 @@ class CoreComposer:
         )
         self.fragment_dialog_composer.open_create()
 
-    def _fragment_compilations(self) -> dict[int, list[str]]:
-        """Nomes das compilações em que cada fragmento entrou (selo na linha)."""
-        names: dict[int, list[str]] = {}
-        refresh = getattr(self, "refresh_compilations", None)
-        if refresh is None:
-            return names
-        try:
-            compilations = refresh() or []
-        except Exception:
-            return names
-        for compilation in compilations:
-            for work in compilation.get("works", []):
-                for fragment in work.get("fragments", []):
-                    if fragment.get("is_member"):
-                        names.setdefault(fragment["id"], []).append(compilation["name"])
-        return names
-
-    def _compose_placeholder_dashboard(self, section: str) -> ft.Control:
-        return DashboardComposer(
-            scale=self.scale,
-            config=self.config,
-            on_navigate=self.on_navigate,
-        ).compose_placeholder(section)
-
-    def _compose_settings(self) -> ft.Control:
-        return SettingsComposer(
-            scale=self.scale,
-            config=self.config,
-            current_theme_mode=self.current_theme_mode,
-            auto_scale=self.auto_scale,
-            manual_scale=self.manual_scale,
-            effective_scale=self.scale,
-            on_navigate=self.on_navigate,
-            on_change_theme=self.on_change_theme or (lambda _: None),
-            on_toggle_auto_scale=self.on_toggle_auto_scale or (lambda _: None),
-            on_change_scale=self.on_change_scale or (lambda _: None),
-            on_reset_settings=self.on_reset_settings or (lambda: None),
-            cloud_sync_service=getattr(self, "cloud_sync_service", None),
-            page=getattr(self, "page", None),
-        ).compose()
-
-    def _compose_nous(self) -> ft.Control:
-        self.nous_composer = NousComposer(
-            page=getattr(self, "page", None),
-            config=self.config,
-            scale=self.scale,
-            on_navigate=self.on_navigate,
-            nous_service=getattr(self, "nous_service", None),
-            current_theme_mode=getattr(self, "current_theme_mode", "light"),
-        )
-        return self.nous_composer.compose()
-
-    def _compose_knowledge(self) -> ft.Control:
-        self.knowledge_composer = KnowledgeComposer(
-            page=getattr(self, "page", None),
-            config=self.config,
-            scale=self.scale,
-            on_navigate=self.on_navigate,
-            get_graph_data=getattr(self, "get_knowledge_graph", None) or (lambda _: {"nodes": [], "links": [], "clusters": []}),
-            sync_mesh=getattr(self, "sync_knowledge_mesh", None) or (lambda: {"vectorized": 0, "clusters": 0}),
-            get_resonances=getattr(self, "get_knowledge_resonances", None) or (lambda *_: []),
-            get_work_fragments=getattr(self, "get_knowledge_work_fragments", None) or (lambda _: []),
-            on_add_to_compilation=getattr(self, "on_add_knowledge_to_compilation", None),
-            list_compilations=getattr(self, "refresh_compilations", None),
-            on_create_link=getattr(self, "on_create_knowledge_link", None),
-            current_theme_mode=getattr(self, "current_theme_mode", "light"),
-        )
-        return self.knowledge_composer.compose()
-
-    def _compose_works(
-        self,
-        works: list[BibliographicResource] | None,
-    ) -> ft.Control:
-        options = getattr(self, "view_options", {}) or {}
-        context = self.get_acervo_context() if getattr(self, "get_acervo_context", None) else None
-        self.works_composer = WorksComposer(
-            scale=self.scale,
-            config=self.config,
-            works=works or [],
-            on_navigate=self.on_navigate,
-            on_work_click=self.on_work_click,
-            on_edit_work=self.on_edit_work,
-            format_reference=self.on_format_reference,
-            on_copy_reference=self.on_copy_reference,
-            on_delete_work=self.on_delete_work,
-            page=self.page,
-            context=context,
-            focus_work_id=options.get("focus_work_id"),
-            type_filter=options.get("type_filter"),
-            sort_key=options.get("sort_key"),
-            sort_desc=options.get("sort_desc"),
-            on_add_to_compilation=self.on_compilation_add_work,
-            on_delete_works=getattr(self, "on_delete_works", None),
-            nous_service=getattr(self, "nous_service", None),
-            on_import_work=getattr(self, "on_import_work", None),
-            on_update_magazine=getattr(self, "on_update_magazine", None),
-            on_delete_magazine=getattr(self, "on_delete_magazine", None),
-        )
-        return self.works_composer.compose()
-
     def handle_view_key(self, key: str, mod: bool) -> bool:
         """Repassa atalhos de teclado para a tela ativa (ex.: tabela do Acervo ou leitor PDF)."""
         if self.current_destination == "Acervo" and getattr(self, "works_composer", None) is not None:
@@ -711,89 +604,6 @@ class CoreComposer:
         if self.current_destination.startswith("pdf_reader:") and getattr(self, "pdf_reader_view", None) is not None:
             return self.pdf_reader_view.handle_key(key, mod)
         return False
-
-    def _compose_fragments(
-        self,
-        fragments: list[FragmentRecord] | None,
-    ) -> ft.Control:
-        options = getattr(self, "view_options", {}) or {}
-        on_navigate_with = getattr(self, "on_navigate_with", None)
-        composer = FragmentsComposer(
-            page=self.page,
-            config=self.config,
-            fragments=fragments or [],
-            search_works=self.search_fragment_works,
-            on_save=self.on_fragment_save,
-            on_delete=self.on_fragment_delete,
-            on_copy_reference=self.on_copy_reference,
-            compilations_by_fragment=self._fragment_compilations(),
-            on_open_work=(
-                (lambda work_id: on_navigate_with("Acervo", focus_work_id=work_id))
-                if on_navigate_with is not None
-                else None
-            ),
-            initial_query=str(options.get("query") or ""),
-        )
-        control = composer.compose()
-        if options.get("create"):
-            composer.open_create()
-        elif options.get("open_create_work_id"):
-            composer.open_create_for_work(
-                bib_res_id=int(options["open_create_work_id"]),
-                title=str(options.get("work_title") or ""),
-                initial_location_type=options.get("initial_location_type"),
-                initial_location_value=options.get("initial_location_value"),
-                initial_excerpt=options.get("initial_excerpt"),
-            )
-        return control
-
-    def _compose_compilations(
-        self,
-        compilations: list[CompilationRecord] | None,
-    ) -> ft.Control:
-        self.compilations_composer = CompilationsComposer(
-            page=self.page,
-            config=self.config,
-            compilations=compilations or [],
-            search_works=self.search_compilation_works,
-            refresh_compilations=self.refresh_compilations,
-            on_create=self.on_compilation_create,
-            on_update=self.on_compilation_update,
-            on_delete=self.on_compilation_delete,
-            on_add_work=self.on_compilation_add_work,
-            on_remove_work=self.on_compilation_remove_work,
-            on_reorder_works=self.on_compilation_reorder_works,
-            on_fragment_membership=(
-                self.on_compilation_fragment_membership
-            ),
-            on_fragment_note=self.on_compilation_fragment_note,
-            on_create_section=self.on_compilation_section_create,
-            on_update_section=self.on_compilation_section_update,
-            on_transfer_section=self.on_compilation_section_transfer,
-            on_delete_section=self.on_compilation_section_delete,
-            on_reorder_sections=self.on_compilation_section_reorder,
-            on_assign_fragment_to_section=(
-                self.on_compilation_fragment_assign_section
-            ),
-            on_link_fragment_to_section=(
-                self.on_compilation_fragment_link_section
-            ),
-            on_reorder_section_fragments=(
-                self.on_compilation_section_reorder_fragments
-            ),
-            on_copy_caderno=self.on_compilation_copy_caderno,
-            on_create_work=self.on_compilation_create_work,
-            on_edit_work=self.on_compilation_edit_work,
-            on_create_fragment=self.on_compilation_create_fragment,
-            on_edit_fragment=self.on_compilation_edit_fragment,
-            on_navigate=self.on_navigate,
-            on_open_work=lambda work_id: self.on_navigate_with("Acervo", focus_work_id=work_id),
-            on_chrome_changed=self.refresh_chrome,
-            work_references=getattr(self, "compilation_work_references", None),
-        )
-        return self.compilations_composer.compose(
-            open_create=bool(self.view_options.get("create"))
-        )
 
     def refresh_compilation_hub(self, compilation_id: int) -> None:
         if self.compilations_composer is not None:
