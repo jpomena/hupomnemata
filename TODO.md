@@ -131,9 +131,10 @@
   há loop real.
 - [x] CI (GitHub Actions): Flake8 + Pytest em Windows/Linux (3.12/3.14) +
   determinismo + paridade de migrações.
-- [x] `CoreComposer` reduzido de 878 para 688 linhas: roteamento e composição de
-  telas extraídos para `src/views/view_factory.py`, com fábrica lazy compatível
-  com instâncias criadas por `__new__` e fachadas `_compose_*` preservadas.
+- [x] `CoreComposer` reduzido de 826 para 508 linhas: `ViewFactory` (telas) e
+  `WindowChromeComposer` (barra de título, histórico e breadcrumb) extraídos,
+  com fábricas lazy compatíveis com instâncias criadas por `__new__` e fachadas
+  preservadas para a suíte.
 - [ ] Decompor os demais god objects de views (`WorksComposer`, `PdfReaderView`,
   `CadernoMixin`, `SettingsComposer`) e extrair o restante do chrome da janela.
 - [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.

@@ -25,11 +25,10 @@ from src.views.general_popups import MultipleAuthorsPopup
 from src.views.work_details_popup import WorkDetailsPopup
 from src.views.sidebar import SidebarData
 from src.views import ui_kit as ui
-from src.views.ui_kit import s
-from src.utils.fa import fa_icon, glyph as fa_glyph
 
 if TYPE_CHECKING:
     from src.views.view_factory import ViewFactory
+    from src.views.window_chrome import WindowChromeComposer
 
 
 class CoreComposer:
@@ -274,7 +273,15 @@ class CoreComposer:
     def _compose_knowledge(self) -> ft.Control:
         return self._view_factory().knowledge()
 
-    # ── shell: barra de título, sidebar, breadcrumb ────────
+    # ── shell: chrome da janela, sidebar ───────────────────
+
+    def _chrome(self) -> "WindowChromeComposer":
+        chrome = getattr(self, "_window_chrome", None)
+        if chrome is None:
+            from src.views.window_chrome import WindowChromeComposer
+            chrome = WindowChromeComposer(self)
+            self._window_chrome = chrome
+        return chrome
 
     def _window_control_button(
         self,
@@ -283,139 +290,21 @@ class CoreComposer:
         tooltip: str | None = None,
         danger: bool = False,
     ) -> ft.Container:
-        c = self.config
-        glyph = fa_icon(icon_name, size=s(12), color=c.colors["faint"], style="regular" if icon_name in {"square", "clone"} else "solid")
-        box = ft.Container(
-            content=glyph,
-            width=s(46),
-            height=s(c.ui.get("titlebar_height", 40)),
-            alignment=ft.Alignment.CENTER,
-            tooltip=tooltip,
-            on_click=on_click,
+        return self._chrome().window_control_button(
+            icon_name, on_click, tooltip, danger
         )
-
-        def _hover(e):
-            hovering = e.data in (True, "true")
-            box.bgcolor = (c.colors["danger"] if danger else c.colors["card_hover"]) if hovering else None
-            glyph.color = (c.colors["on_gold"] if danger else c.colors["text"]) if hovering else c.colors["faint"]
-            box.update()
-
-        box.on_hover = _hover
-        box.data = glyph
-        return box
 
     def _compose_custom_title_bar(self) -> ft.WindowDragArea:
-        c = self.config
-
-        def minimize_window(_):
-            self.page.window.minimized = True
-            self.page.update()
-
-        def toggle_maximize_window(_):
-            if self.on_toggle_maximize is not None:
-                self.on_toggle_maximize()
-            else:
-                self.page.window.maximized = not self.page.window.maximized
-                self.page.update()
-
-        async def close_window(_):
-            await self.page.window.close()
-
-        is_maximized = bool(
-            getattr(getattr(self.page, "window", None), "maximized", False)
-        )
-        self.maximize_button = self._window_control_button(
-            "clone" if is_maximized else "square",
-            toggle_maximize_window,
-            "Restaurar" if is_maximized else "Maximizar",
-        )
-        brand_text = ft.Text(
-            value=c.texts["app"]["name_normalized"],
-            size=s(24),
-            color=c.colors["text"],
-            font_family=c.font_families["greek"],
-            style=ft.TextStyle(letter_spacing=1.2),
-            text_align=ft.TextAlign.CENTER,
-            no_wrap=True,
-        )
-        brand = ft.Container(
-            content=brand_text,
-            width=s(c.ui["sidebar_width"]),
-            alignment=ft.Alignment.CENTER,
-            border=ft.Border.only(right=ft.BorderSide(1, c.colors["border"])),
-            on_click=lambda _e: self.on_navigate("dashboard"),
-            animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
-        )
-
-        def _on_hover_brand(e):
-            hovering = e.data in (True, "true")
-            brand_text.color = c.colors["gold"] if hovering else c.colors["text"]
-            try:
-                brand.update()
-            except Exception:
-                pass
-
-        brand.on_hover = _on_hover_brand
-        self.back_button = ui.icon_button(
-            c, "arrow-left", on_click=lambda _e: self.on_history(-1) if self.on_history else None,
-            tooltip="Voltar (⌘[)", disabled=not self.can_go_back,
-        )
-        self.forward_button = ui.icon_button(
-            c, "arrow-right", on_click=lambda _e: self.on_history(1) if self.on_history else None,
-            tooltip="Avançar (⌘])", disabled=not self.can_go_forward,
-        )
-        self.history_host = ft.Container(
-            ft.Row([self.back_button, self.forward_button], spacing=s(2), tight=True),
-            padding=ft.Padding.only(left=s(12), right=s(8)),
-        )
-        self.crumbs_host = ft.Row(self._crumb_controls(), spacing=s(2), expand=True, tight=True)
-        controls = ft.Row(
-            [
-                self._window_control_button("minus", minimize_window, "Minimizar"),
-                self.maximize_button,
-                self._window_control_button("xmark", close_window, "Fechar", danger=True),
-            ],
-            spacing=0,
-            tight=True,
-        )
-        return ft.WindowDragArea(
-            content=ft.Container(
-                content=ft.Row(
-                    [brand, self.history_host, self.crumbs_host, controls],
-                    spacing=0,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                bgcolor=c.colors["chrome"],
-                border=ft.Border.only(bottom=ft.BorderSide(1, c.colors["border"])),
-                height=s(c.ui.get("titlebar_height", 40)),
-            )
-        )
+        return self._chrome().compose_title_bar()
 
     def _crumb_parts(self) -> list[tuple[str, str | None]]:
-        dest = self.current_destination
-        labels = {"dashboard": "Início"}
-        if dest.startswith("compilacao:"):
-            name = self.compilation_name(int(dest.split(":", 1)[1])) or "Compilação"
-            return [("Compilações", "Compilações"), (name, None)]
-        return [(labels.get(dest, dest), None)]
+        return self._chrome().crumb_parts()
 
     def _crumb_controls(self) -> list[ft.Control]:
-        c = self.config
-        parts = self._crumb_parts()
-        out: list[ft.Control] = []
-        for index, (label, target) in enumerate(parts):
-            last = index == len(parts) - 1
-            text = ui.ui_text(c, label, size=13, weight=ui.W500, color=c.colors["text"] if last else c.colors["faint"])
-            if target and not last:
-                out.append(ui.hover_surface(c, text, on_click=lambda _e, t=target: self.on_navigate(t), padding=ft.Padding.symmetric(horizontal=s(6), vertical=s(3)), radius=4))
-                out.append(fa_icon("chevron-right", size=s(9), color=c.colors["faint"]))
-            else:
-                out.append(ft.Container(text, padding=ft.Padding.symmetric(horizontal=s(6))))
-        return out
+        return self._chrome().crumb_controls()
 
     def compilation_name(self, compilation_id: int) -> str | None:
-        data = self.get_sidebar_data() if self.get_sidebar_data else SidebarData()
-        return next((name for cid, name in data.compilations if cid == compilation_id), None)
+        return self._chrome().compilation_name(compilation_id)
 
     def _compose_sidebar(self) -> ft.Container:
         if self.current_destination.startswith("compilacao:"):
@@ -444,47 +333,20 @@ class CoreComposer:
                 pass
 
     def set_history_state(self, can_back: bool, can_forward: bool) -> None:
-        self.can_go_back = can_back
-        self.can_go_forward = can_forward
-        host = getattr(self, "history_host", None)
-        if host is None:
-            return
-        self.back_button = ui.icon_button(self.config, "arrow-left", on_click=lambda _e: self.on_history(-1) if self.on_history else None, tooltip="Voltar (⌘[)", disabled=not can_back)
-        self.forward_button = ui.icon_button(self.config, "arrow-right", on_click=lambda _e: self.on_history(1) if self.on_history else None, tooltip="Avançar (⌘])", disabled=not can_forward)
-        host.content = ft.Row([self.back_button, self.forward_button], spacing=s(2), tight=True)
-        try:
-            host.update()
-        except Exception:
-            pass
+        self._chrome().set_history_state(can_back, can_forward)
 
     def refresh_chrome(self) -> None:
         """Atualiza sidebar e breadcrumb depois de uma navegação."""
         if getattr(self, "sidebar_host", None) is not None:
             self.sidebar_host.content = self._compose_sidebar()
-        if getattr(self, "crumbs_host", None) is not None:
-            self.crumbs_host.controls = self._crumb_controls()
-        for control in (getattr(self, "sidebar_host", None), getattr(self, "crumbs_host", None)):
             try:
-                if control is not None:
-                    control.update()
+                self.sidebar_host.update()
             except Exception:
                 pass
+        self._chrome().refresh_crumbs()
 
     def update_window_state(self, is_maximized: bool) -> None:
-        """Atualiza o ícone do botão de maximizar/restaurar sem recriar a UI."""
-        button = getattr(self, "maximize_button", None)
-        if button is None:
-            return
-        glyph = button.data
-        if glyph is not None:
-            char, family = fa_glyph("clone" if is_maximized else "square", "regular")
-            glyph.value = char
-            glyph.font_family = family
-        button.tooltip = "Restaurar" if is_maximized else "Maximizar"
-        try:
-            button.update()
-        except Exception:
-            pass
+        self._chrome().update_window_state(is_maximized)
 
     def compose_main(self) -> ft.Column:
         """Monta barra de título, barra lateral e área de conteúdo."""
