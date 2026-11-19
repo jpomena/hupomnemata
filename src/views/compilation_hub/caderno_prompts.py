@@ -13,6 +13,7 @@ from src.contracts import (
 )
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from src.utils.fa import fa_icon
 from .common import (
     close_dialog,
     dialog,
@@ -231,61 +232,134 @@ class CadernoPromptsMixin:
         open_dialog(self.page, modal)
         return modal
 
+    def _prompt_allocate_fragment(
+        self,
+        fragment: CompilationFragmentRecord,
+    ) -> ft.AlertDialog:
+        """Alocação por busca, com vínculo em várias ideias ao mesmo tempo."""
+        c = self.config
+        fragment_id = fragment['id']
+        current = set(self._fragment_section_ids(fragment_id))
+        rows_host = ft.Column(spacing=s(1), tight=True, scroll=ft.ScrollMode.AUTO)
+
+        def paint(query: str = '') -> None:
+            nonlocal current
+            current = set(self._fragment_section_ids(fragment_id))
+            term = (query or '').strip().casefold()
+            controls: list[ft.Control] = []
+
+            def add_row(section: CompilationSectionRecord, depth: int) -> None:
+                if term and term not in section['title'].casefold():
+                    return
+                selected = section['id'] in current
+                glyph = fa_icon(
+                    'circle-check' if selected else 'circle',
+                    size=s(12),
+                    color=c.colors['gold'] if selected else c.colors['faint'],
+                    style='regular',
+                )
+                label = ui.ui_text(
+                    c,
+                    self._section_path_label(section),
+                    size=13,
+                    weight=ui.W600 if selected else ui.W500,
+                    color=c.colors['text'] if selected else c.colors['muted'],
+                    expand=True,
+                )
+                box = ui.hover_surface(
+                    c,
+                    ft.Row(
+                        [
+                            glyph,
+                            ft.Container(label, padding=ft.Padding.only(left=s(depth * 14))),
+                        ],
+                        spacing=s(8),
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    on_click=lambda _e, sid=section['id']: toggle(sid),
+                    selected=selected,
+                    padding=ft.Padding.symmetric(horizontal=s(10)),
+                    height=s(34),
+                    accent_left=True,
+                )
+                controls.append(box)
+
+            for chapter in self._root_chapters():
+                add_row(chapter, 0)
+                for child in self._child_sections(chapter['id']):
+                    add_row(child, 1)
+            if not controls:
+                controls.append(
+                    ui.meta_text(
+                        c,
+                        'Nenhuma ideia corresponde à busca.' if term else 'Nenhuma ideia criada ainda.',
+                        max_lines=2,
+                    )
+                )
+            rows_host.controls = controls
+            try:
+                rows_host.update()
+            except Exception:
+                pass
+
+        def toggle(section_id: int) -> None:
+            self._toggle_fragment_section(fragment_id, section_id)
+            self._reload()
+            paint(search.value or '')
+
+        def create_new(_e=None) -> None:
+            close_dialog(self.page)
+            self._prompt_create_section(fragment_id)
+
+        def finish(_e=None) -> None:
+            close_dialog(self.page)
+            self.refresh()
+
+        search = ui.search_field(
+            c,
+            'Buscar capítulo ou argumento',
+            on_change=lambda event: paint(event.control.value or ''),
+            width=None,
+            expand=True,
+            autofocus=True,
+        )
+        paint()
+        modal = dialog(
+            c,
+            'Alocar fragmento',
+            [
+                ui.ui_text(
+                    c,
+                    'Marque uma ou várias ideias. O fragmento pode pertencer a mais de uma.',
+                    size=13,
+                    color=c.colors['muted'],
+                    max_lines=2,
+                ),
+                search,
+                ft.Container(rows_host, height=s(300)),
+                ui.button(
+                    c,
+                    'Nova ideia com este fragmento',
+                    on_click=create_new,
+                    icon_name='plus',
+                    variant='ghost',
+                    small=True,
+                ),
+            ],
+            [
+                ui.button(c, 'Concluir', on_click=finish, variant='primary'),
+            ],
+            width=520,
+        )
+        modal.data = {'paint': paint, 'toggle': toggle, 'finish': finish}
+        open_dialog(self.page, modal)
+        return modal
+
     def _prompt_link_fragment_to_section(
         self,
         fragment: CompilationFragmentRecord,
     ) -> ft.AlertDialog | None:
-        c = self.config
-        member_section_ids = {
-            f['section_id']
-            for _w, f in self._all_fragments()
-            if f['id'] == fragment['id'] and f['is_member']
-        }
-        available_sections = [
-            s for s in self._sorted_sections()
-            if s['id'] not in member_section_ids
-        ]
-        if not available_sections:
-            ui.toast(
-                self.page,
-                self.config,
-                'Este fragmento já está vinculado a todas as seções existentes.',
-                icon_name='circle-info',
-            )
-            return None
-        options = [
-            (str(s['id']), f"{self._section_label(s)}. {s['title']}")
-            for s in available_sections
-        ]
-        selector = select_input(c, options[0][0], options)
-
-        def confirm(_e=None) -> None:
-            if not selector.value:
-                return
-            target_sid = int(selector.value)
-            close_dialog(self.page)
-            self._link_fragment_to_section(fragment['id'], target_sid)
-
-        modal = dialog(
-            c,
-            'Vincular também a outra seção',
-            [
-                ui.ui_text(
-                    c,
-                    'O fragmento aparecerá também na seção escolhida, com ordenação e nota próprias.',
-                    size=13,
-                    color=c.colors['muted'],
-                ),
-                form_field(c, 'Vincular a', selector),
-            ],
-            [
-                ui.button(c, 'Cancelar', on_click=lambda _e: close_dialog(self.page), variant='ghost'),
-                ui.button(c, 'Vincular', on_click=confirm, variant='primary'),
-            ],
-            width=460,
-        )
-        open_dialog(self.page, modal)
-        return modal
+        return self._prompt_allocate_fragment(fragment)
 
     def _prompt_create_section(self, fragment_id: int) -> ft.AlertDialog:
         def create(title: str, idea: str | None) -> None:
@@ -295,7 +369,11 @@ class CadernoPromptsMixin:
                     return
                 ready = fragment['is_member'] or self.on_fragment_membership(self.compilation['id'], fragment_id, True)
                 if ready:
-                    self.on_assign_fragment_to_section(self.compilation['id'], fragment_id, section_id)
+                    on_link = getattr(self, 'on_link_fragment_to_section', None)
+                    if on_link is not None:
+                        on_link(self.compilation['id'], fragment_id, section_id)
+                    else:
+                        self.on_assign_fragment_to_section(self.compilation['id'], fragment_id, section_id)
 
             self._create_section(title, idea, after_create=assign)
 

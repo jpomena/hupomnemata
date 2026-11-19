@@ -5,13 +5,15 @@ Movimentação literal: sem ``__init__``, colabora com o hub via ``self``.
 
 from collections.abc import Callable
 
+import asyncio
+
 import flet as ft
 
 from src.contracts import CompilationSectionRecord
 from src.utils.fa import fa_icon
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
-from .caderno_common import QUEUE_KEY
+from .caderno_common import FRAGMENT_DRAG_GROUP, QUEUE_KEY
 
 
 class CadernoOutlineMixin:
@@ -57,6 +59,8 @@ class CadernoOutlineMixin:
         is_collapsed: bool,
         active: bool,
         frag_count: int,
+        on_focus: Callable,
+        host: ft.Container | None,
     ) -> ft.Container:
         c = self.config
 
@@ -64,7 +68,7 @@ class CadernoOutlineMixin:
             chevron = ui.icon_button(
                 c,
                 'chevron-right' if is_collapsed else 'chevron-down',
-                on_click=lambda _e, sid=chapter['id']: self._toggle_outline_chapter(sid),
+                on_click=lambda _e, sid=chapter['id']: self._toggle_outline_chapter(sid, host),
                 tooltip='Expandir argumentos' if is_collapsed else 'Recolher argumentos',
                 size=18,
                 small=True,
@@ -102,7 +106,7 @@ class CadernoOutlineMixin:
         box = ui.hover_surface(
             c,
             row,
-            on_click=lambda _e, sid=chapter['id']: self._focus_idea(sid),
+            on_click=lambda _e, sid=chapter['id']: on_focus(sid),
             selected=active,
             padding=ft.Padding.symmetric(horizontal=s(6)),
             height=s(30),
@@ -110,32 +114,66 @@ class CadernoOutlineMixin:
         box.data = chapter['title']
         return box
 
-    def _toggle_outline_chapter(self, sid: int) -> None:
+    def _outline_focus(self, host: ft.Container | None) -> Callable:
+        if host is not None and host is getattr(self, 'works_outline_host', None):
+            return self._focus_idea_in_works
+        return self._focus_idea
+
+    def _refresh_outline_host(self, host: ft.Container | None) -> None:
+        target = host or getattr(self, 'outline_host', None)
+        if target is None:
+            if hasattr(self, '_render'):
+                self._render()
+            return
+        target.content = self._compose_outline(
+            on_focus=self._outline_focus(target),
+            host=target,
+        )
+        try:
+            target.update()
+        except Exception:
+            pass
+
+    def _toggle_outline_chapter(self, sid: int, host: ft.Container | None = None) -> None:
         """Alterna recolhimento de um capítulo na árvore do roteiro."""
         collapsed = self._collapsed_set()
         if sid in collapsed:
             collapsed.discard(sid)
         else:
             collapsed.add(sid)
-        if getattr(self, 'outline_host', None) is not None:
-            self.outline_host.content = self._compose_outline()
-            self.page.update()
-        elif hasattr(self, '_render'):
-            self._render()
+        self._refresh_outline_host(host)
 
-    def _toggle_outline_roteiro(self, _e=None) -> None:
+    def _toggle_outline_roteiro(self, _e=None, host: ft.Container | None = None) -> None:
         """Alterna recolhimento do bloco inteiro do Roteiro."""
         self._outline_roteiro_collapsed = not getattr(self, '_outline_roteiro_collapsed', False)
-        if getattr(self, 'outline_host', None) is not None:
-            self.outline_host.content = self._compose_outline()
-            self.page.update()
+        self._refresh_outline_host(host)
 
-    def _toggle_outline_fila(self, _e=None) -> None:
+    def _toggle_outline_fila(self, _e=None, host: ft.Container | None = None) -> None:
         """Alterna recolhimento do bloco inteiro da Fila."""
         self._outline_fila_collapsed = not getattr(self, '_outline_fila_collapsed', False)
-        if getattr(self, 'outline_host', None) is not None:
-            self.outline_host.content = self._compose_outline()
-            self.page.update()
+        self._refresh_outline_host(host)
+
+    def _focus_idea_in_works(self, key: int | str) -> None:
+        """Destaca uma ideia no roteiro da aba Obras e fragmentos."""
+        if isinstance(key, int):
+            self._collapsed_set().discard(key)
+            target = next(
+                (s for s in self.compilation.get('sections', []) if s['id'] == key),
+                None,
+            )
+            if target and target.get('parent_id'):
+                self._collapsed_set().discard(target['parent_id'])
+        self.active_section_id = key
+        host = getattr(self, 'works_outline_host', None)
+        if host is not None:
+            host.content = self._compose_outline(
+                on_focus=self._focus_idea_in_works,
+                host=host,
+            )
+            try:
+                host.update()
+            except Exception:
+                pass
 
     def _outline_item(
         self,
@@ -159,51 +197,64 @@ class CadernoOutlineMixin:
         box.data = title
         return box
 
-    def _compose_outline(self) -> ft.Container:
+    def _compose_outline(
+        self,
+        on_focus: Callable | None = None,
+        host: ft.Container | None = None,
+    ) -> ft.Container:
         c = self.config
+        focus = on_focus or self._focus_idea
         chapters = self._root_chapters()
         items: list[ft.Control] = []
+        outline_items: list[ft.Control] = []
         for chap_idx, chapter in enumerate(chapters):
             active = self.active_section_id == chapter['id']
-            frag_count = len(self._section_fragments(chapter['id']))
+            frag_count = self._section_total_fragments(chapter['id'])
             children = self._child_sections(chapter['id'])
             has_children = bool(children)
             is_collapsed = chapter['id'] in self._collapsed_set()
 
-            items.append(
-                self._outline_chapter_item(
-                    chap_idx=chap_idx,
-                    chapter=chapter,
-                    has_children=has_children,
-                    is_collapsed=is_collapsed,
-                    active=active,
-                    frag_count=frag_count,
-                )
+            chapter_box = self._outline_chapter_item(
+                chap_idx=chap_idx,
+                chapter=chapter,
+                has_children=has_children,
+                is_collapsed=is_collapsed,
+                active=active,
+                frag_count=frag_count,
+                on_focus=focus,
+                host=host,
             )
+            outline_items.append(chapter_box)
+            items.append(self._wrap_drop(chapter_box, chapter['id']))
 
             # Argumentos subordinados: exibidos apenas quando o capítulo pai estiver expandido
             if not is_collapsed:
                 for child_idx, child in enumerate(children):
                     child_active = self.active_section_id == child['id']
-                    child_count = len(self._section_fragments(child['id']))
+                    child_count = self._section_total_fragments(child['id'])
+                    child_box = self._outline_item(
+                        ui.ui_text(
+                            c,
+                            f"{chap_idx + 1}.{child_idx + 1}",
+                            size=11,
+                            weight=ui.W600,
+                            color=c.colors['gold'] if child_active else c.colors['faint'],
+                            tabular=True,
+                        ),
+                        child['title'],
+                        child_count,
+                        child_active,
+                        lambda _e, sid=child['id']: focus(sid),
+                    )
+                    outline_items.append(child_box)
                     items.append(
-                        ft.Container(
-                            self._outline_item(
-                                ui.ui_text(
-                                    c,
-                                    f"{chap_idx + 1}.{child_idx + 1}",
-                                    size=11,
-                                    weight=ui.W600,
-                                    color=c.colors['gold'] if child_active else c.colors['faint'],
-                                    tabular=True,
-                                ),
-                                child['title'],
-                                child_count,
-                                child_active,
-                                lambda _e, sid=child['id']: self._focus_idea(sid),
+                        self._wrap_drop(
+                            ft.Container(
+                                child_box,
+                                padding=ft.Padding.only(left=s(20)),
+                                border=ft.Border.only(left=ft.BorderSide(1, c.colors['border_strong'])),
                             ),
-                            padding=ft.Padding.only(left=s(20)),
-                            data=child['title'],
+                            child['id'],
                         )
                     )
         if not chapters:
@@ -219,9 +270,9 @@ class CadernoOutlineMixin:
             'A organizar',
             len(self._unassigned_fragments()),
             queue_active,
-            lambda _e: self._focus_idea(QUEUE_KEY),
+            lambda _e: focus(QUEUE_KEY),
         )
-        self.outline_items = items
+        self.outline_items = outline_items
         self.queue_item = queue
 
         roteiro_collapsed = getattr(self, '_outline_roteiro_collapsed', False)
@@ -237,13 +288,13 @@ class CadernoOutlineMixin:
                 size=22,
             ),
             is_collapsed=roteiro_collapsed,
-            on_toggle=self._toggle_outline_roteiro,
+            on_toggle=lambda _e: self._toggle_outline_roteiro(_e, host),
         )
 
         fila_head = self._nav_head(
             'Fila',
             is_collapsed=fila_collapsed,
-            on_toggle=self._toggle_outline_fila,
+            on_toggle=lambda _e: self._toggle_outline_fila(_e, host),
         )
 
         return ft.Container(
@@ -255,7 +306,7 @@ class CadernoOutlineMixin:
                         tight=True,
                     ),
                     ft.Column(
-                        [fila_head] + ([] if fila_collapsed else [queue]),
+                        [fila_head] + ([] if fila_collapsed else [self._wrap_drop(queue, None)]),
                         spacing=s(1),
                         tight=True,
                     ),
@@ -272,6 +323,7 @@ class CadernoOutlineMixin:
                 ],
                 spacing=s(16),
                 scroll=ft.ScrollMode.AUTO,
+                on_scroll=self._on_outline_scroll,
                 expand=True,
             ),
             width=s(248),
@@ -279,6 +331,39 @@ class CadernoOutlineMixin:
             padding=ft.Padding.symmetric(horizontal=s(12), vertical=s(16)),
             border=ft.Border.only(right=ft.BorderSide(1, c.colors['border'])),
         )
+
+    def _wrap_drop(self, content: ft.Control, section_id: int | None) -> ft.Control:
+        return ft.DragTarget(
+            group=FRAGMENT_DRAG_GROUP,
+            content=content,
+            data=section_id,
+            on_accept=lambda event, sid=section_id: self._drop_fragment(event, sid),
+        )
+
+    def _on_outline_scroll(self, event) -> None:
+        self.outline_scroll_offset = float(getattr(event, 'pixels', 0) or 0)
+
+    def _restore_outline_scroll(self, host: ft.Container | None) -> None:
+        offset = getattr(self, 'outline_scroll_offset', 0.0)
+        if host is None or not offset:
+            return
+        run_task = getattr(self.page, 'run_task', None)
+        if run_task is None:
+            return
+
+        async def restore() -> None:
+            try:
+                await asyncio.sleep(0.02)
+                column = host.content
+                if column is not None and hasattr(column, 'scroll_to'):
+                    await column.scroll_to(offset=offset, duration=0)
+            except Exception:
+                pass
+
+        try:
+            run_task(restore)
+        except Exception:
+            pass
 
     def _focus_idea(self, key: int | str) -> None:
         uncollapsed = False
@@ -301,7 +386,10 @@ class CadernoOutlineMixin:
             self.selected_tab = 'caderno'
             self._render()
         elif getattr(self, 'outline_host', None) is not None:
-            self.outline_host.content = self._compose_outline()
+            self.outline_host.content = self._compose_outline(
+                on_focus=self._focus_idea,
+                host=self.outline_host,
+            )
             self.page.update()
         self._scroll_writing(f'idea-{key}')
 

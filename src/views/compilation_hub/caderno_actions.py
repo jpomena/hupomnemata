@@ -194,6 +194,72 @@ Delegam aos callbacks do hub e atualizam o estado via ``self``.
         if self.on_reorder_section_fragments(self.compilation['id'], section_id, fragment_ids):
             self.refresh()
 
+    def _toggle_fragment_section(self, fragment_id: int, section_id: int) -> bool:
+        """Vincula ou desvincula um fragmento de uma seção, preservando as demais."""
+        fragment = self._find_fragment(fragment_id)
+        if fragment is None:
+            return False
+        linked = self._fragment_section_ids(fragment_id)
+        if section_id in linked:
+            return self.on_fragment_membership(
+                self.compilation['id'],
+                fragment_id,
+                False,
+                section_id=section_id,
+            )
+        if not fragment['is_member']:
+            if not self.on_fragment_membership(self.compilation['id'], fragment_id, True):
+                return False
+        on_link = getattr(self, 'on_link_fragment_to_section', None)
+        if on_link is not None:
+            return on_link(self.compilation['id'], fragment_id, section_id)
+        return self.on_assign_fragment_to_section(
+            self.compilation['id'], fragment_id, section_id
+        )
+
+    def _allocate_fragment(self, fragment_id: int, section_id: int | None) -> None:
+        fragment = self._find_fragment(fragment_id)
+        if fragment is None:
+            return
+        if section_id is None:
+            if not fragment['is_member']:
+                return
+            success = self.on_assign_fragment_to_section(
+                self.compilation['id'], fragment_id, None
+            )
+        else:
+            if section_id in self._fragment_section_ids(fragment_id):
+                ui.toast(
+                    self.page,
+                    self.config,
+                    'Este fragmento já está nesta ideia.',
+                    icon_name='circle-info',
+                )
+                return
+            success = self._toggle_fragment_section(fragment_id, section_id)
+        if not success:
+            return
+        self.refresh()
+        if section_id is not None:
+            section = next(
+                (s for s in self.compilation.get('sections', []) if s['id'] == section_id),
+                None,
+            )
+            label = self._section_path_label(section) if section else 'ideia'
+            ui.toast(
+                self.page,
+                self.config,
+                f'Fragmento alocado em {label}.',
+                icon_name='location-dot',
+            )
+
+    def _drop_fragment(self, event, section_id: int | None) -> None:
+        source = getattr(event, 'src', None)
+        fragment_id = getattr(source, 'data', None)
+        if not isinstance(fragment_id, int):
+            return
+        self._allocate_fragment(fragment_id, section_id)
+
     def _set_fragment_destination(
         self,
         fragment_id: int,

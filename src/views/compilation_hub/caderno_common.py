@@ -3,6 +3,7 @@
 from src.contracts import CompilationFragmentRecord
 
 QUEUE_KEY = 'queue'
+FRAGMENT_DRAG_GROUP = 'caderno-fragments'
 
 
 def kind_label(fragment: CompilationFragmentRecord) -> str:

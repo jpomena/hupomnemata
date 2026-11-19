@@ -110,6 +110,12 @@ class CompilationHubComposer(
         self.work_search: ft.TextField | None = None
         self.work_matches = ft.Column(spacing=s(1), tight=True, visible=False)
         self.work_matches_box: ft.Container | None = None
+        self.work_hosts: dict[int, dict] = {}
+        self._collapsed_works: set[int] = set()
+        self._known_work_ids: set[int] | None = None
+        self.works_scroll: ft.Column | None = None
+        self.works_scroll_offset: float = 0.0
+        self.works_outline_host: ft.Container | None = None
 
     def _run_click_action(
         self,
@@ -121,7 +127,27 @@ class CompilationHubComposer(
 
     def _toggle_rail(self, _e: ft.ControlEvent | None = None) -> None:
         self.show_rail = not getattr(self, 'show_rail', False)
-        self.refresh()
+        row = getattr(self, 'caderno_row', None)
+        host = getattr(self, 'rail_host', None)
+        if row is None or host is None:
+            self.refresh()
+            return
+        if self.show_rail:
+            if host not in row.controls:
+                row.controls.append(host)
+            host.width = s(320)
+            host.padding = s(16)
+            host.opacity = 1.0
+            host.border = ft.Border.only(left=ft.BorderSide(1, self.config.colors['border']))
+        else:
+            host.width = 0
+            host.padding = 0
+            host.opacity = 0.0
+            host.border = None
+        try:
+            row.update()
+        except Exception:
+            pass
 
     # ── ciclo de vida ──────────────────────────────────────
 
@@ -142,6 +168,7 @@ class CompilationHubComposer(
 
     def refresh(self) -> None:
         """Relê a compilação do banco e redesenha a página no lugar."""
+        self._restoring_scroll = bool(getattr(self, 'works_scroll_offset', 0.0)) and self.selected_tab == 'obras'
         if not self._reload():
             self.deleted = True
             if self.on_navigate is not None:
@@ -162,12 +189,27 @@ class CompilationHubComposer(
         if self.root is not None:
             self.root.content = self._compose_body()
         self.page.update()
+        self._restore_works_scroll()
 
     def _select_tab(self, key: str) -> None:
         if key not in TABS:
             return
         self.selected_tab = key
-        self._render()
+        tab_bar_host = getattr(self, "tab_bar_host", None)
+        switcher = getattr(self, "tab_switcher", None)
+        header_host = getattr(self, "header_host", None)
+        if tab_bar_host is None or switcher is None or header_host is None:
+            self._render()
+            return
+        header_host.content = self._compose_header()
+        tab_bar_host.content = self._compose_tabs()
+        self.tab_content = self._compose_tab_content()
+        switcher.content = self.tab_content
+        for control in (header_host, tab_bar_host, switcher):
+            try:
+                control.update()
+            except Exception:
+                pass
 
     # ── composição ─────────────────────────────────────────
 
@@ -224,16 +266,15 @@ class CompilationHubComposer(
         if self.on_delete is not None:
             menu_items += [None, ('trash-can', 'Excluir compilação', self._confirm_delete, True)]
         self.header_menu = more_menu(c, menu_items, boxed=True, size=32)
+        actions = [self.copy_button, self.copy_references_button]
+        if is_caderno:
+            actions.append(self.rail_toggle_button)
+        actions.append(self.header_menu)
         return ui.page_header(
             c,
             compilation['name'],
             compilation['description'],
-            actions=[
-                self.copy_button,
-                self.copy_references_button,
-                self.rail_toggle_button,
-                self.header_menu,
-            ],
+            actions=actions,
             meta=meta,
         )
 
@@ -254,13 +295,25 @@ class CompilationHubComposer(
     def _compose_tab_content(self) -> ft.Control:
         if self.selected_tab == 'caderno':
             return self._compose_caderno()
-        body = self._compose_works_and_fragments() if self.selected_tab == 'obras' else self._compose_overview()
-        return ft.Column([body], scroll=ft.ScrollMode.AUTO, expand=True)
+        if self.selected_tab == 'obras':
+            return self._compose_works_and_fragments()
+        return ft.Column([self._compose_overview()], scroll=ft.ScrollMode.AUTO, expand=True)
 
     def _compose_body(self) -> ft.Column:
         self.tab_content = self._compose_tab_content()
+        self.header_host = ft.Container(self._compose_header())
+        self.tab_bar_host = ft.Container(self._compose_tabs())
+        self.tab_switcher = ft.AnimatedSwitcher(
+            content=self.tab_content,
+            duration=ui.MOTION_SLOW,
+            reverse_duration=ui.MOTION_FAST,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            expand=True,
+        )
         return ft.Column(
-            [self._compose_header(), self._compose_tabs(), self.tab_content],
+            [self.header_host, self.tab_bar_host, self.tab_switcher],
             spacing=0,
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,

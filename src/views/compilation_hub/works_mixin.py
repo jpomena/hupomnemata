@@ -5,6 +5,8 @@ linha por fragmento: checkbox “Incluir no caderno”, citação em Cormorant e
 seletor “Destino no caderno”, desabilitado enquanto o fragmento está fora.
 """
 
+import asyncio
+
 import flet as ft
 
 from src.contracts import CompilationFragmentRecord, CompilationWorkRecord
@@ -12,16 +14,15 @@ from src.utils.fa import fa_icon
 from src.utils.fragment_reference import fragment_abnt_notation
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from .caderno_common import FRAGMENT_DRAG_GROUP
 from .common import (
     MenuItem,
     close_dialog,
     dialog,
-    form_field,
     max_width_box,
     more_menu,
     open_dialog,
     plural,
-    select_input,
 )
 from .caderno_mixin import quoted
 
@@ -71,10 +72,16 @@ class CompilationHubWorksMixin:
 
     def _add_work(self, bib_res_id: int) -> None:
         if self.on_add_work(self.compilation['id'], bib_res_id):
+            collapsed = getattr(self, '_collapsed_works', None)
+            if collapsed is not None:
+                collapsed.add(bib_res_id)
             self.refresh()
 
     def _remove_work(self, bib_res_id: int) -> None:
         if self.on_remove_work(self.compilation['id'], bib_res_id):
+            collapsed = getattr(self, '_collapsed_works', None)
+            if collapsed is not None:
+                collapsed.discard(bib_res_id)
             self.refresh()
 
     def _confirm_remove_work(self, work: CompilationWorkRecord) -> ft.AlertDialog:
@@ -129,6 +136,79 @@ class CompilationHubWorksMixin:
 
     # ── composição ─────────────────────────────────────────
 
+    def _sync_work_collapse_state(self) -> None:
+        current = {work['id'] for work in self.compilation['works']}
+        known = getattr(self, '_known_work_ids', None)
+        if known is None:
+            self._known_work_ids = set(current)
+            self._collapsed_works = set(current)
+            return
+        for new_id in current - known:
+            self._collapsed_works.add(new_id)
+        self._known_work_ids = current
+
+    def _work_collapsed(self, work_id: int) -> bool:
+        collapsed = getattr(self, '_collapsed_works', None)
+        if collapsed is None:
+            self._sync_work_collapse_state()
+            collapsed = self._collapsed_works
+        return work_id in collapsed
+
+    def _toggle_work_collapse(self, work_id: int) -> None:
+        state = getattr(self, 'work_hosts', {}).get(work_id)
+        if work_id in self._collapsed_works:
+            self._collapsed_works.discard(work_id)
+            collapsed = False
+        else:
+            self._collapsed_works.add(work_id)
+            collapsed = True
+        if state is None:
+            self.refresh()
+            return
+        state['body'].content = (
+            ft.Container(height=0)
+            if collapsed
+            else ft.Column(state['rows'], spacing=0, tight=True)
+        )
+        state['chevron'].rotate = 0 if collapsed else 3.141592653589793 / 2
+        state['card'].data = {'work_id': work_id, 'collapsed': collapsed}
+        for control in (state['body'], state['chevron']):
+            try:
+                control.update()
+            except Exception:
+                pass
+
+    def _on_works_scroll(self, event) -> None:
+        pixels = float(getattr(event, 'pixels', 0) or 0)
+        if pixels == 0 and getattr(self, '_restoring_scroll', False):
+            return
+        self.works_scroll_offset = pixels
+
+    def _restore_works_scroll(self) -> None:
+        column = getattr(self, 'works_scroll', None)
+        offset = getattr(self, 'works_scroll_offset', 0.0)
+        if column is None or not offset or self.selected_tab != 'obras':
+            self._restoring_scroll = False
+            return
+        run_task = getattr(self.page, 'run_task', None)
+        if run_task is None:
+            self._restoring_scroll = False
+            return
+
+        async def restore() -> None:
+            try:
+                await asyncio.sleep(0.02)
+                await column.scroll_to(offset=offset, duration=0)
+            except Exception:
+                pass
+            finally:
+                self._restoring_scroll = False
+
+        try:
+            run_task(restore)
+        except Exception:
+            self._restoring_scroll = False
+
     def _destination_options(self) -> list[tuple[str, str]]:
         options: list[tuple[str, str]] = [('unassigned', 'A organizar')]
         chapters = self._root_chapters() if hasattr(self, '_root_chapters') else self._sorted_sections()
@@ -140,25 +220,22 @@ class CompilationHubWorksMixin:
         options.append(('create_section', '+ Novo Capítulo…'))
         return options
 
-    def _compose_fragment(self, fragment: CompilationFragmentRecord, last: bool = False) -> ft.Container:
+    def _compose_fragment(
+        self,
+        fragment: CompilationFragmentRecord,
+        section_ids: list[int],
+        last: bool = False,
+    ) -> ft.Container:
         c = self.config
-        is_member = fragment['is_member']
-        current_sec_id = fragment.get('section_id')
-        destination = (str(current_sec_id) if current_sec_id is not None else 'unassigned') if is_member else 'unassigned'
-        selector = select_input(
+        is_member = fragment['is_member'] or bool(section_ids)
+        destination = self._destination_label(fragment)
+        alloc_button = ui.button(
             c,
             destination,
-            self._destination_options(),
-            on_select=lambda event, current_id=fragment['id'], sid=current_sec_id: (
-                self._set_fragment_destination(
-                    current_id,
-                    event.control.value,
-                    current_section_id=sid,
-                )
-                if event.control.value is not None
-                else None
-            ),
-            disabled=not is_member,
+            icon_name='location-dot',
+            small=True,
+            tooltip='Alocar em uma ou várias ideias',
+            on_click=lambda _e, current=fragment: self._prompt_allocate_fragment(current),
         )
         checkbox = ft.Checkbox(
             value=is_member,
@@ -167,38 +244,72 @@ class CompilationHubWorksMixin:
             check_color=c.colors['on_gold'],
             border_side=ft.BorderSide(1, c.colors['border_strong']),
             shape=ft.RoundedRectangleBorder(radius=s(4)),
-            on_change=lambda event, current_id=fragment['id'], sid=current_sec_id: self._toggle_membership(
+            on_change=lambda event, current_id=fragment['id']: self._toggle_membership(
                 current_id,
                 bool(event.control.value),
-                current_section_id=sid,
             ),
         )
         if fragment['fragment_type'] == 'quote':
-            body = ui.serif_text(c, quoted(fragment['excerpt']), size=17, max_lines=3, height=1.45, align=ft.TextAlign.JUSTIFY)
+            body = ui.serif_text(c, quoted(fragment['excerpt']), size=16, max_lines=3, height=1.45, align=ft.TextAlign.JUSTIFY)
         else:
             body = ui.ui_text(c, fragment['excerpt'], size=13, color=c.colors['muted'], max_lines=3, align=ft.TextAlign.JUSTIFY)
         meta = [fragment_abnt_notation(fragment)]
-        if fragment.get('work_note'):
+        if len(section_ids) > 1:
+            meta.append(f'{len(section_ids)} ideias')
+        elif fragment.get('work_note'):
             meta.append('com nota de articulação')
         menu_items: list[MenuItem] = [
+            ('location-dot', 'Alocar em ideias…', lambda current=fragment: self._prompt_allocate_fragment(current), False),
             ('pen', 'Editar fragmento', lambda current=fragment: self.on_edit_fragment(self.compilation['id'], current), False),
             ('note-sticky', 'Editar nota de articulação' if fragment.get('work_note') else 'Adicionar nota de articulação', lambda current=fragment: self._prompt_fragment_note(current), False),
         ]
-        return ft.Container(
+        drag = ft.Draggable(
+            group=FRAGMENT_DRAG_GROUP,
+            data=fragment['id'],
+            content=ft.Container(
+                fa_icon('grip-vertical', size=s(12), color=c.colors['faint']),
+                width=s(16),
+                alignment=ft.Alignment.CENTER,
+                tooltip='Arraste para uma ideia no roteiro',
+            ),
+            content_feedback=ft.Container(
+                ui.ui_text(c, fragment['excerpt'][:80], size=12, max_lines=2, color=c.colors['text']),
+                width=s(240),
+                padding=s(10),
+                bgcolor=c.colors['surface'],
+                border=ft.Border.all(1, c.colors['gold']),
+                border_radius=ft.BorderRadius.all(s(6)),
+            ),
+        )
+        normal_border = None if last else ft.Border.only(bottom=ft.BorderSide(1, c.colors['border']))
+        row = ft.Container(
             content=ft.Row(
                 [
                     ft.Container(checkbox, width=s(28), padding=ft.Padding.only(top=s(2))),
+                    drag,
                     ft.Column([body, ui.meta_text(c, ' · '.join(meta), max_lines=2)], spacing=s(4), expand=True, tight=True),
-                    ft.Container(form_field(c, 'Destino no caderno', selector), width=s(200)),
-                    more_menu(c, menu_items, tooltip='Editar fragmento ou nota'),
+                    ft.Container(alloc_button, width=s(184)),
+                    more_menu(c, menu_items, tooltip='Alocar, editar fragmento ou nota'),
                 ],
-                spacing=s(12),
+                spacing=s(10),
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
             padding=ft.Padding.symmetric(horizontal=s(16), vertical=s(12)),
-            border=None if last else ft.Border.only(bottom=ft.BorderSide(1, c.colors['border'])),
+            border=normal_border,
+            animate=ui.motion(ui.MOTION_FAST),
             data=fragment['id'],
         )
+
+        def _hover(event) -> None:
+            hovering = event.data in (True, 'true')
+            row.bgcolor = c.colors['card_hover'] if hovering else None
+            try:
+                row.update()
+            except Exception:
+                pass
+
+        row.on_hover = _hover
+        return row
 
     def _work_menu(self, work: CompilationWorkRecord, index: int) -> ft.PopupMenuButton:
         total = len(self.compilation['works'])
@@ -216,18 +327,51 @@ class CompilationHubWorksMixin:
 
     def _compose_work(self, index: int) -> ft.Container:
         c = self.config
+        self._sync_work_collapse_state()
         work = self.compilation['works'][index]
-        fragments = work['fragments']
-        meta = ' · '.join(part for part in (work.get('authors') or 'Sem autoria', plural(len(fragments), 'fragmento', 'fragmentos')) if part)
+        entries = self._unique_work_fragments(work)
+        collapsed = self._work_collapsed(work['id'])
+        meta = ' · '.join(part for part in (work.get('authors') or 'Sem autoria', plural(len(entries), 'fragmento', 'fragmentos')) if part)
+        chevron_btn = ui.icon_button(
+            c,
+            'chevron-right',
+            on_click=lambda _e, work_id=work['id']: self._toggle_work_collapse(work_id),
+            tooltip='Expandir fragmentos' if collapsed else 'Recolher fragmentos',
+            size=22,
+        )
+        chevron = chevron_btn.content
+        chevron.animate_rotation = ui.motion(ui.MOTION_BASE)
+        chevron.rotate = 0 if collapsed else 3.141592653589793 / 2
+        title_text = ui.ui_text(c, work['title'], size=13, weight=ui.W600, selectable=True)
+        title_host = ft.Container(
+            content=ft.Column(
+                [title_text, ui.meta_text(c, meta)],
+                spacing=s(2),
+                expand=True,
+                tight=True,
+            ),
+            on_click=(lambda _e, wid=work['id']: self.on_open_work(wid)) if self.on_open_work else None,
+            tooltip='Abrir no Acervo' if self.on_open_work else None,
+            padding=ft.Padding.symmetric(vertical=s(2)),
+            border_radius=ft.BorderRadius.all(s(4)),
+            animate=ui.motion(ui.MOTION_FAST),
+            expand=True,
+        )
+
+        def _title_hover(event) -> None:
+            hovering = event.data in (True, 'true')
+            title_text.color = c.colors['gold'] if hovering else c.colors['text']
+            try:
+                title_host.update()
+            except Exception:
+                pass
+
+        title_host.on_hover = _title_hover
         head = ft.Container(
             content=ft.Row(
                 [
-                    ft.Column(
-                        [ui.ui_text(c, work['title'], size=13, weight=ui.W600, selectable=True), ui.meta_text(c, meta)],
-                        spacing=s(2),
-                        expand=True,
-                        tight=True,
-                    ),
+                    chevron_btn,
+                    title_host,
                     ui.button(
                         c,
                         'Fragmento',
@@ -241,21 +385,36 @@ class CompilationHubWorksMixin:
                 spacing=s(8),
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.only(left=s(16), right=s(12), top=s(8), bottom=s(8)),
+            padding=ft.Padding.only(left=s(12), right=s(12), top=s(8), bottom=s(8)),
             border=ft.Border.only(bottom=ft.BorderSide(1, c.colors['border'])),
         )
         rows: list[ft.Control] = [
-            self._compose_fragment(fragment, last=position == len(fragments) - 1)
-            for position, fragment in enumerate(fragments)
+            self._compose_fragment(fragment, section_ids, last=position == len(entries) - 1)
+            for position, (fragment, section_ids) in enumerate(entries)
         ]
         if not rows:
             rows.append(ft.Container(ui.ui_text(c, 'Nenhum fragmento desta obra ainda.', size=13, color=c.colors['faint']), padding=s(16)))
-        box = ui.card(c, [head, *rows])
-        box.data = work['id']
+        body = ft.Container(
+            content=ft.Container(height=0) if collapsed else ft.Column(rows, spacing=0, tight=True),
+            animate_size=ui.motion(ui.MOTION_BASE),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        )
+        box = ui.card(c, [head, body], interactive=True)
+        box.data = {'work_id': work['id'], 'collapsed': collapsed}
+        hosts = getattr(self, 'work_hosts', None)
+        if hosts is None:
+            hosts = self.work_hosts = {}
+        hosts[work['id']] = {
+            'body': body,
+            'rows': rows,
+            'chevron': chevron,
+            'card': box,
+        }
         return box
 
     def _compose_works_and_fragments(self) -> ft.Control:
         c = self.config
+        self._sync_work_collapse_state()
         self.work_search = ui.search_field(
             c,
             'Adicionar obra do Acervo a este projeto',
@@ -298,7 +457,28 @@ class CompilationHubWorksMixin:
         else:
             controls.extend(self._compose_work(index) for index in range(len(self.compilation['works'])))
         self.works_column = ft.Column(controls, spacing=s(12), tight=True)
-        return ft.Container(
+        list_body = ft.Container(
             max_width_box(c, self.works_column, 1040),
             padding=ft.Padding.only(left=s(32), right=s(32), top=s(24), bottom=s(48)),
+        )
+        self.works_scroll = ft.Column(
+            [list_body],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            on_scroll=self._on_works_scroll,
+        )
+        self.works_outline_host = ft.Container()
+        self.works_outline_host.content = self._compose_outline(
+            on_focus=self._focus_idea_in_works,
+            host=self.works_outline_host,
+        )
+        self._restore_outline_scroll(self.works_outline_host)
+        return ft.Row(
+            [
+                self.works_outline_host,
+                ft.Container(self.works_scroll, expand=True),
+            ],
+            spacing=0,
+            expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )

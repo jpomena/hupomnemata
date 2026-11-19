@@ -101,6 +101,64 @@ Somente leitura sobre ``self.compilation``; sem ``__init__``.
             ),
         )
 
+    def _section_total_fragments(self, section_id: int) -> int:
+        """Fragmentos da seção somados aos dos argumentos subordinados."""
+        total = len(self._section_fragments(section_id))
+        total += sum(
+            len(self._section_fragments(child['id']))
+            for child in self._child_sections(section_id)
+        )
+        return total
+
+    def _fragment_memberships(self, fragment_id: int) -> list[CompilationFragmentRecord]:
+        return [
+            fragment
+            for _work, fragment in self._all_fragments()
+            if fragment['id'] == fragment_id and fragment['is_member']
+        ]
+
+    def _fragment_section_ids(self, fragment_id: int) -> list[int]:
+        ids = {
+            fragment['section_id']
+            for fragment in self._fragment_memberships(fragment_id)
+            if fragment['section_id'] is not None
+        }
+        return sorted(ids)
+
+    def _section_path_label(self, section: CompilationSectionRecord) -> str:
+        return f"{self._section_label(section)}. {section['title']}"
+
+    def _destination_label(self, fragment: CompilationFragmentRecord) -> str:
+        section_ids = self._fragment_section_ids(fragment['id'])
+        if not fragment.get('is_member') or not section_ids:
+            return 'A organizar'
+        if len(section_ids) > 1:
+            return f'{len(section_ids)} destinos'
+        section = next(
+            (s for s in self._sorted_sections() if s['id'] == section_ids[0]),
+            None,
+        )
+        return self._section_path_label(section) if section else 'A organizar'
+
+    def _unique_work_fragments(
+        self, work: CompilationWorkRecord
+    ) -> list[tuple[CompilationFragmentRecord, list[int]]]:
+        """Agrupa as linhas duplicadas de um fragmento multi-alocado numa só entrada."""
+        entries: dict[int, dict] = {}
+        for fragment in work['fragments']:
+            entry = entries.setdefault(
+                fragment['id'],
+                {'fragment': fragment, 'sections': set()},
+            )
+            if fragment['is_member']:
+                entry['fragment'] = fragment
+                if fragment['section_id'] is not None:
+                    entry['sections'].add(fragment['section_id'])
+        return [
+            (entry['fragment'], sorted(entry['sections']))
+            for entry in entries.values()
+        ]
+
     def _unassigned_fragments(self) -> list[tuple[CompilationWorkRecord, CompilationFragmentRecord]]:
         return [
             (work, fragment)

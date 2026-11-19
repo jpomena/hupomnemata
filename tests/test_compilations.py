@@ -832,6 +832,7 @@ class _Recorder:
             on_delete_section=self.record('delete_section'),
             on_reorder_sections=self.record('reorder_sections'),
             on_assign_fragment_to_section=self.record('assign'),
+            on_link_fragment_to_section=self.record('link'),
             on_reorder_section_fragments=self.record('reorder_fragments'),
             on_copy_caderno=self.copy,
             on_create_work=self.record('create_work', None),
@@ -953,12 +954,14 @@ def test_compilation_page_header_tabs_and_caderno():
     assert 30 in hub._collapsed_set()
     assert 31 in hub._collapsed_set()
     first_idea, second_idea, queue = hub.writing_blocks
-    assert any('Capítulo recolhido' in t for t in _texts(first_idea))
+    assert any('Sem argumentos' in t or 'argumentos' in t for t in _texts(first_idea))
+    assert not any('recolhido' in t.lower() for t in _texts(first_idea))
 
     hub._focus_idea(30)
     first_idea = hub.writing_blocks[0]
     first_texts = _texts(first_idea)
     assert first_texts[:2] == ['1', 'Argumento']
+    assert not any('+ Argumento' in text for text in first_texts)
     assert 'Ideia central' in first_texts and 'Tese a sustentar.' in first_texts
     idea_texts = _find_all(first_idea, lambda c: isinstance(c, ft.Text) and c.value == 'Tese a sustentar.')
     assert len(idea_texts) == 1
@@ -982,7 +985,7 @@ def test_compilation_page_header_tabs_and_caderno():
     second_idea = hub.writing_blocks[1]
     second_texts = _texts(second_idea)
     assert 'Nenhum fragmento nesta ideia' in second_texts
-    _button(second_idea, 'Escolher fragmentos').on_click(None)
+    _button(second_idea, 'Ir para Obras e Fragmentos').on_click(None)
     assert hub.selected_tab == 'obras'
     hub._select_tab('caderno')
     assert 'Sem nota de articulação' in _texts(queue)
@@ -1026,6 +1029,15 @@ def test_compilation_page_header_tabs_and_caderno():
 
     hub._select_tab('visao')
     assert hub.copy_references_button.data['label'].value == 'Copiar Referências da Compilação'
+    assert not _find_all(
+        hub._compose_header(),
+        lambda item: item is hub.rail_toggle_button,
+    )
+    hub._select_tab('caderno')
+    assert _find_all(
+        hub._compose_header(),
+        lambda item: item is hub.rail_toggle_button,
+    )
 
 
 def test_compilation_page_section_and_fragment_actions():
@@ -1122,14 +1134,39 @@ def test_compilation_page_works_tab_membership_and_destination():
     hub = composer.active_hub
     hub._select_tab('obras')
 
+    works_body = hub._compose_works_and_fragments()
+    works_texts = _texts(works_body)
+    assert 'Roteiro' in works_texts and 'Fila' in works_texts
+    default_card = hub._compose_work(0)
+    default_body = default_card.content.controls[1]
+    assert isinstance(default_body.content, ft.Container)
+    assert default_body.content.height == 0
+
     assert hub.create_work_button.data['label'].value == 'Criar obra'
     hub.create_work_button.on_click(None)
     assert recorder.named('create_work') == [(1,)]
 
+    hub._collapsed_works.discard(10)
+    hub._collapsed_works.discard(12)
     work_card = hub._compose_work(0)
     work_texts = _texts(work_card)
-    assert work_texts[:2] == ['Obra existente', 'Ana Autora · 3 fragmentos']
+    assert 'Obra existente' in work_texts
+    assert 'Ana Autora · 3 fragmentos' in work_texts
     assert 'Sem autoria · 0 fragmentos' in _texts(hub._compose_work(1))
+    openers = _find_all(
+        work_card,
+        lambda item: isinstance(item, ft.Container)
+        and item.tooltip == 'Abrir no Acervo',
+    )
+    assert openers
+    openers[0].on_click(None)
+    assert recorder.named('open_work')[-1] == (10,)
+    fragment_row = _find_all(
+        work_card,
+        lambda item: isinstance(item, ft.Container) and item.data == 20,
+    )[0]
+    fragment_row.on_hover(SimpleNamespace(data='true'))
+    assert fragment_row.bgcolor == hub.config.colors['card_hover']
     _button(work_card, 'Fragmento').on_click(None)
     assert recorder.named('create_fragment') == [(1, 10)]
     work_menu = _menus(work_card)[0]
@@ -1144,20 +1181,30 @@ def test_compilation_page_works_tab_membership_and_destination():
     assert recorder.named('remove_work') == [(1, 10)]
 
     checkboxes = _find_all(work_card, lambda item: isinstance(item, ft.Checkbox))
-    selectors = _find_all(work_card, lambda item: isinstance(item, ft.Dropdown))
     assert [box.value for box in checkboxes] == [True, True, False]
-    assert [selector.value for selector in selectors] == ['30', 'unassigned', 'unassigned']
-    assert [selector.disabled for selector in selectors] == [False, False, True]
-    assert [option.key for option in selectors[0].options] == ['unassigned', '30', '31', 'create_section']
-    assert all(
-        option.content.color == hub.config.colors['text']
-        for option in selectors[0].options
-    )
-    selectors[0].on_select(SimpleNamespace(control=SimpleNamespace(value='31')))
-    assert recorder.named('assign') == [(1, 20, 31)]
+    alloc_labels = [
+        control.data['label'].value
+        for control in _find_all(
+            work_card,
+            lambda item: isinstance(item, ft.Container)
+            and isinstance(getattr(item, 'data', None), dict)
+            and 'label' in item.data,
+        )
+    ]
+    assert '1. Argumento' in alloc_labels
+    assert alloc_labels.count('A organizar') == 2
+
+    allocation = hub._prompt_allocate_fragment(compilation['works'][0]['fragments'][0])
+    allocation.data['toggle'](31)
+    assert recorder.named('link')[-1] == (1, 20, 31)
+    allocation.data['finish']()
+
+    hub._drop_fragment(SimpleNamespace(src=SimpleNamespace(data=21)), 31)
+    assert recorder.named('membership')[-1] == (1, 21, True)
+    assert recorder.named('link')[-1] == (1, 21, 31)
 
     checkboxes[2].on_change(SimpleNamespace(control=SimpleNamespace(value=True)))
-    assert recorder.named('membership') == [(1, 21, True)]
+    assert recorder.named('membership')[-1] == (1, 21, True)
     checkboxes[1].on_change(SimpleNamespace(control=SimpleNamespace(value=False)))
     assert recorder.named('membership')[-1] == (1, 22, False)
 
@@ -1168,7 +1215,7 @@ def test_compilation_page_works_tab_membership_and_destination():
     section_dialog.data['confirm']()
     assert recorder.named('create_section') == [(1, 'Nova ideia', 'Argumento novo')]
     assert recorder.named('membership')[-1] == (1, 21, True)
-    assert recorder.named('assign')[-1] == (1, 21, 40)
+    assert recorder.named('link')[-1] == (1, 21, 40)
 
     hub._search_work_matches(SimpleNamespace(control=SimpleNamespace(value='o')))
     assert hub.work_matches.visible is False

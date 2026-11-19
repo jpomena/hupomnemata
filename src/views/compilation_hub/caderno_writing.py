@@ -203,7 +203,7 @@ class CadernoWritingMixin:
             bgcolor=c.colors['surface'],
             border=normal_border,
             border_radius=ft.BorderRadius.all(s(8)),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_BASE),
             data=fragment['id'],
         )
 
@@ -284,7 +284,7 @@ class CadernoWritingMixin:
         title_text = ui.serif_text(
             c,
             f"{chap_idx + 1}.{child_idx + 1} {child['title']}",
-            size=20,
+            size=17.5,
             weight=ui.W600,
             height=1.2,
         )
@@ -309,14 +309,12 @@ class CadernoWritingMixin:
         controls: list[ft.Control] = [title_row]
         central_idea_text = None
         if is_collapsed:
-            meta_summary = (
+            summary = (
                 plural(len(fragments), 'fragmento', 'fragmentos')
                 if fragments
                 else "Sem fragmentos"
             )
-            controls.append(
-                ui.meta_text(c, f"Argumento recolhido ({meta_summary})")
-            )
+            controls.append(ui.meta_text(c, summary))
         else:
             if child['central_idea']:
                 central_idea_text = ui.serif_text(
@@ -359,7 +357,7 @@ class CadernoWritingMixin:
                         'Use “Vincular também a...” em fragmentos existentes ou marque fragmentos em Obras.',
                         action=ui.button(
                             c,
-                            'Escolher fragmentos',
+                            'Ir para Obras e Fragmentos',
                             on_click=lambda _e: self._select_tab('obras'),
                             small=True,
                         ),
@@ -388,7 +386,7 @@ class CadernoWritingMixin:
             bgcolor=c.colors['bg'],
             border=normal_border,
             border_radius=ft.BorderRadius.all(s(8)),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_BASE),
             key=ft.ScrollKey(f'idea-{child["id"]}'),
             data=child['id'],
         )
@@ -441,7 +439,7 @@ class CadernoWritingMixin:
                     [
                         ui.ui_text(c, str(index + 1), size=14, weight=ui.W600, color=c.colors['faint'], tabular=True),
                         ft.Container(
-                            ui.serif_text(c, section['title'], size=24, weight=ui.W600, height=1.15),
+                            ui.serif_text(c, section['title'], size=21, weight=ui.W600, height=1.15),
                             expand=True,
                         ),
                         collapse_btn,
@@ -450,13 +448,12 @@ class CadernoWritingMixin:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     expand=True,
                 ),
-                ui.button(
+                ui.icon_button(
                     c,
-                    '+ Argumento',
+                    'plus',
                     on_click=lambda _e, cid=section['id']: self._prompt_new_argument(cid),
-                    variant='ghost',
-                    small=True,
-                    tooltip='Adicionar argumento neste capítulo',
+                    tooltip='Novo argumento neste capítulo',
+                    size=22,
                 ),
                 ui.icon_button(
                     c,
@@ -472,15 +469,20 @@ class CadernoWritingMixin:
         controls: list[ft.Control] = [title_row]
 
         if is_collapsed:
-            meta_summary = []
-            if children:
-                meta_summary.append(plural(len(children), 'argumento', 'argumentos'))
-            if fragments:
-                meta_summary.append(plural(len(fragments), 'fragmento', 'fragmentos'))
-            summary_desc = " • ".join(meta_summary) if meta_summary else "Vazio"
+            total_fragments = self._section_total_fragments(section['id'])
+            summary_desc = " · ".join(
+                [
+                    plural(len(children), 'argumento', 'argumentos')
+                    if children
+                    else 'Sem argumentos',
+                    plural(total_fragments, 'fragmento', 'fragmentos')
+                    if total_fragments
+                    else 'Sem fragmentos',
+                ]
+            )
             controls.append(
                 ft.Container(
-                    content=ui.meta_text(c, f"Capítulo recolhido ({summary_desc})"),
+                    content=ui.meta_text(c, summary_desc),
                     padding=ft.Padding.only(left=s(32)),
                 )
             )
@@ -534,7 +536,7 @@ class CadernoWritingMixin:
                         'Adicione argumentos ou associe fragmentos a este capítulo.',
                         action=ui.button(
                             c,
-                            'Escolher fragmentos',
+                            'Ir para Obras e Fragmentos',
                             on_click=lambda _e: self._select_tab('obras'),
                             small=True,
                         ),
@@ -554,7 +556,7 @@ class CadernoWritingMixin:
             border=normal_border,
             border_radius=ft.BorderRadius.all(s(8)),
             padding=s(18),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ui.motion(ui.MOTION_BASE),
             key=ft.ScrollKey(f'idea-{section["id"]}'),
             data=section['id'],
         )
@@ -579,7 +581,7 @@ class CadernoWritingMixin:
             ft.Row(
                 [
                     fa_icon('inbox', size=s(14), color=c.colors['faint']),
-                    ui.serif_text(c, 'A organizar', size=24, weight=ui.W600, height=1.15),
+                    ui.serif_text(c, 'A organizar', size=21, weight=ui.W600, height=1.15),
                     ui.ui_text(c, str(len(unassigned)), size=13, color=c.colors['faint'], tabular=True),
                 ],
                 spacing=s(10),
@@ -633,7 +635,7 @@ class CadernoWritingMixin:
                             ),
                             ui.button(
                                 c,
-                                'Escolher fragmentos',
+                                'Ir para Obras e Fragmentos',
                                 on_click=lambda _e: self._select_tab('obras'),
                                 small=True,
                                 variant='ghost',
@@ -772,13 +774,23 @@ class CadernoWritingMixin:
                 self.active_section_id = sections[0]['id']
             elif self._unassigned_fragments():
                 self.active_section_id = QUEUE_KEY
-        self.outline_host = ft.Container(content=self._compose_outline())
+        self.outline_host = ft.Container()
+        self.outline_host.content = self._compose_outline(
+            on_focus=self._focus_idea,
+            host=self.outline_host,
+        )
+        self._restore_outline_scroll(self.outline_host)
         controls: list[ft.Control] = [self.outline_host, self._compose_writing()]
         if getattr(self, 'show_rail', False):
-            controls.append(self._compose_rail())
-        return ft.Row(
+            self.rail_host = self._compose_rail()
+            self.rail_host.clip_behavior = ft.ClipBehavior.ANTI_ALIAS
+            self.rail_host.animate = ui.motion(ui.MOTION_SLOW)
+            self.rail_host.animate_opacity = ui.fade(ui.MOTION_SLOW)
+            controls.append(self.rail_host)
+        self.caderno_row = ft.Row(
             controls,
             spacing=0,
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
+        return self.caderno_row

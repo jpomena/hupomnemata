@@ -313,6 +313,65 @@ def test_caderno_hierarchy_ui_rendering_and_auto_uncollapse(view_config):
     assert hub.active_section_id == 101
 
 
+def test_outline_counter_is_additive_across_arguments(view_config):
+    """O contador do capítulo soma os fragmentos próprios e os dos argumentos."""
+    from types import SimpleNamespace
+    from src.views.compilation_hub.hub_composer import CompilationHubComposer
+
+    dummy_page = SimpleNamespace(
+        update=lambda: None,
+        run_task=lambda fn: None,
+        show_dialog=lambda _: None,
+        pop_dialog=lambda: None,
+    )
+    compilation = {
+        'id': 1,
+        'name': 'Compilação aditiva',
+        'sections': [
+            {'id': 10, 'title': 'Capítulo', 'central_idea': None, 'parent_id': None, 'position': 0},
+            {'id': 11, 'title': 'Argumento', 'central_idea': None, 'parent_id': 10, 'position': 0},
+        ],
+        'works': [{
+            'id': 1,
+            'title': 'Obra',
+            'position': 0,
+            'fragments': [
+                {'id': 100, 'is_member': True, 'section_id': 10, 'project_position': 0},
+                {'id': 101, 'is_member': True, 'section_id': 11, 'project_position': 0},
+            ],
+        }],
+    }
+    hub = CompilationHubComposer(
+        page=dummy_page,
+        config=view_config,
+        compilation=compilation,
+        refresh_compilations=lambda: [compilation],
+        search_works=lambda _q: [],
+        on_update=lambda *_: True,
+        on_add_work=lambda *_: True,
+        on_remove_work=lambda *_: True,
+        on_reorder_works=lambda *_: True,
+        on_fragment_membership=lambda *_: True,
+        on_fragment_note=lambda *_: True,
+        on_create_section=lambda *_: None,
+        on_update_section=lambda *_: True,
+        on_delete_section=lambda *_: True,
+        on_reorder_sections=lambda *_: True,
+        on_assign_fragment_to_section=lambda *_: True,
+        on_reorder_section_fragments=lambda *_: True,
+        on_copy_caderno=lambda *_: None,
+        on_create_work=lambda *_: None,
+        on_edit_work=lambda *_: None,
+        on_create_fragment=lambda *_: None,
+        on_edit_fragment=lambda *_: None,
+    )
+
+    assert hub._section_total_fragments(10) == 2
+    assert hub._section_total_fragments(11) == 1
+    hub._compose_outline()
+    assert hub.outline_items[0].content.controls[-1].value == '2'
+
+
 def test_outline_chapters_start_collapsed_and_toggle(view_config):
     """Valida que no menu lateral do Roteiro os capítulos iniciam recolhidos por padrão e podem ser alternados."""
     from types import SimpleNamespace
