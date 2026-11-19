@@ -135,8 +135,11 @@
   `WindowChromeComposer` (barra de título, histórico e breadcrumb) e
   `CommandPaletteController` (paleta ⌘K) extraídos, com fábricas lazy
   compatíveis com instâncias criadas por `__new__` e fachadas preservadas.
-- [ ] Decompor os demais god objects de views (`WorksComposer`, `PdfReaderView`,
-  `CadernoMixin`, `SettingsComposer`) e extrair o restante do chrome da janela.
+- [x] `WorksComposer` reduzido de 1514 para 191 linhas: `works_table.py`,
+  `works_toolbar.py`, `works_inspector.py` e `works_common.py` (helpers sem
+  ciclo de importação); MRO preserva todos os métodos privados usados nos testes.
+- [ ] Decompor os demais god objects de views (`PdfReaderView`, `CadernoMixin`,
+  `SettingsComposer`).
 - [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
 - [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
 - [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).
