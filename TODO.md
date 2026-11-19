@@ -138,8 +138,11 @@
 - [x] `WorksComposer` reduzido de 1514 para 191 linhas: `works_table.py`,
   `works_toolbar.py`, `works_inspector.py` e `works_common.py` (helpers sem
   ciclo de importação); MRO preserva todos os métodos privados usados nos testes.
-- [ ] Decompor os demais god objects de views (`PdfReaderView`, `CadernoMixin`,
-  `SettingsComposer`).
+- [x] `SettingsComposer` reduzido de 1057 para 226 linhas: `settings_theme.py`,
+  `settings_scale.py`, `settings_preview.py` e `settings_cloud.py` (movimentação
+  literal por AST), com shell, `_compose_header` e `_compose_card_container` na
+  fachada e métodos resolvidos por MRO.
+- [ ] Decompor os demais god objects de views (`PdfReaderView`, `CadernoMixin`).
 - [ ] Substituir os `except Exception` silenciosos por tratamento específico e log.
 - [ ] Migrar `wip.png` para WebP ou tornar a imagem opcional no placeholder.
 - [ ] Revisar `date_anchor`/serialização de vetores (endianness e dimensão canônicas).
