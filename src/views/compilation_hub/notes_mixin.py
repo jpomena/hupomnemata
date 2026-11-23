@@ -7,6 +7,7 @@ from src.utils.fragment_reference import fragment_abnt_notation
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from .common import close_dialog, dialog, form_field, open_dialog, text_input
+from src.utils.control_safety import safe_update
 
 
 class CompilationHubNotesMixin:
@@ -35,10 +36,7 @@ class CompilationHubNotesMixin:
         if success:
             self.refresh()
         elif self.page:
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _prompt_fragment_note(
         self,

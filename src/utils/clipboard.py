@@ -235,6 +235,8 @@ def copy_references(references: list[ViewReference]) -> bool:
 
 
 def _set_clipboard_data(k32, u32, format_id: int, data: bytes) -> bool:
+    import ctypes
+
     handle = k32.GlobalAlloc(0x0002, len(data))
     if not handle:
         return False

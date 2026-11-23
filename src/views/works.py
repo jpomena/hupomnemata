@@ -26,6 +26,7 @@ from src.views.works_common import (  # noqa: F401 - reexportados
 from src.views.works_inspector import WorksInspectorMixin
 from src.views.works_table import WorksTableMixin
 from src.views.works_toolbar import WorksToolbarMixin
+from src.utils.control_safety import safe_update
 
 
 class WorksComposer(WorksTableMixin, WorksToolbarMixin, WorksInspectorMixin):
@@ -235,10 +236,7 @@ class WorksComposer(WorksTableMixin, WorksToolbarMixin, WorksInspectorMixin):
         host.opacity = 1.0 if visible else 0.0
         host.bgcolor = c.colors["surface"] if visible else None
         host.border = ft.Border.only(left=ft.BorderSide(1, c.colors["border"])) if visible else None
-        try:
-            host.update()
-        except Exception:
-            pass
+        safe_update(host)
         return True
 
     def compose(self) -> ft.Container:

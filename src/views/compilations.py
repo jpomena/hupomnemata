@@ -21,6 +21,7 @@ from src.views import ui_kit as ui
 from src.views.compilation_hub import CompilationHubComposer
 from src.views.compilation_hub.common import dialog, fmt_date, form_field, text_input
 from src.views.ui_kit import s
+from src.utils.control_safety import safe_execute, safe_update
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
@@ -166,27 +167,15 @@ class CompilationsComposer:
         """Fecha o diálogo de criação de compilação com segurança garantida."""
         if hasattr(self, 'create_dialog') and self.create_dialog is not None:
             self.create_dialog.open = False
-            try:
-                self.create_dialog.update()
-            except Exception:
-                pass
-        try:
-            self.page.pop_dialog()
-        except Exception:
-            pass
-        try:
-            self.page.update()
-        except Exception:
-            pass
+            safe_update(self.create_dialog)
+        safe_execute('fechar diálogo da compilação', self.page.pop_dialog)
+        safe_update(self.page)
 
     def _create(self) -> None:
         name = (self.new_name.value or '').strip()
         if not name:
             self.new_name.error_text = 'Dê um nome à compilação.'
-            try:
-                self.new_name.update()
-            except Exception:
-                pass
+            safe_update(self.new_name)
             return
 
         # Fecha o diálogo ANTES do on_create, impedindo que o toast sobreponha a pilha de modais

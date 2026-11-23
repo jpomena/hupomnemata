@@ -23,8 +23,8 @@ class FragmentControllerMixin:
             if bib_res_id and hasattr(self, 'knowledge_service'):
                 try:
                     self.knowledge_service.revectorize_work(int(bib_res_id))
-                except Exception:
-                    pass
+                except Exception as error:
+                    log_exception('Falha ao revectorizar obra após salvar fragmento', error)
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
             return False
@@ -68,8 +68,11 @@ class FragmentControllerMixin:
             if hasattr(self, 'knowledge_service'):
                 try:
                     self.knowledge_service.revectorize_work(int(payload['bib_res_id']))
-                except Exception:
-                    pass
+                except Exception as error:
+                    log_exception(
+                        'Falha ao revectorizar obra após salvar fragmento da compilação',
+                        error,
+                    )
         except (ValueError, TypeError) as error:
             self.show_message(str(error), self.view_config.colors['text'])
             return False
@@ -94,8 +97,8 @@ class FragmentControllerMixin:
             if bib_res_id and hasattr(self, 'knowledge_service'):
                 try:
                     self.knowledge_service.revectorize_work(int(bib_res_id))
-                except Exception:
-                    pass
+                except Exception as error:
+                    log_exception('Falha ao revectorizar obra após excluir fragmento', error)
         except Exception as error:
             log_exception('Falha ao excluir fragmento', error)
             self.show_message(

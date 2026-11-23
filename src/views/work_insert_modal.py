@@ -33,6 +33,8 @@ from src.views.work_insert_specs import (
     WORK_TYPES,
     WorkTypeSpec,
 )
+from src.utils.control_safety import safe_execute, safe_update
+from src.utils.error_log import log_exception
 
 DIALOG_WIDTH = 1040
 DIALOG_HEIGHT = 740
@@ -82,10 +84,7 @@ class DropdownStyle(TypedDict):
 def _safe_update(control: ft.Control | None) -> None:
     if control is None:
         return
-    try:
-        control.update()
-    except (RuntimeError, AssertionError, AttributeError):
-        pass
+    safe_update(control, exceptions=(RuntimeError, AssertionError, AttributeError))
 
 
 class WorkInsertModalComposer(
@@ -449,10 +448,7 @@ class WorkInsertModalComposer(
         run_task = getattr(self.page, "run_task", None)
         if focus is None or run_task is None:
             return
-        try:
-            run_task(focus)
-        except Exception:  # noqa: BLE001 - foco é conveniência
-            pass
+        safe_execute('focar campo com erro', run_task, focus)
 
     # ── ações ──────────────────────────────────────────────
 
@@ -533,15 +529,9 @@ class WorkInsertModalComposer(
                 run_task = getattr(self.page, "run_task", None)
                 focus = getattr(self.import_input, "focus", None)
                 if run_task is not None and focus is not None:
-                    try:
-                        run_task(focus)
-                    except Exception:
-                        pass
+                    safe_execute('focar campo de importação', run_task, focus)
         if self.page:
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _on_import_input_change(self, event: ft.ControlEvent) -> None:
         raw = event.control.value or ""
@@ -898,8 +888,8 @@ class WorkInsertModalComposer(
                         or "[s.l.]"
                     )
                     parent_id, parent_title = find_or_create_magazine(str(j_title), pub_place)
-                except Exception:
-                    pass
+                except Exception as error:
+                    log_exception('Falha ao resolver periódico pelo título', error)
 
         if parent_id:
             self.parent_work_id = parent_id
@@ -914,10 +904,7 @@ class WorkInsertModalComposer(
         self.errors.clear()
         self._render(update_page=True)
         if self.page:
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _header(self) -> ft.Container:
         c = self.config

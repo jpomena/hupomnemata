@@ -1,15 +1,18 @@
 import math
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import flet as ft
 
+from src.configs.settings import COLORS_DARK
 from src.utils.types import ViewConfig
-from src.views.ui_kit import alpha, s, serif_text, ui_text
+from src.views.ui_kit import alpha, s, segmented, serif_text, ui_text
 from src.views.knowledge.graph_template import generate_graph_html
 from src.views.knowledge.knowledge_panel import KnowledgePanel
 from src.views.knowledge.armillary_sphere_3d import ArmillaryConstellation3D
 from src.utils.ft_responsiveness import Responsive
+from src.utils.control_safety import safe_update
 
 
 def compute_graph_layout(
@@ -123,6 +126,8 @@ class KnowledgeComposer:
     ) -> None:
         self.page = page
         self.config = config
+        # O visor cósmico tem paleta própria e não herda o tema claro do app.
+        self.cosmic_config = replace(config, colors=COLORS_DARK)
         self.scale = scale
         self.on_navigate = on_navigate
         self.get_graph_data = get_graph_data
@@ -139,15 +144,17 @@ class KnowledgeComposer:
         self.selected_node_id: Optional[str] = None
         self.node_containers: Dict[str, ft.Container] = {}
         self.filter_mode = "all"
+        self.type_filter = "all"
 
         # Dimensões dinâmicas calculadas com base no viewport disponível
         init_w, init_h = self._compute_viewport_dimensions()
         self.canvas_width = 1800.0  # Para mapa 2D com pan & zoom
         self.canvas_height = 1200.0
+        self._last_avail_w = init_w
 
         # Sub-painel retrátil de inspeção
         self.panel = KnowledgePanel(
-            config=self.config,
+            config=self.cosmic_config,
             scale=self.scale,
             on_close=self._handle_panel_close,
             on_select_resonance=self._handle_resonance_selected,
@@ -206,6 +213,17 @@ class KnowledgeComposer:
             border_color=self.config.colors["border"],
             bgcolor=self.config.colors["bg"],
             content_padding=ft.Padding(8, 0, 8, 0),
+        )
+
+        self.type_filter_control = segmented(
+            self.config,
+            [
+                ("all", "Tudo", None),
+                ("works", "Obras", None),
+                ("fragments", "Fragmentos", None),
+            ],
+            "all",
+            self._handle_type_filter_change,
         )
 
         # Controle de sensibilidade de ressonância com Slider contínuo
@@ -293,59 +311,74 @@ class KnowledgeComposer:
                 controls=[
                     ft.IconButton(
                         icon=ft.Icons.ZOOM_IN,
-                        tooltip="Aproximar Constelação (Zoom +)",
+                        tooltip="Aproximar constelação",
                         icon_size=s(20),
-                        icon_color=self.config.colors["text"],
+                        icon_color=self.cosmic_config.colors["text"],
                         on_click=lambda _: self.armillary_3d.zoom_in(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.ZOOM_OUT,
-                        tooltip="Afastar Constelação (Zoom -)",
+                        tooltip="Afastar constelação",
                         icon_size=s(20),
-                        icon_color=self.config.colors["text"],
+                        icon_color=self.cosmic_config.colors["text"],
                         on_click=lambda _: self.armillary_3d.zoom_out(),
+                    ),
+                    ft.Container(
+                        height=1,
+                        width=s(22),
+                        bgcolor=alpha(
+                            self.cosmic_config.colors["gold"], 0.22
+                        ),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.RESTART_ALT,
-                        tooltip="Restaurar Visão Padrão",
+                        tooltip="Restaurar visão padronizada",
                         icon_size=s(19),
-                        icon_color=self.config.colors["text"],
+                        icon_color=self.cosmic_config.colors["text"],
                         on_click=lambda _: self.armillary_3d.reset_view(),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.GRID_4X4,
-                        tooltip="Exibir/Ocultar Grade Celeste",
+                        tooltip="Exibir ou ocultar a grade celeste",
                         icon_size=s(19),
-                        icon_color=self.config.colors["text"],
+                        icon_color=self.cosmic_config.colors["text"],
                         on_click=self._handle_toggle_celestial_grid,
                     ),
                 ],
                 spacing=s(2),
                 tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            bgcolor=alpha(self.config.colors["surface"], 0.88),
-            border=ft.Border.all(1, alpha(self.config.colors["gold"], 0.30)),
-            border_radius=s(8),
-            padding=s(2),
+            bgcolor=alpha(self.cosmic_config.colors["surface"], 0.62),
+            border=ft.Border.all(
+                1, alpha(self.cosmic_config.colors["gold"], 0.26)
+            ),
+            border_radius=s(12),
+            padding=s(4),
             shadow=ft.BoxShadow(
                 spread_radius=1,
-                blur_radius=10,
-                color=alpha(self.config.colors["black"], 0.35),
+                blur_radius=18,
+                color=alpha(self.cosmic_config.colors["black"], 0.45),
             ),
             right=s(24),
             bottom=s(24),
         )
 
+        self._build_cosmic_overlays()
+
         space_gradient = ft.RadialGradient(
             center=ft.Alignment(0, 0),
             radius=1.25,
-            colors=["#090D1C", "#050711", "#020306"],
+            colors=list(COLORS_DARK["space_gradient"]),
         )
 
         self.viewport_container = ft.Container(
             content=ft.Stack(
                 controls=[
+                    *self._build_nebula_layers(),
                     self.armillary_3d.compose(),
+                    self.cosmic_header,
+                    self.legend_container,
                     self.floating_hud,
                 ],
                 expand=True,
@@ -369,6 +402,279 @@ class KnowledgeComposer:
             content=self._build_layout(),
         )
 
+    def _build_cosmic_overlays(self) -> None:
+        """Monta o cabeçalho de telemetria e a legenda sobre o céu profundo."""
+        c = self.cosmic_config
+        gold = c.colors["gold"]
+
+        self.ov_works_value = ft.Text(
+            "0",
+            size=13 * self.scale,
+            weight=ft.FontWeight.W_700,
+            color=c.colors["text"],
+            font_family=c.font_families["montserrat"],
+        )
+        self.ov_links_value = ft.Text(
+            "0",
+            size=13 * self.scale,
+            weight=ft.FontWeight.W_700,
+            color=c.colors["text"],
+            font_family=c.font_families["montserrat"],
+        )
+        self.ov_clusters_value = ft.Text(
+            "0",
+            size=13 * self.scale,
+            weight=ft.FontWeight.W_700,
+            color=c.colors["text"],
+            font_family=c.font_families["montserrat"],
+        )
+
+        def stat_label(text: str) -> ft.Text:
+            return ft.Text(
+                text,
+                size=10.5 * self.scale,
+                color=c.colors["muted"],
+                font_family=c.font_families["montserrat"],
+            )
+
+        self.ov_works_label = stat_label("obras")
+        self.ov_links_label = stat_label("afinidades")
+        self.ov_clusters_label = stat_label("constelações")
+
+        def stat_chip(value: ft.Text, label: ft.Text) -> ft.Container:
+            return ft.Container(
+                content=ft.Row(
+                    controls=[value, label],
+                    spacing=s(5),
+                    tight=True,
+                ),
+                bgcolor=alpha(c.colors["surface"], 0.52),
+                border=ft.Border.all(1, alpha(gold, 0.16)),
+                border_radius=s(999),
+                padding=ft.Padding(s(8), s(3), s(10), s(3)),
+            )
+
+        self.cosmic_eyebrow = ft.Text(
+            "MALHA SEMÂNTICA",
+            size=9.5 * self.scale,
+            weight=ft.FontWeight.W_700,
+            color=alpha(gold, 0.82),
+            font_family=c.font_families["montserrat"],
+            style=ft.TextStyle(letter_spacing=1.8),
+        )
+        self.cosmic_title = ft.Text(
+            "Constelação do Acervo",
+            size=25 * self.scale,
+            weight=ft.FontWeight.W_700,
+            color=c.colors["text"],
+            font_family=c.font_families["cormorant"],
+            max_lines=2,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        self.cosmic_meta = ft.Text(
+            "Sincronize o Acervo para revelar a malha.",
+            size=11.5 * self.scale,
+            color=c.colors["muted"],
+            font_family=c.font_families["montserrat"],
+            max_lines=2,
+        )
+        self.cosmic_header = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.cosmic_eyebrow,
+                    self.cosmic_title,
+                    self.cosmic_meta,
+                    ft.Row(
+                        controls=[
+                            stat_chip(self.ov_works_value, self.ov_works_label),
+                            stat_chip(self.ov_links_value, self.ov_links_label),
+                            stat_chip(self.ov_clusters_value, self.ov_clusters_label),
+                        ],
+                        spacing=s(6),
+                        tight=True,
+                    ),
+                ],
+                spacing=s(5),
+                tight=True,
+            ),
+            left=s(24),
+            top=s(18),
+            width=s(360),
+            padding=ft.Padding(s(16), s(14), s(16), s(14)),
+            bgcolor=alpha(c.colors["surface"], 0.58),
+            border=ft.Border.all(1, alpha(gold, 0.20)),
+            border_radius=s(12),
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=22,
+                color=alpha(c.colors["black"], 0.38),
+            ),
+            ignore_interactions=True,
+        )
+
+        def legend_dot(color: str) -> ft.Container:
+            return ft.Container(
+                width=s(7),
+                height=s(7),
+                bgcolor=color,
+                border_radius=s(4),
+            )
+
+        def legend_line() -> ft.Container:
+            return ft.Container(
+                width=s(14),
+                height=max(1.0, s(1)),
+                bgcolor=alpha(gold, 0.55),
+            )
+
+        legend_row = ft.Row(
+            controls=[
+                legend_dot(gold),
+                ft.Text(
+                    "obra",
+                    size=10.5 * self.scale,
+                    color=c.colors["muted"],
+                    font_family=c.font_families["montserrat"],
+                ),
+                ft.Container(width=s(6)),
+                legend_dot(c.colors["constellation_node_fragment"]),
+                ft.Text(
+                    "fragmento",
+                    size=10.5 * self.scale,
+                    color=c.colors["muted"],
+                    font_family=c.font_families["montserrat"],
+                ),
+                ft.Container(width=s(6)),
+                legend_line(),
+                ft.Text(
+                    "afinidade",
+                    size=10.5 * self.scale,
+                    color=c.colors["muted"],
+                    font_family=c.font_families["montserrat"],
+                ),
+            ],
+            spacing=s(5),
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        self.legend_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    legend_row,
+                    ft.Text(
+                        "Arraste para orbitar · scroll para zoom · clique para inspecionar",
+                        size=10 * self.scale,
+                        color=alpha(c.colors["muted"], 0.9),
+                        font_family=c.font_families["montserrat"],
+                        max_lines=1,
+                    ),
+                ],
+                spacing=s(4),
+                tight=True,
+            ),
+            left=s(24),
+            bottom=s(24),
+            padding=ft.Padding(s(12), s(8), s(12), s(8)),
+            bgcolor=alpha(c.colors["surface"], 0.46),
+            border=ft.Border.all(1, alpha(gold, 0.14)),
+            border_radius=s(10),
+            ignore_interactions=True,
+        )
+
+    def _build_nebula_layers(self) -> list[ft.Control]:
+        """Adiciona profundidade atmosférica sem custo no Canvas 3D."""
+        c = self.cosmic_config
+
+        def layer(
+            width: float,
+            height: float,
+            color: str,
+            opacity: float,
+            left: float | None = None,
+            top: float | None = None,
+            right: float | None = None,
+            bottom: float | None = None,
+        ) -> ft.Container:
+            return ft.Container(
+                width=s(width),
+                height=s(height),
+                left=s(left) if left is not None else None,
+                top=s(top) if top is not None else None,
+                right=s(right) if right is not None else None,
+                bottom=s(bottom) if bottom is not None else None,
+                gradient=ft.RadialGradient(
+                    center=ft.Alignment(0, 0),
+                    radius=1.0,
+                    colors=[
+                        alpha(color, opacity),
+                        alpha("#050711", 0.0),
+                    ],
+                ),
+                border_radius=s(999),
+                ignore_interactions=True,
+            )
+
+        return [
+            layer(
+                620,
+                620,
+                c.colors["gold"],
+                0.10,
+                right=-180,
+                top=-220,
+            ),
+            layer(
+                720,
+                720,
+                c.colors["constellation_node_fragment"],
+                0.11,
+                left=-250,
+                bottom=-280,
+            ),
+            layer(
+                420,
+                420,
+                "#684E72",
+                0.07,
+                left=320,
+                bottom=-120,
+            ),
+        ]
+
+    def _update_cosmic_overlay(self) -> None:
+        """Sincroniza telemetria, legenda e título do cabeçalho cósmico."""
+        nodes = self._get_filtered_nodes()
+        links = self._get_filtered_links(nodes)
+        clusters = self.graph_data.get("clusters") or []
+        self.ov_works_value.value = str(len(nodes))
+        self.ov_links_value.value = str(len(links))
+        self.ov_clusters_value.value = str(len(clusters))
+        if self.type_filter == "works":
+            self.ov_works_label.value = "obras"
+        elif self.type_filter == "fragments":
+            self.ov_works_label.value = "fragmentos"
+        else:
+            self.ov_works_label.value = "nós"
+
+        if not nodes:
+            self.cosmic_eyebrow.value = "MALHA SEMÂNTICA"
+            self.cosmic_title.value = "Aguardando o primeiro astro"
+            self.cosmic_meta.value = (
+                "Cadastre obras e fragmentos para revelar a constelação."
+            )
+        elif not self.selected_node_id:
+            self.cosmic_eyebrow.value = "MALHA SEMÂNTICA"
+            self.cosmic_title.value = "Constelação do Acervo"
+            self.cosmic_meta.value = (
+                f"{len(nodes)} obras · {len(links)} afinidades · "
+                f"{int(self.min_similarity * 100)}% de sensibilidade"
+            )
+
+        self.cosmic_header.visible = bool(nodes)
+        self.legend_container.visible = bool(nodes) and self._last_avail_w >= 880
+        safe_update(self.cosmic_header)
+        safe_update(self.legend_container)
+
     def _compute_viewport_dimensions(
         self, panel_open: bool = False, is_maximized: Optional[bool] = None
     ) -> tuple[float, float]:
@@ -384,6 +690,11 @@ class KnowledgeComposer:
 
     def _update_toolbar_responsive(self, avail_w: float) -> None:
         """Adapta fluidamente os controles da toolbar aos limites da tela tanto no Maximizar quanto no Desmaximizar."""
+        self._last_avail_w = avail_w
+        has_nodes = bool(self.graph_data.get("nodes"))
+        self.cosmic_header.width = s(360 if avail_w >= 1000 else 300)
+        self.legend_container.visible = has_nodes and avail_w >= 880
+        self.type_filter_control.visible = avail_w >= 820
         if avail_w >= 1220:
             # Modo Amplo (Widescreen / Maximizado)
             self.subtitle_prefix.visible = True
@@ -457,17 +768,15 @@ class KnowledgeComposer:
         vw, vh = self._compute_viewport_dimensions(panel_open=panel_open, is_maximized=is_maximized)
         self.armillary_3d.update_dimensions(vw, vh)
         self._update_toolbar_responsive(vw)
-        try:
-            self.toolbar.update()
-            self.viewport_container.update()
-            self.root_container.update()
-        except Exception:
-            pass
+        safe_update(self.toolbar)
+        safe_update(self.viewport_container)
+        safe_update(self.root_container)
 
     def _build_layout(self) -> ft.Control:
         self.controls_row = ft.Row(
             controls=[
                 self.search_field,
+                self.type_filter_control,
                 self.filter_mode_dropdown,
                 self.sensitivity_container,
                 self.sync_button,
@@ -528,41 +837,58 @@ class KnowledgeComposer:
             alignment=ft.Alignment(0, 0),
             content=ft.Column(
                 controls=[
-                    ft.Icon(
-                        ft.Icons.AUTO_AWESOME_OUTLINED,
-                        size=s(48),
-                        color=self.config.colors["muted"],
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.AUTO_AWESOME_OUTLINED,
+                            size=s(42),
+                            color=self.cosmic_config.colors["gold"],
+                        ),
+                        width=s(92),
+                        height=s(92),
+                        alignment=ft.Alignment(0, 0),
+                        border=ft.Border.all(
+                            1,
+                            alpha(self.cosmic_config.colors["gold"], 0.24),
+                        ),
+                        border_radius=s(999),
+                        bgcolor=alpha(
+                            self.cosmic_config.colors["surface"], 0.45
+                        ),
                     ),
                     serif_text(
-                        self.config,
-                        "Nenhuma obra vetorizada ainda.",
-                        size=22,
+                        self.cosmic_config,
+                        "Aguardando o primeiro astro.",
+                        size=24,
                         weight=ft.FontWeight.W_700,
-                        color=self.config.colors["text"],
+                        color=self.cosmic_config.colors["text"],
                     ),
                     ui_text(
-                        self.config,
-                        "Cadastre obras e citações no Acervo para construir a malha semântica,\nou clique em 'Sincronizar' para processar o acervo existente.",
+                        self.cosmic_config,
+                        "Cadastre obras e citações no Acervo para revelar a "
+                        "constelação semântica. Se o acervo já existe, "
+                        "sincronize a malha para calcular as afinidades.",
                         size=13,
                         weight=ft.FontWeight.W_500,
-                        color=self.config.colors["muted"],
+                        color=self.cosmic_config.colors["muted"],
                         align=ft.TextAlign.CENTER,
                         max_lines=None,
                     ),
                     ft.Container(height=s(8)),
                     ft.FilledButton(
                         content=ft.Text(
-                            "Sincronizar Agora",
-                            font_family=self.config.font_families["montserrat"],
+                            "Sincronizar Acervo",
+                            font_family=self.cosmic_config.font_families[
+                                "montserrat"
+                            ],
                             weight=ft.FontWeight.W_700,
                             size=s(13),
-                            color=self.config.colors["on_gold"],
+                            color=self.cosmic_config.colors["on_gold"],
                         ),
                         icon=ft.Icons.BOLT,
                         on_click=self._handle_sync_mesh,
                         style=ft.ButtonStyle(
-                            bgcolor=self.config.colors["gold"],
-                            padding=ft.Padding(s(14), 0, s(14), 0),
+                            bgcolor=self.cosmic_config.colors["gold"],
+                            padding=ft.Padding(s(16), 0, s(16), 0),
                         ),
                         height=s(40),
                     ),
@@ -615,13 +941,20 @@ class KnowledgeComposer:
 
     def _get_filtered_nodes(self) -> List[Dict[str, Any]]:
         all_nodes = self.graph_data.get("nodes") or []
+        nodes = all_nodes
         if self.filter_mode.startswith("cluster_"):
             try:
                 target_c_id = int(self.filter_mode.split("_")[1])
-                return [n for n in all_nodes if n.get("cluster_id") == target_c_id]
+                nodes = [
+                    n for n in nodes if n.get("cluster_id") == target_c_id
+                ]
             except Exception:
-                return all_nodes
-        return all_nodes
+                nodes = all_nodes
+        if self.type_filter == "works":
+            nodes = [n for n in nodes if n.get("type") == "work"]
+        elif self.type_filter == "fragments":
+            nodes = [n for n in nodes if n.get("type") != "work"]
+        return nodes
 
     def _get_filtered_links(self, visible_nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         all_links = self.graph_data.get("links") or []
@@ -632,7 +965,16 @@ class KnowledgeComposer:
         nodes = self._get_filtered_nodes()
         links = self._get_filtered_links(nodes)
         clusters = self.graph_data.get("clusters") or []
-        self.stats_text.value = f"{len(nodes)} Obras • {len(links)} Afinidades • {len(clusters)} Constelações"
+        noun = (
+            "Obras"
+            if self.type_filter == "works"
+            else ("Fragmentos" if self.type_filter == "fragments" else "Nós")
+        )
+        self.stats_text.value = (
+            f"{len(nodes)} {noun} • {len(links)} Afinidades • "
+            f"{len(clusters)} Constelações"
+        )
+        self._update_cosmic_overlay()
 
     def _refresh_graph(self) -> None:
         """Recarrega os dados do grafo, executa o layout e renderiza nós e arestas."""
@@ -667,20 +1009,14 @@ class KnowledgeComposer:
 
         if not nodes:
             self.empty_state_text.visible = True
-            try:
-                self.root_container.update()
-            except Exception:
-                pass
+            safe_update(self.root_container)
             return
 
         self.empty_state_text.visible = False
         # Atualiza a Constelação 3D Esfera Armilar
         self.armillary_3d.set_data(nodes, links, clusters)
 
-        try:
-            self.root_container.update()
-        except Exception:
-            pass
+        safe_update(self.root_container)
 
     def _render_links(self, nodes: List[Dict[str, Any]], links: List[Dict[str, Any]]) -> None:
         pass
@@ -698,10 +1034,14 @@ class KnowledgeComposer:
         self.filter_mode = mode
         self.armillary_3d.set_filter_mode(mode)
         self._update_stats_display()
-        try:
-            self.root_container.update()
-        except Exception:
-            pass
+        safe_update(self.root_container)
+
+    def _handle_type_filter_change(self, mode: str) -> None:
+        """Alterna entre todos os astros, apenas obras ou apenas fragmentos."""
+        self.type_filter = mode if mode in {"all", "works", "fragments"} else "all"
+        self.armillary_3d.set_type_filter(self.type_filter)
+        self._update_stats_display()
+        safe_update(self.root_container)
 
     def _handle_node_clicked(self, node: Dict[str, Any]) -> None:
         """Trata seleção de nó e abre o painel lateral de ressonâncias."""
@@ -721,10 +1061,25 @@ class KnowledgeComposer:
 
         # Atualiza o painel retrátil
         self.panel.set_node(node, resonances, work_fragments=work_fragments)
-        try:
-            self.root_container.update()
-        except Exception:
-            pass
+
+        self.cosmic_eyebrow.value = "NÓ INSPECIONADO"
+        self.cosmic_title.value = (
+            node.get("title") or node.get("label") or "Nó sem título"
+        )
+        meta_parts = []
+        if node.get("author"):
+            meta_parts.append(str(node["author"]))
+        if node.get("cluster_name"):
+            meta_parts.append(str(node["cluster_name"]))
+        if node.get("type") == "work":
+            meta_parts.append(
+                f"{node.get('fragment_count', 0)} fragmentos"
+            )
+        self.cosmic_meta.value = " · ".join(meta_parts) or (
+            "Selecione outro astro ou feche o painel para voltar à visão geral."
+        )
+        safe_update(self.cosmic_header)
+        safe_update(self.root_container)
 
     def _handle_resonance_selected(self, target_node: Dict[str, Any]) -> None:
         """Pivota para outro nó através da lista de ressonâncias."""
@@ -745,10 +1100,8 @@ class KnowledgeComposer:
         vw, vh = self._compute_viewport_dimensions(panel_open=False)
         self.armillary_3d.update_dimensions(vw, vh)
         self._update_toolbar_responsive(vw)
-        try:
-            self.root_container.update()
-        except Exception:
-            pass
+        self._update_cosmic_overlay()
+        safe_update(self.root_container)
 
     def _handle_search_change(self, e: ft.ControlEvent) -> None:
         """Filtra nós por termo de busca e destaca na constelação."""
@@ -779,10 +1132,7 @@ class KnowledgeComposer:
         """Atualiza dinamicamente o rótulo de sensibilidade durante o arrasto do slider."""
         val = float(e.control.value)
         self.sensitivity_slider_label.value = f"Sensibilidade: {int(val * 100)}%"
-        try:
-            self.sensitivity_slider_label.update()
-        except Exception:
-            pass
+        safe_update(self.sensitivity_slider_label)
 
     def _handle_sensitivity_slider_change(self, e: ft.ControlEvent) -> None:
         """Dispara recálculo da malha de afinidades ao soltar o slider de sensibilidade."""

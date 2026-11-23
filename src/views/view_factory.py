@@ -73,6 +73,7 @@ class ViewFactory:
             on_reset_settings=c.on_reset_settings or (lambda: None),
             cloud_sync_service=getattr(c, "cloud_sync_service", None),
             page=getattr(c, "page", None),
+            on_delete_databases=getattr(c, "on_delete_databases", None),
         ).compose()
 
     def nous(self) -> ft.Control:
@@ -253,52 +254,46 @@ class ViewFactory:
 
     def pdf_reader(self, work_id: int) -> ft.Control:
         """Espaço imersivo de leitura e anotação do PDF da obra."""
-        from src.db.db import SessionLocal
-        from src.domains import BibliographicResource
         from src.services.pdf_service import PdfService
         from src.views.pdf_reader import PdfReaderView
 
         c = self.composer
         pdf_service = PdfService()
-        with SessionLocal() as session:
-            resource = session.get(BibliographicResource, work_id)
-            if resource is None:
-                return ui.empty_state(
-                    c.config,
-                    "triangle-exclamation",
-                    "Obra não encontrada",
-                    "A obra solicitada para leitura não pôde ser localizada.",
-                )
-
-            work = resource.specific_work
-            work_title = (
-                (work.title if work else '') or (resource.pdf_filename or 'Obra')
+        context = pdf_service.reader_context(work_id)
+        if context is None:
+            return ui.empty_state(
+                c.config,
+                "triangle-exclamation",
+                "Obra não encontrada",
+                "A obra solicitada para leitura não pôde ser localizada.",
             )
-            if c.page:
-                ui.toast(
-                    c.page,
-                    c.config,
-                    f"Carregando leitor: {work_title}...",
-                    icon_name="book-open",
-                )
 
-            reader_holder: list[PdfReaderView] = []
-
-            def on_back():
-                if reader_holder:
-                    reader_holder[0].close()
-                c.on_navigate_with("Acervo", focus_work_id=work_id)
-
-            reader_view = PdfReaderView(
-                config=c.config,
-                resource=resource,
-                on_back=on_back,
-                pdf_service=pdf_service,
-                page=c.page,
+        resource, work_title = context
+        if c.page:
+            ui.toast(
+                c.page,
+                c.config,
+                f"Carregando leitor: {work_title}...",
+                icon_name="book-open",
             )
-            reader_holder.append(reader_view)
-            c.pdf_reader_view = reader_view
-            return reader_view
+
+        reader_holder: list[PdfReaderView] = []
+
+        def on_back():
+            if reader_holder:
+                reader_holder[0].close()
+            c.on_navigate_with("Acervo", focus_work_id=work_id)
+
+        reader_view = PdfReaderView(
+            config=c.config,
+            resource=resource,
+            on_back=on_back,
+            pdf_service=pdf_service,
+            page=c.page,
+        )
+        reader_holder.append(reader_view)
+        c.pdf_reader_view = reader_view
+        return reader_view
 
     # ── apoio ──────────────────────────────────────────────
 

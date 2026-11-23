@@ -206,6 +206,19 @@ class PdfService:
 
         return removed_count
 
+    def reader_context(
+        self,
+        bib_res_id: int,
+    ) -> tuple[BibliographicResource, str] | None:
+        """Resolve a obra e o título exibido pelo leitor, numa sessão curta."""
+        with SessionLocal() as session:
+            resource = session.get(BibliographicResource, bib_res_id)
+            if resource is None:
+                return None
+            work = resource.specific_work
+            title = (work.title if work else '') or (resource.pdf_filename or 'Obra')
+            return resource, title
+
     def get_pdf_info(self, bib_res_id: int) -> dict[str, Any] | None:
         """Retorna os metadados do PDF vinculado à obra."""
         with SessionLocal() as session:

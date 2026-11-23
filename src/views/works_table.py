@@ -12,6 +12,7 @@ from src.views.works_common import (
     format_date,
     year_sort_key,
 )
+from src.utils.control_safety import safe_update
 
 
 class WorksTableMixin:
@@ -118,10 +119,7 @@ class WorksTableMixin:
         if self.root is None:
             return
         self.root.content = self._compose_body()
-        try:
-            self.root.update()
-        except Exception:
-            pass
+        safe_update(self.root)
 
     def _refresh_table_only(self, toolbar: bool = False) -> None:
         if getattr(self, "table_host", None) is None:
@@ -135,10 +133,7 @@ class WorksTableMixin:
             self.count_text.value = self._count_label()
             targets.append(self.count_text)
         for control in targets:
-            try:
-                control.update()
-            except Exception:
-                pass
+            safe_update(control)
 
     def select(self, resource_id: int | None) -> None:
         self.selected_id = resource_id
@@ -229,20 +224,14 @@ class WorksTableMixin:
         hovering = event.data in (True, "true")
         event.control.border = ft.Border.all(1, self.config.colors["muted"] if hovering else self.config.colors["faint"])
         event.control.scale = 1.12 if hovering else 1.0
-        try:
-            event.control.update()
-        except Exception:
-            pass
+        safe_update(event.control)
 
     def _header_hover(self, event, text: ft.Text, active: bool) -> None:
         if active:
             return
         hovering = event.data in (True, "true")
         text.color = self.config.colors["text"] if hovering else self.config.colors["faint"]
-        try:
-            text.update()
-        except Exception:
-            pass
+        safe_update(text)
 
     def _visible_columns(self) -> list[tuple[str, str, int | None, bool]]:
         if self.selected_id is not None:
@@ -662,10 +651,7 @@ class WorksTableMixin:
                 res.specific_work.publication_place = new_place.strip() or "[s.l.]"
             self._refresh()
         if self.page:
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _open_delete_magazine_dialog(
         self, resource: BibliographicResource, child_count: int
@@ -681,10 +667,7 @@ class WorksTableMixin:
             else:
                 self.on_delete_work(resource)
             if self.page:
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                safe_update(self.page)
 
         msg = (
             f"Tem certeza que deseja excluir o periódico “{mag_title}” e "

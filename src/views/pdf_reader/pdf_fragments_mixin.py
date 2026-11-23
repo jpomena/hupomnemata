@@ -10,6 +10,7 @@ from src.domains import Fragment
 from src.utils.clipboard import get_system_clipboard_text
 from src.utils.error_log import log_exception
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_update
 
 s = ui.s
 
@@ -191,19 +192,13 @@ class PdfFragmentsMixin:
                 def _card_hover(event, box=card):
                     hovering = event.data in (True, 'true')
                     box.border = ft.Border.all(1, colors['gold'] if hovering else colors['border'])
-                    try:
-                        box.update()
-                    except Exception:
-                        pass
+                    safe_update(box)
 
                 card.on_hover = _card_hover
                 cards.append(card)
             self.fragments_column.controls = cards
 
-        try:
-            self.sidebar_container.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self.sidebar_container, exceptions=(RuntimeError, AttributeError))
 
     def _jump_to_fragment_page(self, loc_val: str | None) -> None:
         """Navega para a página apontada pelo fragmento considerando a sincronia de offset."""

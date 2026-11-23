@@ -553,8 +553,12 @@ def test_pdf_reader_hold_and_drag_gesture_pan(
         assert isinstance(view.selection_container, ft.Container)
         assert view.selection_container.content is view.selection_area
         assert view.selection_container.visible is True
+        assert view.selection_container.left is not None
+        assert view.selection_container.top is not None
+        assert view.selection_container.width is not None
         assert view.selection_container.left >= 0
         assert view.selection_container.top >= 0
+        assert view.selection_container.height is not None
         assert view.selection_container.width > 0
         assert view.selection_container.height > 0
 

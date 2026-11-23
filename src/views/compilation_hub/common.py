@@ -15,6 +15,7 @@ from src.utils.fa import fa_icon
 from src.utils.types import ViewConfig, ViewReference
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from src.utils.control_safety import safe_update
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
@@ -265,10 +266,7 @@ def max_width_box(c: ViewConfig, content: ft.Control, max_width: float, gutter: 
         if abs((inner.width or 0) - target) < 1:
             return
         inner.width = target
-        try:
-            inner.update()
-        except Exception:
-            pass
+        safe_update(inner)
 
     host.on_size_change = _resize
     return host

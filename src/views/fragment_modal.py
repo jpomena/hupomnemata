@@ -15,6 +15,7 @@ from src.utils.error_log import log_exception
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
 from src.views.ui_kit import W500, W600, s
+from src.utils.control_safety import safe_update
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 NO_LOCATION = '__none__'
@@ -339,10 +340,7 @@ class FragmentModal:
         limit = self.location_value.max_length
         if limit and len(value) > limit:
             event.control.value = value[:limit]
-            try:
-                event.control.update()
-            except (RuntimeError, AssertionError, AttributeError):
-                pass
+            safe_update(event.control, exceptions=(RuntimeError, AssertionError, AttributeError))
 
     def _on_location_type_change(self, event: ft.Event[ft.Dropdown]) -> None:
         selected_location = (
@@ -513,7 +511,4 @@ class FragmentModal:
 
     def update(self) -> None:
         if self.page:
-            try:
-                self.page.update()
-            except (RuntimeError, AssertionError, AttributeError):
-                pass
+            safe_update(self.page, exceptions=(RuntimeError, AssertionError, AttributeError))

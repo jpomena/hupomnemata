@@ -1276,6 +1276,51 @@ def test_compilation_allocation_preserves_scroll_and_tab_context():
     assert len(current_outline_scroll.controls[0].controls) == 1
 
 
+def test_compilation_refresh_preserves_scroll_controllers_after_edits(monkeypatch):
+    """Editar dados não deve devolver Obras nem Caderno ao topo."""
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    scroll_calls = []
+
+    async def fake_scroll_to(control, offset=None, duration=0, **_kwargs):
+        scroll_calls.append((control, offset, duration))
+
+    monkeypatch.setattr(ft.Column, 'scroll_to', fake_scroll_to)
+    recorder.page.run_task = lambda handler: asyncio.run(handler())
+
+    # Caderno: a mesma coluna preserva o ScrollController do Flutter.
+    hub._on_writing_scroll(SimpleNamespace(pixels=420))
+    hub._on_outline_scroll(SimpleNamespace(pixels=73))
+    old_writing_scroll = hub.writing_scroll
+    old_writing_column = hub.writing_column
+    old_outline = hub.outline_host.content.content
+    hub._update_section(30, 'Argumento revisto', 'Tese revisada.')
+
+    assert hub.writing_scroll is old_writing_scroll
+    assert hub.writing_column is old_writing_column
+    assert hub.outline_host.content.content is old_outline
+    assert hub.writing_scroll_offset == 420
+    assert hub.outline_scroll_offset == 73
+    assert scroll_calls == []
+
+    # Obras: a coluna é reaproveitada e explicitamente retorna à posição.
+    scroll_calls.clear()
+    hub._select_tab('obras')
+    hub._on_works_scroll(SimpleNamespace(pixels=260))
+    hub._on_outline_scroll(SimpleNamespace(pixels=91))
+    old_works_scroll = hub.works_scroll
+    hub._allocate_fragment(21, 30)
+
+    assert hub.works_scroll is old_works_scroll
+    assert hub.works_scroll_offset == 260
+    assert hub.outline_scroll_offset == 91
+    assert scroll_calls == []
+
+
 def test_compilation_page_overview_details_and_delete():
     from src.views.compilation_hub.common import run_menu_item
 
@@ -1320,7 +1365,64 @@ def test_compilation_page_overview_details_and_delete():
     assert composer.rows
 
 
-def test_refresh_compilation_hub_redraws_the_open_page():
+def test_compilation_frozen_subtree_stays_in_place_without_error(monkeypatch):
+    """Controles congelados continuam na mesma posição ao serem editados."""
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+    scroll_calls = []
+
+    async def fake_scroll_to(control, offset=None, duration=0, **_kwargs):
+        scroll_calls.append((control, offset, duration))
+
+    monkeypatch.setattr(ft.Column, 'scroll_to', fake_scroll_to)
+    recorder.page.run_task = lambda handler: asyncio.run(handler())
+
+    hub._on_writing_scroll(SimpleNamespace(pixels=420))
+    hub._on_outline_scroll(SimpleNamespace(pixels=73))
+    old_writing_scroll = hub.writing_scroll
+    old_writing_column = hub.writing_column
+    old_outline_scroll = hub.outline_host.content.content
+    for control in (
+        hub.writing_scroll,
+        hub.writing_column,
+        old_outline_scroll,
+        hub.header_host,
+        hub.tab_bar_host,
+    ):
+        object.__setattr__(control, '_frozen', True)
+
+    hub._update_section(30, 'Argumento revisto', 'Tese revisada.')
+
+    assert hub.writing_scroll is old_writing_scroll
+    assert hub.writing_column is old_writing_column
+    assert hub.outline_host.content.content is old_outline_scroll
+    assert scroll_calls == []
+
+    hub._select_tab('obras')
+    hub._on_works_scroll(SimpleNamespace(pixels=260))
+    hub._on_outline_scroll(SimpleNamespace(pixels=91))
+    old_works_scroll = hub.works_scroll
+    old_works_outline_scroll = hub.works_outline_host.content.content
+    for control in (
+        hub.works_scroll,
+        old_works_outline_scroll,
+        hub.header_host,
+        hub.tab_bar_host,
+    ):
+        object.__setattr__(control, '_frozen', True)
+
+    hub._allocate_fragment(21, 30)
+
+    assert hub.works_scroll is old_works_scroll
+    assert hub.works_outline_host.content.content is old_works_outline_scroll
+    assert scroll_calls == []
+
+
+def test_refresh_compilation_hub_updates_open_page_in_place():
     compilation = _sample_compilation()
     recorder = _Recorder(compilation)
     composer = recorder.composer()
@@ -1330,10 +1432,55 @@ def test_refresh_compilation_hub_redraws_the_open_page():
     previous_body = page_control.content
     compilation['name'] = 'Tese renomeada'
     composer.refresh_compilation_hub(1)
-    assert page_control.content is not previous_body
+    assert page_control.content is previous_body
     assert _texts(page_control)[0] == 'Tese renomeada'
     assert composer.compilations[0]['name'] == 'Tese renomeada'
     assert hub is composer.active_hub
+
+
+def test_hub_registers_scroll_restorer_and_reapplies_offsets(monkeypatch):
+    """Diálogos remontam os ScrollController; o hub reaplica as posições."""
+    from src.utils import scroll_restore
+
+    compilation = _sample_compilation()
+    recorder = _Recorder(compilation)
+    composer = recorder.composer()
+    composer.compose()
+    composer.open_compilation_page(1)
+    hub = composer.active_hub
+
+    monkeypatch.setattr(
+        'src.views.compilation_hub.hub_composer.SCROLL_RESTORE_DELAYS',
+        (0.0, 0.0, 0.0),
+    )
+    scroll_calls: list[tuple[object, float]] = []
+
+    async def fake_scroll_to(control, offset=None, duration=0, **_kwargs):
+        scroll_calls.append((control, offset))
+
+    monkeypatch.setattr(ft.Column, 'scroll_to', fake_scroll_to)
+    recorder.page.run_task = lambda handler: asyncio.run(handler())
+
+    try:
+        assert scroll_restore.has_scroll_restorer(recorder.page)
+        hub._on_writing_scroll(SimpleNamespace(pixels=420))
+        hub._on_outline_scroll(SimpleNamespace(pixels=73))
+        assert scroll_restore.schedule_scroll_restore(recorder.page) is True
+        assert [offset for _control, offset in scroll_calls] == [
+            420, 73, 420, 73, 420, 73,
+        ]
+        assert scroll_calls[0][0] is hub.writing_scroll
+        assert scroll_calls[1][0] is hub.outline_host.content.content
+
+        hub._select_tab('visao')
+        hub._on_overview_scroll(SimpleNamespace(pixels=150))
+        scroll_calls.clear()
+        hub.preserve_scroll()
+        assert [offset for _control, offset in scroll_calls] == [
+            150, 150, 150,
+        ]
+    finally:
+        scroll_restore.unregister_scroll_restorer(recorder.page)
 
 
 def test_fragment_note_preserves_on_removing_from_caderno(

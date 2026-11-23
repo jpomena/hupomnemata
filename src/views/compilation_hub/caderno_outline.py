@@ -3,6 +3,7 @@
 Movimentação literal: sem ``__init__``, colabora com o hub via ``self``.
 """
 
+import logging
 from collections.abc import Callable
 
 import flet as ft
@@ -12,6 +13,13 @@ from src.utils.fa import fa_icon
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from .caderno_common import FRAGMENT_DRAG_GROUP, QUEUE_KEY
+from src.utils.control_safety import (
+    safe_execute,
+    safe_update,
+    set_control_prop,
+)
+
+logger = logging.getLogger('hupomnemata.ui')
 
 
 class CadernoOutlineMixin:
@@ -123,14 +131,15 @@ class CadernoOutlineMixin:
             if hasattr(self, '_render'):
                 self._render()
             return
-        target.content = self._compose_outline(
-            on_focus=self._outline_focus(target),
-            host=target,
+        set_control_prop(
+            target,
+            'content',
+            self._compose_outline(
+                on_focus=self._outline_focus(target),
+                host=target,
+            ),
         )
-        try:
-            target.update()
-        except Exception:
-            pass
+        safe_update(target)
 
     def _toggle_outline_chapter(self, sid: int, host: ft.Container | None = None) -> None:
         """Alterna recolhimento de um capítulo na árvore do roteiro."""
@@ -164,14 +173,15 @@ class CadernoOutlineMixin:
         self.active_section_id = key
         host = getattr(self, 'works_outline_host', None)
         if host is not None:
-            host.content = self._compose_outline(
-                on_focus=self._focus_idea_in_works,
-                host=host,
+            set_control_prop(
+                host,
+                'content',
+                self._compose_outline(
+                    on_focus=self._focus_idea_in_works,
+                    host=host,
+                ),
             )
-            try:
-                host.update()
-            except Exception:
-                pass
+            safe_update(host)
 
     def _outline_item(
         self,
@@ -361,9 +371,13 @@ class CadernoOutlineMixin:
             self.selected_tab = 'caderno'
             self._render()
         elif getattr(self, 'outline_host', None) is not None:
-            self.outline_host.content = self._compose_outline(
-                on_focus=self._focus_idea,
-                host=self.outline_host,
+            set_control_prop(
+                self.outline_host,
+                'content',
+                self._compose_outline(
+                    on_focus=self._focus_idea,
+                    host=self.outline_host,
+                ),
             )
             self.page.update()
         self._scroll_writing(f'idea-{key}')
@@ -377,10 +391,7 @@ class CadernoOutlineMixin:
         async def scroll() -> None:
             try:
                 await column.scroll_to(scroll_key=key, duration=250)
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - rolagem é conveniência
+                logger.debug('Falha ao rolar até a seção %s: %s', key, error)
 
-        try:
-            run_task(scroll)
-        except Exception:
-            pass
+        safe_execute('rolar até a seção do caderno', run_task, scroll)

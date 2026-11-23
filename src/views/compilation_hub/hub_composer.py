@@ -5,6 +5,7 @@ fragmentos e Caderno de trabalho. Depois de cada mudança a página se redesenha
 no lugar com ``refresh()``.
 """
 
+import asyncio
 from collections.abc import Awaitable, Callable
 
 import flet as ft
@@ -22,8 +23,15 @@ from .common import EventControl, more_menu, plural
 from .notes_mixin import CompilationHubNotesMixin
 from .overview_mixin import CompilationHubOverviewMixin
 from .works_mixin import CompilationHubWorksMixin
+from src.utils.control_safety import safe_execute, safe_update, set_control_prop
+from src.utils.scroll_restore import register_scroll_restorer
 
 TABS = ('visao', 'obras', 'caderno')
+
+# A rota de diálogo é dispensada no cliente em duas etapas (animação e
+# remoção). Reaplicar a rolagem logo após a dispensa e em mais dois instantes
+# curtos cobre a remontagem do ScrollController sem depender do frame exato.
+SCROLL_RESTORE_DELAYS = (0.0, 0.10, 0.28)
 
 
 class CompilationHubComposer(
@@ -106,7 +114,12 @@ class CompilationHubComposer(
         self.show_rail = False
         self.root: ft.Container | None = None
         self.outline_host: ft.Container | None = None
+        self.outline_scroll_offset: float = 0.0
         self.writing_column: ft.Column | None = None
+        self.writing_scroll: ft.Column | None = None
+        self.writing_scroll_offset: float = 0.0
+        self.overview_scroll: ft.Column | None = None
+        self.overview_scroll_offset: float = 0.0
         self.work_search: ft.TextField | None = None
         self.work_matches = ft.Column(spacing=s(1), tight=True, visible=False)
         self.work_matches_box: ft.Container | None = None
@@ -144,20 +157,34 @@ class CompilationHubComposer(
             host.padding = 0
             host.opacity = 0.0
             host.border = None
-        try:
-            row.update()
-        except Exception:
-            pass
+        safe_update(row)
 
     # ── ciclo de vida ──────────────────────────────────────
 
     def compose(self) -> ft.Container:
+        register_scroll_restorer(self.page, self.preserve_scroll)
         self.root = ft.Container(
             content=self._compose_body(),
             expand=True,
             bgcolor=self.config.colors['bg'],
         )
         return self.root
+
+    def preserve_scroll(self) -> None:
+        """Reaplica a rolagem depois que um diálogo é aberto ou dispensado.
+
+        O cliente Flet remonta os ``ScrollController`` da tela ao trocar a rota
+        de um diálogo. O compositor registra esta rotina em
+        ``src.utils.scroll_restore``; as posições vêm do último evento de
+        rolagem de cada coluna.
+        """
+        positions = self._capture_scroll_positions()
+        if not any(value > 0 for value in positions.values()):
+            return
+        self._restore_scroll_positions(
+            positions,
+            delays=SCROLL_RESTORE_DELAYS,
+        )
 
     def _reload(self) -> bool:
         for item in self.refresh_compilations():
@@ -167,7 +194,13 @@ class CompilationHubComposer(
         return False
 
     def refresh(self) -> None:
-        """Relê a compilação e preserva o contexto visual sempre que possível."""
+        """Relê a compilação sem devolver a aba atual ao topo.
+
+        As posições são registradas pelos próprios handlers de rolagem. A
+        restauração ocorre depois de ``page.update()``, para alcançar os
+        controles recém-criados já montados pelo Flet.
+        """
+        scroll_positions = self._capture_scroll_positions()
         if not self._reload():
             self.deleted = True
             if self.on_navigate is not None:
@@ -182,12 +215,101 @@ class CompilationHubComposer(
             self.work_search.value = ''
         if self.on_data_changed is not None:
             self.on_data_changed(self.compilation)
-        if not self._refresh_works_in_place():
-            self._render()
+        if self.selected_tab == 'obras':
+            refreshed = self._refresh_works_in_place()
+        elif self.selected_tab == 'caderno':
+            refreshed = self._refresh_caderno_in_place()
+        else:
+            refreshed = False
+
+        if refreshed:
+            # Manter a identidade do Column preserva o ScrollController:
+            # não enviar scroll_to concorrente ao patch de conteúdo.
+            return
+        self._render()
+        self._restore_scroll_positions(scroll_positions)
+
+    def _capture_scroll_positions(self) -> dict[str, float]:
+        """Lê as últimas posições efetivamente percorridas pelo usuário."""
+        if self.selected_tab == 'caderno':
+            main = self.writing_scroll_offset
+        elif self.selected_tab == 'obras':
+            main = self.works_scroll_offset
+        else:
+            main = self.overview_scroll_offset
+        return {
+            'main': main,
+            'outline': self.outline_scroll_offset,
+        }
+
+    @staticmethod
+    def _outline_scroll_of(host: ft.Container | None) -> ft.Column | None:
+        """Acessa ``host.content.content`` sem supor a árvore montada."""
+        host_view = getattr(host, 'content', None)
+        scroll = getattr(host_view, 'content', None)
+        return scroll if isinstance(scroll, ft.Column) else None
+
+    def _restore_scroll_positions(
+        self,
+        positions: dict[str, float],
+        delays: tuple[float, ...] = (0.08,),
+    ) -> None:
+        """Restaura a rolagem da aba ativa sem animação visível."""
+        if self.selected_tab == 'caderno':
+            main = self.writing_scroll
+            outline = self._outline_scroll_of(self.outline_host)
+        elif self.selected_tab == 'obras':
+            main = self.works_scroll
+            outline = self._outline_scroll_of(self.works_outline_host)
+        elif self.selected_tab == 'visao':
+            main = self.overview_scroll
+            outline = None
+        else:
+            return
+
+        targets = [
+            (control, positions.get(name, 0.0))
+            for name, control in (('main', main), ('outline', outline))
+        ]
+        pending = [
+            (control, offset)
+            for control, offset in targets
+            if control is not None and offset > 0
+        ]
+        if not pending:
+            return
+        run_task = getattr(self.page, 'run_task', None)
+        if not callable(run_task):
+            return
+
+        async def restore() -> None:
+            # page.update() não espera o layout do Flutter. Cada tentativa
+            # extra cobre a remontagem do ScrollController disparada pela
+            # troca de rota do diálogo.
+            previous = 0.0
+            for delay in delays:
+                await asyncio.sleep(max(delay - previous, 0))
+                previous = delay
+                for control, offset in pending:
+                    try:
+                        await control.scroll_to(offset=offset, duration=0)
+                    except Exception:
+                        # A rolagem é conveniência visual; não invalida os dados.
+                        continue
+
+        safe_execute(
+            'restaurar rolagem da compilação',
+            run_task,
+            restore,
+        )
 
     def _render(self) -> None:
         if self.root is not None:
-            self.root.content = self._compose_body()
+            set_control_prop(
+                self.root,
+                'content',
+                self._compose_body(),
+            )
         self.page.update()
 
     def _select_tab(self, key: str) -> None:
@@ -200,15 +322,20 @@ class CompilationHubComposer(
         if tab_bar_host is None or switcher is None or header_host is None:
             self._render()
             return
-        header_host.content = self._compose_header()
-        tab_bar_host.content = self._compose_tabs()
+        set_control_prop(
+            header_host,
+            'content',
+            self._compose_header(),
+        )
+        set_control_prop(
+            tab_bar_host,
+            'content',
+            self._compose_tabs(),
+        )
         self.tab_content = self._compose_tab_content()
-        switcher.content = self.tab_content
+        set_control_prop(switcher, 'content', self.tab_content)
         for control in (header_host, tab_bar_host, switcher):
-            try:
-                control.update()
-            except Exception:
-                pass
+            safe_update(control)
 
     # ── composição ─────────────────────────────────────────
 
@@ -296,7 +423,13 @@ class CompilationHubComposer(
             return self._compose_caderno()
         if self.selected_tab == 'obras':
             return self._compose_works_and_fragments()
-        return ft.Column([self._compose_overview()], scroll=ft.ScrollMode.AUTO, expand=True)
+        self.overview_scroll = ft.Column(
+            [self._compose_overview()],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            on_scroll=self._on_overview_scroll,
+        )
+        return self.overview_scroll
 
     def _compose_body(self) -> ft.Column:
         self.tab_content = self._compose_tab_content()

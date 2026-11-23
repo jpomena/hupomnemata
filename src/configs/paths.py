@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import platform
+from collections.abc import Mapping
 import shutil
 import sqlite3
 import sys
@@ -32,7 +33,7 @@ LEGACY_CONFIG_DIR = PROJECT_ROOT / 'src' / 'configs'
 
 
 def resolve_data_dir(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     system: str | None = None,
     home: Path | None = None,
 ) -> Path:
@@ -60,7 +61,7 @@ def resolve_data_dir(
     return home / '.local' / 'share' / 'hupomnemata'
 
 
-def resolve_database_path(env: dict[str, str] | None = None) -> Path:
+def resolve_database_path(env: Mapping[str, str] | None = None) -> Path:
     env = env if env is not None else os.environ
     explicit = env.get('HUPOMNEMATA_DATABASE_PATH')
     if explicit:
@@ -110,14 +111,30 @@ def _vacuum_into(source: Path, target: Path) -> None:
         connection.close()
 
 
+def _has_alembic_version(path: Path) -> bool:
+    """Indica se o banco já é gerenciado pelo Alembic."""
+    connection = sqlite3.connect(str(path))
+    try:
+        row = connection.execute(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='alembic_version'"
+        ).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        connection.close()
+
+
 def migrate_legacy_database(
     target: Path | None = None,
     candidates: list[Path] | None = None,
 ) -> dict[str, str | bool]:
-    """Adota o primeiro banco legado existente, sem sobrescrever o destino.
+    """Adota o primeiro banco legado **já gerenciado pelo Alembic**.
 
-    O arquivo legado **nunca** é apagado: serve de backup até validação do
-    usuário. A operação é idempotente: se o destino já existe, nada acontece.
+    Bancos anteriores ao Alembic são ignorados: adotá-los exigiria reconstruir
+    um esquema que não é mais a fonte de verdade. O arquivo legado nunca é
+    apagado; a operação é idempotente e não sobrescreve o destino.
     """
     target = Path(target or resolve_database_path())
     if target.exists():
@@ -129,6 +146,8 @@ def migrate_legacy_database(
 
     for candidate in (candidates or legacy_database_candidates()):
         if not candidate.exists():
+            continue
+        if not _has_alembic_version(candidate):
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -143,7 +162,11 @@ def migrate_legacy_database(
             'target': str(target),
         }
 
-    return {'migrated': False, 'target': str(target), 'reason': 'sem legado'}
+    return {
+        'migrated': False,
+        'target': str(target),
+        'reason': 'sem legado gerenciado pelo Alembic',
+    }
 
 
 def _adopt_legacy_file(source: Path, target: Path) -> str | None:

@@ -4,7 +4,11 @@ Movimentação literal: sem ``__init__``, colabora com ``PdfReaderView``
 via ``self``.
 """
 
+import logging
+
 import flet as ft
+
+logger = logging.getLogger('hupomnemata.ui')
 
 
 class PdfPanSelectionMixin:
@@ -19,8 +23,8 @@ class PdfPanSelectionMixin:
             try:
                 import ctypes
                 return bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - API Win32 opcional
+                logger.debug('GetAsyncKeyState indisponível: %s', error)
         return False
 
     def _on_mouse_scroll(self, e: ft.ScrollEvent) -> None:
@@ -178,14 +182,15 @@ class PdfPanSelectionMixin:
                         await self.scroll_column.scroll_to(delta=-step_y, duration=0)
                     if step_x != 0.0 and hasattr(self, 'scroll_row') and self.scroll_row:
                         await self.scroll_row.scroll_to(delta=-step_x, duration=0)
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - pan é interativo
+                logger.debug('Pan interrompido: %s', error)
             finally:
                 self._pan_task_running = False
 
         try:
             run_task(_do_pan)
-        except Exception:
+        except Exception as error:  # noqa: BLE001 - agendamento de UI
+            logger.debug('Falha ao iniciar a tarefa de pan: %s', error)
             self._pan_task_running = False
 
     def _on_pan_end(self, _e: ft.DragEndEvent | None = None) -> None:

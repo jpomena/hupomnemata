@@ -28,6 +28,7 @@ from src.utils.types import ViewConfig
 from src.utils.ui_thread import run_on_ui
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from src.utils.control_safety import safe_update
 
 WORK_TYPE_OPTIONS: list[tuple[str, str]] = [
     ("editorial_monograph", "Livro / Monografia editorial"),
@@ -776,20 +777,14 @@ class ReverseImportModalDialog:
                     self.progress_label.update()
                     self.progress_bar.update()
                 except Exception:
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
+                    safe_update(self.page)
 
         except Exception as exc:
             log_exception("ReverseImportModalDialog._async_run_extraction", exc)
         finally:
             self.is_processing = False
             self._render_current_phase()
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _run_extraction_background(self) -> None:
         """Executa os workloads do Nous e atualiza a interface a cada item (fallback para thread pura)."""
@@ -816,10 +811,7 @@ class ReverseImportModalDialog:
                 def _apply_progress() -> None:
                     self.progress_label.value = f"Processando referência {idx} de {total} via Nous..."
                     self.progress_bar.value = idx / total
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
+                    safe_update(self.page)
 
                 run_on_ui(self.page, _apply_progress)
 
@@ -829,10 +821,7 @@ class ReverseImportModalDialog:
             def _apply_finished() -> None:
                 self.is_processing = False
                 self._render_current_phase()
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                safe_update(self.page)
 
             run_on_ui(self.page, _apply_finished)
 

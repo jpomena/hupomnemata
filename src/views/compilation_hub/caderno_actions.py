@@ -123,13 +123,14 @@ Delegam aos callbacks do hub e atualizam o estado via ``self``.
     ) -> None:
         """Desfaz a remoção: recria a ideia na mesma posição, com os mesmos fragmentos."""
         compilation_id = self.compilation['id']
-        if section.get('parent_id') is not None:
+        parent_id = section.get('parent_id')
+        if parent_id is not None:
             try:
                 new_id = self.on_create_section(
                     compilation_id,
                     section['title'],
                     section['central_idea'],
-                    parent_id=section['parent_id'],
+                    parent_id=parent_id,
                 )
             except TypeError:
                 new_id = self.on_create_section(

@@ -15,6 +15,7 @@ from src.utils.clipboard import (
 from src.utils.error_log import log_exception
 from src.views import ui_kit as ui
 from .pdf_common import BASE_PAGE_HEIGHT
+from src.utils.control_safety import safe_update
 
 s = ui.s
 
@@ -226,10 +227,7 @@ class PdfRenderMixin:
                 self.left_nav_zone.visible = False
                 self.right_nav_zone.visible = False
             self.empty_state_container.visible = True
-            try:
-                self.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(self, exceptions=(RuntimeError, AttributeError))
             return
 
         self.page_image.visible = True
@@ -283,10 +281,7 @@ class PdfRenderMixin:
 
             self.zoom_label.value = f'{int(self.zoom_level * 100)}%'
 
-            try:
-                self.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(self, exceptions=(RuntimeError, AttributeError))
         except Exception as error:
             log_exception(f'Falha ao renderizar página {self.current_page}', error)
 
@@ -311,8 +306,11 @@ class PdfRenderMixin:
             try:
                 self.page.set_clipboard(text)
                 copied = True
-            except Exception:
-                pass
+            except Exception as error:
+                log_exception(
+                    'Falha ao copiar texto do PDF para a área de transferência',
+                    error,
+                )
 
         if self.page:
             label = 'Texto selecionado copiado!' if (self.selected_text and text == self.selected_text) else f'Texto da página {self.current_page} copiado!'

@@ -25,6 +25,8 @@ from src.views.general_popups import MultipleAuthorsPopup
 from src.views.work_details_popup import WorkDetailsPopup
 from src.views.sidebar import SidebarData
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_update
+from src.utils.scroll_restore import unregister_scroll_restorer
 
 if TYPE_CHECKING:
     from src.views.command_palette import CommandPaletteController
@@ -130,8 +132,12 @@ class CoreComposer:
         on_reverse_import: Callable[[], None] | None = None,
         on_update_magazine: Callable[[int, str, str], None] | None = None,
         on_delete_magazine: Callable[[int], None] | None = None,
+        on_request_close: Callable[[], None] | None = None,
+        on_delete_databases: Callable[[bool], None] | None = None,
     ):
         self.page = page
+        self.on_request_close = on_request_close
+        self.on_delete_databases = on_delete_databases
         self.scale = scale
         self.config = config
         self.on_navigate = on_navigate
@@ -212,6 +218,7 @@ class CoreComposer:
         self.get_dashboard_data = get_dashboard_data
         self.compilation_work_references = compilation_work_references
         self.on_import_work = on_import_work
+        self.cloud_sync_service = None
         self.on_reverse_import = on_reverse_import
         self.on_update_magazine = on_update_magazine
         self.on_delete_magazine = on_delete_magazine
@@ -348,10 +355,7 @@ class CoreComposer:
             sidebar = self._compose_sidebar()
             if self.sidebar_host.content is not sidebar:
                 self.sidebar_host.content = sidebar
-                try:
-                    self.sidebar_host.update()
-                except Exception:
-                    pass
+                safe_update(self.sidebar_host)
         self._chrome().refresh_crumbs()
 
     def update_window_state(self, is_maximized: bool) -> None:
@@ -399,6 +403,9 @@ class CoreComposer:
         **options,
     ) -> None:
         self.view_options = options
+        # A tela anterior deixa de ser a dona da rolagem; a nova view registra
+        # o próprio restaurador ao ser composta (ex.: CompilationHubComposer).
+        unregister_scroll_restorer(getattr(self, 'page', None))
         factory = self._view_factory()
         views = {
             "dashboard": factory.dashboard,
@@ -430,16 +437,10 @@ class CoreComposer:
         switcher = getattr(self, "page_switcher", None)
         if switcher is not None:
             switcher.content = view
-            try:
-                switcher.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(switcher, exceptions=(RuntimeError, AttributeError))
         else:
             self.content.content = view
-            try:
-                self.content.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(self.content, exceptions=(RuntimeError, AttributeError))
         self.refresh_chrome()
 
     # ── paleta ⌘K ──────────────────────────────────────────

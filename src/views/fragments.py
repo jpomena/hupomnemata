@@ -20,6 +20,7 @@ from src.utils.types import ReferencePart, ViewConfig, ViewReference
 from src.views import ui_kit as ui
 from src.views.fragment_modal import FragmentModal, LocationValueField
 from src.views.ui_kit import W600, W700, s
+from src.utils.control_safety import safe_update
 
 EventControl = TypeVar('EventControl', bound=ft.Control)
 
@@ -352,10 +353,7 @@ class FragmentsComposer:
         if group is not None:
             group.data = {"work_id": work_id, "collapsed": collapsed}
         for control in (state["body"], state["chevron"], state["head"]):
-            try:
-                control.update()
-            except Exception:
-                pass
+            safe_update(control)
 
     def _collapse_button(self, groups: list[tuple[int, list[FragmentRecord]]]) -> ft.Container:
         c = self.config
@@ -373,10 +371,7 @@ class FragmentsComposer:
     def _sync_collapse_button(self) -> None:
         groups = self.group_by_work(self.visible_fragments())
         self.collapse_host.content = self._collapse_button(groups)
-        try:
-            self.collapse_host.update()
-        except Exception:
-            pass
+        safe_update(self.collapse_host)
 
     def toggle_all(self) -> None:
         work_ids = [work_id for work_id, _ in self.group_by_work(self.visible_fragments())]
@@ -510,10 +505,7 @@ class FragmentsComposer:
             hovering = e.data in (True, 'true')
             head.bgcolor = colors['card_hover'] if hovering else None
             title_text.color = colors['gold'] if hovering else colors['text']
-            try:
-                head.update()
-            except Exception:
-                pass
+            safe_update(head)
 
         head.on_hover = _head_hover
         rows = [
@@ -626,10 +618,7 @@ class FragmentsComposer:
                 row.border = None if last else ft.Border.only(bottom=ft.BorderSide(1, colors['border']))
             tools.opacity = 1 if hovering else 0
             body.color = colors['gold'] if hovering else (colors['text'] if is_quote else colors['muted'])
-            try:
-                row.update()
-            except Exception:
-                pass
+            safe_update(row)
 
         row.on_hover = _hover
         return row

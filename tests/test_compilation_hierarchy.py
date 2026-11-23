@@ -60,8 +60,8 @@ def test_create_hierarchical_sections(compilation_database):
 
     comp = service.list_compilations()[0]
     sec_map = {s['id']: s for s in comp['sections']}
-    assert sec_map[chap_id]['parent_id'] is None
-    assert sec_map[arg_id]['parent_id'] == chap_id
+    assert sec_map[chap_id].get('parent_id') is None
+    assert sec_map[arg_id].get('parent_id') == chap_id
 
     # 3. Validation: creating sub-argument (>2 levels) must fail
     with pytest.raises(ValueError, match='além de capítulos'):
@@ -90,13 +90,13 @@ def test_transfer_section(compilation_database):
     service.transfer_section(comp_id, arg, chap2)
     comp = service.list_compilations()[0]
     sec_map = {s['id']: s for s in comp['sections']}
-    assert sec_map[arg]['parent_id'] == chap2
+    assert sec_map[arg].get('parent_id') == chap2
 
     # Promote argument to root chapter
     service.transfer_section(comp_id, arg, None)
     comp = service.list_compilations()[0]
     sec_map = {s['id']: s for s in comp['sections']}
-    assert sec_map[arg]['parent_id'] is None
+    assert sec_map[arg].get('parent_id') is None
 
     # Demoting a chapter with children to be a child of another chapter must fail
     child_of_chap1 = service.create_section(comp_id, 'Filho de C1', parent_id=chap1)

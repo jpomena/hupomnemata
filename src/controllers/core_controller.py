@@ -1,5 +1,10 @@
 """Controlador principal da aplicação."""
 
+import asyncio
+import logging
+import os
+import threading
+
 import flet as ft
 
 from src.configs.settings import (
@@ -16,13 +21,17 @@ from src.configs.settings import (
     UI,
 )
 from src.db.db import init_db
+from src.db.maintenance import delete_local_databases
+from src.services.desktop_boundary import close_desktop_view
 from src.services import (
+    CloudSyncService,
     CompilationService,
     FragmentService,
     WorkService,
     KnowledgeService,
     NousAIService,
     SettingsService,
+    SyncStatus,
     resolve_effective_scale,
     resolve_effective_theme,
 )
@@ -45,6 +54,12 @@ from src.controllers.handlers import (
     KnowledgeControllerMixin,
     NousControllerMixin,
 )
+from src.utils.control_safety import safe_execute, safe_update
+from src.utils.ui_thread import run_on_ui
+from src.views import ui_kit as ui
+
+logger = logging.getLogger('hupomnemata.lifecycle')
+AUTO_SYNC_INTERVAL_SECONDS = 300
 
 
 class CoreController(
@@ -77,6 +92,20 @@ class CoreController(
             if settings_service is not None
             else SettingsService()
         )
+        self.cloud_sync_service = CloudSyncService()
+        self._auto_sync_started = False
+        self._shutting_down = False
+        self._cloud_pull_suspended = (
+            self.cloud_sync_service.sync_dir / 'auto_pull_suspended'
+        ).exists()
+        self._close_dialog_open = False
+        self._close_dialog: ft.AlertDialog | None = None
+        self._closing_sync = False
+        self._close_watchdog_timer: threading.Timer | None = None
+        self._auto_conflict_dialog_open = False
+        self._auto_conflict_dialog: ft.AlertDialog | None = None
+        self._last_auto_conflict_signature = None
+        self._deleting_databases = False
         self.settings = self.settings_service.load_settings()
         self.nous_service = NousAIService(
             settings_service=self.settings_service,
@@ -121,6 +150,7 @@ class CoreController(
         self.initialize_database()
         self.configure_page()
         self.build_application()
+        self.start_auto_sync()
 
     def initialize_database(self) -> None:
         init_db()
@@ -362,7 +392,7 @@ class CoreController(
             self.go_history(1)
 
     def create_composer(self) -> CoreComposer:
-        return CoreComposer(
+        composer = CoreComposer(
             page=self.page,
             scale=self.scale,
             config=self.view_config,
@@ -444,7 +474,630 @@ class CoreController(
             on_reverse_import=self.open_reverse_import,
             on_update_magazine=self.update_magazine,
             on_delete_magazine=self.delete_magazine_cascade,
+            on_request_close=self.request_close,
+            on_delete_databases=self.delete_databases,
         )
+        composer.cloud_sync_service = self.cloud_sync_service
+        return composer
+
+    # ── ciclo de vida: autosave e encerramento ─────────────
+
+    def start_auto_sync(self) -> None:
+        """Agenda o salvamento automático na nuvem a cada 5 minutos."""
+        if self._auto_sync_started:
+            return
+        run_task = getattr(self.page, "run_task", None)
+        if not callable(run_task):
+            return
+        self._auto_sync_started = True
+        logger.info(
+            'Autosave da nuvem ativo a cada %s segundos.',
+            AUTO_SYNC_INTERVAL_SECONDS,
+        )
+        run_task(self._auto_sync_loop)
+
+    async def _auto_sync_loop(self) -> None:
+        while not self._shutting_down:
+            await asyncio.sleep(AUTO_SYNC_INTERVAL_SECONDS)
+            if self._shutting_down:
+                break
+            await self.perform_auto_sync()
+
+    async def perform_auto_sync(self):
+        """Executa uma rodada de autosave e devolve o ``SyncResult``."""
+        if (
+            self._shutting_down
+            or self._closing_sync
+            or self._close_dialog_open
+            or self._auto_conflict_dialog_open
+            or self._deleting_databases
+            or self._cloud_pull_suspended
+            or self._has_open_modal()
+        ):
+            return None
+        try:
+            result = await asyncio.to_thread(
+                self.cloud_sync_service.sync,
+                sync_pdfs=False,
+            )
+        except Exception as error:
+            log_exception('Sincronização automática da nuvem', error)
+            return None
+
+        if result.status == SyncStatus.CONFLICT:
+            logger.warning(
+                'Autosave encontrou conflito com outra estação; '
+                'aguardando decisão manual.'
+            )
+            self._show_auto_conflict(result)
+        elif result.status == SyncStatus.ERROR:
+            logger.warning('Autosave falhou: %s', result.message)
+        elif result.status == SyncStatus.UNAUTHENTICATED:
+            logger.debug('Autosave ignorado: nuvem não autenticada.')
+        elif result.status == SyncStatus.NO_CHANGES:
+            logger.debug('Autosave sem alterações.')
+        elif result.status == SyncStatus.SUCCESS:
+            logger.info(
+                'Autosave concluído (%s): %s',
+                result.direction or 'sync',
+                result.message,
+            )
+            if result.direction == 'pull':
+                # A nuvem substituiu o banco: a árvore de views precisa ser refeita.
+                self.rebuild_ui()
+        return result
+
+    def _has_open_modal(self) -> bool:
+        """Evita autosave/pull enquanto o usuário edita dentro de um modal."""
+        if self.work_insert_modal is not None and getattr(
+            self.work_insert_modal, 'open', False
+        ):
+            return True
+        for control in getattr(self.page, 'overlay', None) or []:
+            if isinstance(control, ft.AlertDialog) and getattr(
+                control, 'open', False
+            ):
+                return True
+        return False
+
+    def _show_auto_conflict(self, result) -> None:
+        """Avisa sobre conflito detectado pelo autosave e oferece a escolha."""
+        if (
+            self._close_dialog_open
+            or self._auto_conflict_dialog_open
+            or self._has_open_modal()
+        ):
+            return
+        details = getattr(result, 'details', None) or {}
+        if not isinstance(details, dict):
+            details = {}
+        remote = details.get('remote_manifest', {})
+        if not isinstance(remote, dict):
+            remote = {}
+        signature = (remote.get('db_sha256'), details.get('local_sha256'))
+        if signature == self._last_auto_conflict_signature:
+            return
+        self._last_auto_conflict_signature = signature
+        self._auto_conflict_dialog_open = True
+
+        c = self.view_config
+        counts = remote.get('counts')
+        if isinstance(counts, dict) and counts:
+            detail = (
+                f"Nuvem: {counts.get('resources', 0)} obras, "
+                f"{counts.get('fragments', 0)} fragmentos, "
+                f"{counts.get('compilations', 0)} compilações. "
+                "Nada foi alterado nesta estação."
+            )
+        else:
+            detail = (
+                "A nuvem possui uma versão diferente desta estação. "
+                "Nada foi alterado nesta estação."
+            )
+        dialog = ui.modal(
+            c,
+            title='Conflito de sincronização',
+            subtitle='Autosave de 5 minutos',
+            controls=[
+                ui.ui_text(
+                    c,
+                    detail,
+                    size=13,
+                    color=c.colors['text'],
+                    max_lines=None,
+                ),
+                ui.ui_text(
+                    c,
+                    'Escolha qual cópia deve prevalecer.',
+                    size=12,
+                    color=c.colors['muted'],
+                    max_lines=None,
+                ),
+            ],
+            actions=[
+                ui.button(
+                    c,
+                    'Depois',
+                    on_click=lambda _e: self._dismiss_auto_conflict(),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Manter Nuvem',
+                    on_click=lambda _e: self._resolve_auto_conflict('pull'),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Manter Local',
+                    on_click=lambda _e: self._resolve_auto_conflict('push'),
+                    variant='primary',
+                ),
+            ],
+            width=520,
+            dismissible=True,
+            on_dismiss=lambda _e: self._dismiss_auto_conflict(),
+        )
+        self._auto_conflict_dialog = dialog
+        show_dialog = getattr(self.page, 'show_dialog', None)
+        if callable(show_dialog):
+            show_dialog(dialog)
+        else:
+            overlay = getattr(self.page, 'overlay', None)
+            if overlay is not None:
+                overlay.append(dialog)
+                dialog.open = True
+        safe_update(self.page)
+
+    def _dismiss_auto_conflict(self) -> None:
+        dialog = self._auto_conflict_dialog
+        self._auto_conflict_dialog = None
+        self._auto_conflict_dialog_open = False
+        if dialog is not None:
+            dialog.open = False
+        safe_execute(
+            'fechar aviso de conflito',
+            getattr(self.page, 'pop_dialog', lambda: None),
+        )
+        safe_update(self.page)
+
+    def _resolve_auto_conflict(self, direction: str) -> None:
+        self._dismiss_auto_conflict()
+        c = self.view_config
+        label = (
+            'Enviando dados locais para a nuvem...'
+            if direction == 'push'
+            else 'Baixando dados da nuvem...'
+        )
+        self.show_message(label, c.colors['gold'])
+
+        def work() -> None:
+            try:
+                result = self.cloud_sync_service.sync(
+                    force_push=direction == 'push',
+                    force_pull=direction == 'pull',
+                    sync_pdfs=False,
+                )
+            except Exception as error:
+                log_exception('Resolução de conflito do autosave', error)
+                result = None
+            run_on_ui(
+                self.page,
+                lambda: self._after_auto_conflict(result, direction),
+            )
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _after_auto_conflict(self, result, direction: str) -> None:
+        c = self.view_config
+        if result is not None and result.status in (
+            SyncStatus.SUCCESS,
+            SyncStatus.NO_CHANGES,
+        ):
+            self._last_auto_conflict_signature = None
+            if direction == 'pull' or getattr(result, 'direction', None) == 'pull':
+                self.rebuild_ui()
+            self.show_message('Sincronização concluída.', c.colors['gold'])
+            return
+        if result is not None and result.status == SyncStatus.ERROR:
+            self.show_message(result.message, c.colors['danger'])
+        elif result is not None and result.status == SyncStatus.CONFLICT:
+            self.show_message(
+                'O conflito persiste; resolva na tela de configurações.',
+                c.colors['danger'],
+            )
+        else:
+            self.show_message(
+                'Falha ao resolver o conflito de sincronização.',
+                c.colors['danger'],
+            )
+
+    def delete_databases(self, delete_cloud: bool) -> None:
+        """Apaga bancos locais e, opcionalmente, a cópia remota do banco.
+
+        Executado em thread pelo painel de configurações. Toda mutação de UI
+        é devolvida ao loop da página via ``run_on_ui``.
+        """
+        if self._deleting_databases:
+            return
+        self._deleting_databases = True
+        try:
+            marker = self.cloud_sync_service.sync_dir / 'auto_pull_suspended'
+            with self.cloud_sync_service.sync_exclusive():
+                if delete_cloud:
+                    self.cloud_sync_service.delete_remote_database()
+                    marker.unlink(missing_ok=True)
+                else:
+                    marker.write_text('1', encoding='utf-8')
+                delete_local_databases()
+                init_db()
+            self._cloud_pull_suspended = not delete_cloud
+            self._last_auto_conflict_signature = None
+            logger.info(
+                'Bancos apagados (nuvem=%s); base limpa recriada.',
+                delete_cloud,
+            )
+            run_on_ui(
+                self.page,
+                lambda: self._after_delete_databases(None),
+            )
+        except Exception as error:
+            log_exception('Falha ao apagar bancos de dados', error)
+            run_on_ui(
+                self.page,
+                lambda err=error: self._after_delete_databases(err),
+            )
+        finally:
+            self._deleting_databases = False
+
+    def _after_delete_databases(self, error: Exception | None) -> None:
+        c = self.view_config
+        if error is not None:
+            self.show_message(
+                f'Não foi possível apagar os bancos: {error}',
+                c.colors['danger'],
+            )
+            return
+        self.rebuild_ui()
+        if self._cloud_pull_suspended:
+            self.show_message(
+                'Bancos locais apagados. A cópia na nuvem foi preservada e o '
+                'autosave está suspenso; sincronize manualmente para restaurá-la.',
+                c.colors['gold'],
+            )
+        else:
+            self.show_message(
+                'Bancos de dados apagados e base limpa recriada.',
+                c.colors['gold'],
+            )
+
+    def request_close(self) -> None:
+        """Sincroniza automaticamente e encerra sem perguntar sobre salvar."""
+        if self._auto_conflict_dialog_open:
+            self._dismiss_auto_conflict()
+        if self._shutting_down or self._closing_sync:
+            return
+        window = getattr(self.page, 'window', None)
+        if window is not None:
+            window.prevent_close = True
+        self._closing_sync = True
+        # Cobre também uma falha na criação/start do worker. O worker rearmará
+        # o timer ao começar e ao receber o resultado da nuvem.
+        self._arm_close_watchdog(45.0)
+        self.show_message(
+            'Sincronizando antes de sair...',
+            self.view_config.colors['gold'],
+        )
+        threading.Thread(
+            target=self._close_sync_worker,
+            daemon=True,
+        ).start()
+
+    def _close_sync_worker(self) -> None:
+        # Rede ou lock de autosave podem demorar. Se a sincronização não
+        # devolver controle, o processo não pode ficar preso para sempre.
+        self._arm_close_watchdog(45.0)
+        try:
+            result = self.cloud_sync_service.sync(sync_pdfs=False)
+        except Exception as error:
+            log_exception('Sincronização antes de sair', error)
+            result = None
+        logger.info(
+            'Sincronização de saída concluída: %s',
+            getattr(result, 'status', None),
+        )
+        terminal = result is not None and result.status in (
+            SyncStatus.SUCCESS,
+            SyncStatus.NO_CHANGES,
+            SyncStatus.UNAUTHENTICATED,
+        )
+        if terminal:
+            # Se a ponte para a thread de UI falhar, o app não pode ficar
+            # preso na tela de despedida.
+            self._arm_close_watchdog(6.0)
+        else:
+            # Conflito ou erro exigem decisão humana; não matar o app.
+            self._cancel_close_watchdog()
+        run_on_ui(
+            self.page,
+            lambda: self._after_close_sync(result),
+        )
+
+    def _after_close_sync(self, result) -> None:
+        if result is not None and result.status in (
+            SyncStatus.SUCCESS,
+            SyncStatus.NO_CHANGES,
+        ):
+            self._shutdown()
+            return
+        if (
+            result is not None
+            and result.status == SyncStatus.UNAUTHENTICATED
+        ):
+            logger.info(
+                'Encerrando sem nuvem autenticada; dados locais preservados.'
+            )
+            self._shutdown()
+            return
+        if result is not None and result.status == SyncStatus.CONFLICT:
+            self._show_close_conflict(result)
+            return
+        self._show_close_error(result)
+
+    def _show_close_conflict(self, result) -> None:
+        self._cancel_close_watchdog()
+        c = self.view_config
+        details = getattr(result, 'details', None) or {}
+        if not isinstance(details, dict):
+            details = {}
+        remote = details.get('remote_manifest', {})
+        if not isinstance(remote, dict):
+            remote = {}
+        counts = remote.get('counts')
+        if isinstance(counts, dict) and counts:
+            detail = (
+                f"Nuvem: {counts.get('resources', 0)} obras, "
+                f"{counts.get('fragments', 0)} fragmentos, "
+                f"{counts.get('compilations', 0)} compilações."
+            )
+        else:
+            detail = 'A nuvem possui uma versão diferente desta estação.'
+        dialog = ui.modal(
+            c,
+            title='Conflito de sincronização',
+            subtitle='Escolha antes de encerrar',
+            controls=[
+                ui.ui_text(
+                    c,
+                    detail,
+                    size=13,
+                    color=c.colors['text'],
+                    max_lines=None,
+                ),
+                ui.ui_text(
+                    c,
+                    'Nada foi alterado. Use Cancelar para permanecer no app.',
+                    size=12,
+                    color=c.colors['muted'],
+                    max_lines=None,
+                ),
+            ],
+            actions=[
+                ui.button(
+                    c,
+                    'Cancelar',
+                    on_click=lambda _e: self._cancel_close(),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Manter Nuvem',
+                    on_click=lambda _e: self._resolve_close_conflict('pull'),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Manter Local',
+                    on_click=lambda _e: self._resolve_close_conflict('push'),
+                    variant='primary',
+                ),
+            ],
+            width=560,
+            dismissible=False,
+        )
+        self._close_dialog = dialog
+        self._close_dialog_open = True
+        safe_execute(
+            'abrir conflito de saída',
+            getattr(self.page, 'show_dialog', lambda _dialog: None),
+            dialog,
+        )
+        safe_update(self.page)
+
+    def _resolve_close_conflict(self, direction: str) -> None:
+        self._dismiss_close_dialog()
+        self._closing_sync = True
+        self._arm_close_watchdog(45.0)
+        self.show_message(
+            'Resolvendo conflito antes de sair...',
+            self.view_config.colors['gold'],
+        )
+
+        def work() -> None:
+            try:
+                result = self.cloud_sync_service.sync(
+                    force_push=direction == 'push',
+                    force_pull=direction == 'pull',
+                    sync_pdfs=False,
+                )
+            except Exception as error:
+                log_exception('Resolução de conflito antes de sair', error)
+                result = None
+            if result is not None and result.status in (
+                SyncStatus.SUCCESS,
+                SyncStatus.NO_CHANGES,
+                SyncStatus.UNAUTHENTICATED,
+            ):
+                self._arm_close_watchdog(6.0)
+            else:
+                self._cancel_close_watchdog()
+            run_on_ui(
+                self.page,
+                lambda: self._after_close_sync(result),
+            )
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_close_error(self, result) -> None:
+        self._cancel_close_watchdog()
+        c = self.view_config
+        detail = (
+            getattr(result, 'message', 'erro desconhecido')
+            if result is not None
+            else 'erro desconhecido'
+        )
+        dialog = ui.modal(
+            c,
+            title='Não foi possível salvar antes de sair',
+            subtitle='A base local permanece intacta',
+            controls=[
+                ui.ui_text(
+                    c,
+                    f'Falha ao sincronizar: {detail}',
+                    size=13,
+                    color=c.colors['text'],
+                    max_lines=None,
+                )
+            ],
+            actions=[
+                ui.button(
+                    c,
+                    'Cancelar',
+                    on_click=lambda _e: self._cancel_close(),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Sair mesmo assim',
+                    on_click=lambda _e: self._exit_without_save(),
+                    variant='default',
+                ),
+                ui.button(
+                    c,
+                    'Tentar novamente',
+                    on_click=lambda _e: self._retry_close_sync(),
+                    variant='primary',
+                ),
+            ],
+            width=540,
+            dismissible=False,
+        )
+        self._close_dialog = dialog
+        self._close_dialog_open = True
+        safe_execute(
+            'abrir erro de saída',
+            getattr(self.page, 'show_dialog', lambda _dialog: None),
+            dialog,
+        )
+        safe_update(self.page)
+
+    def _retry_close_sync(self) -> None:
+        self._dismiss_close_dialog()
+        self._closing_sync = True
+        threading.Thread(
+            target=self._close_sync_worker,
+            daemon=True,
+        ).start()
+
+    def _dismiss_close_dialog(self) -> None:
+        dialog = self._close_dialog
+        self._close_dialog = None
+        self._close_dialog_open = False
+        if dialog is not None:
+            dialog.open = False
+        safe_execute(
+            'fechar diálogo de saída',
+            getattr(self.page, 'pop_dialog', lambda: None),
+        )
+        safe_update(self.page)
+
+    def _cancel_close(self) -> None:
+        self._cancel_close_watchdog()
+        self._dismiss_close_dialog()
+        self._closing_sync = False
+
+    def _exit_without_save(self) -> None:
+        self._dismiss_close_dialog()
+        self._shutdown()
+
+    def _arm_close_watchdog(self, seconds: float) -> None:
+        """Garante o encerramento do processo se o destroy do Flet falhar.
+
+        Só é usado quando a sincronização já terminou e não há conflito
+        pendente. Em duplos de teste, ``run_task`` é ausente e nenhum
+        watchdog é armado.
+        """
+        if not callable(getattr(self.page, 'run_task', None)):
+            return
+        self._cancel_close_watchdog()
+        timer = threading.Timer(seconds, self._force_exit)
+        timer.daemon = True
+        self._close_watchdog_timer = timer
+        timer.start()
+
+    def _cancel_close_watchdog(self) -> None:
+        timer = self._close_watchdog_timer
+        self._close_watchdog_timer = None
+        if timer is not None:
+            timer.cancel()
+
+    def _force_exit(self) -> None:
+        """Último recurso: encerra o processo após a sincronização terminal."""
+        logger.warning(
+            'Destruição da janela não concluiu; encerrando o processo.'
+        )
+        try:
+            # Flet Desktop é outro processo. Matar apenas o backend deixaria
+            # a janela aberta tentando reconectar; fecha-se o PID registrado.
+            close_desktop_view()
+        finally:
+            for handler in logging.getLogger('hupomnemata').handlers:
+                handler.flush()
+            os._exit(0)
+
+    def _shutdown(self) -> None:
+        self._shutting_down = True
+        self._closing_sync = False
+        self._close_dialog_open = False
+        self._cancel_close_watchdog()
+        dialog = self._close_dialog
+        self._close_dialog = None
+        if dialog is not None:
+            dialog.open = False
+        window = getattr(self.page, 'window', None)
+        if window is None:
+            return
+        # A sincronização já foi concluída. Se o cliente Flet não fechar a
+        # janela, o processo é encerrado pelo watchdog.
+        self._arm_close_watchdog(4.0)
+        window.prevent_close = False
+        # Sincroniza o flag com o cliente antes de destruir a janela.
+        safe_update(self.page)
+        destroy = getattr(window, 'destroy', None)
+        close = getattr(window, 'close', None)
+        action = destroy if callable(destroy) else close
+        if not callable(action):
+            self._force_exit()
+            return
+        run_task = getattr(self.page, 'run_task', None)
+        try:
+            if callable(run_task):
+                run_task(action)
+            else:
+                action()
+        except Exception as error:
+            log_exception('Falha ao destruir a janela', error)
+            self._force_exit()
 
     def build_application(self) -> None:
         self.work_insert_modal = (
@@ -507,8 +1160,4 @@ class CoreController(
             # Guarda de UI: se o toast rico falhar, cai para SnackBar nativo.
             self.page.show_dialog(ft.SnackBar(content=ft.Text(value=message)))
             if hasattr(self.page, "update"):
-                try:
-                    self.page.update()
-                except Exception:
-                    # Atualização de página é best-effort durante o desmonte.
-                    pass
+                safe_update(self.page)

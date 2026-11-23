@@ -31,6 +31,7 @@ from src.db.db import SessionLocal, init_db
 from src.domains import BibliographicResource
 from src.services.pdf_service import PdfService
 from src.services.settings_service import SettingsService, resolve_effective_theme
+from src.utils.control_safety import safe_execute
 from src.utils.error_log import log_exception
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
@@ -133,8 +134,8 @@ def run_standalone_reader(resource_id: int) -> None:
                     run_task(center_fn)
                 elif not inspect.iscoroutinefunction(center_fn):
                     center_fn()
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception('Falha ao centralizar a janela do leitor', error)
 
         if hasattr(page, "theme_mode"):
             page.theme_mode = (
@@ -146,10 +147,7 @@ def run_standalone_reader(resource_id: int) -> None:
         def close_window() -> None:
             if reader_ref:
                 reader_ref[0].close()
-            try:
-                page.window.close()
-            except Exception:
-                pass
+            safe_execute('fechar janela do leitor', page.window.close)
 
         def on_window_event(e: ft.WindowEvent) -> None:
             if getattr(e, "type", None) == ft.WindowEventType.CLOSE and reader_ref:

@@ -13,16 +13,14 @@ from src.views.work_insert_specs import (
     PARENT_WORK_TYPES,
     WorkTypeSpec,
 )
+from src.utils.control_safety import safe_update
 
 
 def _safe_update(control: ft.Control | None) -> None:
     """Atualiza o controle se ele já estiver na página."""
     if control is None:
         return
-    try:
-        control.update()
-    except (RuntimeError, AssertionError, AttributeError):
-        pass
+    safe_update(control, exceptions=(RuntimeError, AssertionError, AttributeError))
 
 
 class AuthorSearchMixin:
@@ -409,10 +407,7 @@ class AuthorSearchMixin:
             ),
         ]
         self.page.show_dialog(dialog)
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        safe_update(self.page)
 
     def _close_author_dialog(self, dialog: ft.AlertDialog) -> None:
         dialog.open = False

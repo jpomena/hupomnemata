@@ -20,6 +20,7 @@ from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from .caderno_common import QUEUE_KEY, kind_label, quoted
 from .common import MenuItem, more_menu, plural, reference_text
+from src.utils.control_safety import safe_update, set_control_prop
 
 
 class CadernoWritingMixin:
@@ -202,10 +203,7 @@ class CadernoWritingMixin:
             hovering = e.data in (True, 'true')
             box.bgcolor = c.colors['card_hover'] if hovering else c.colors['surface']
             box.border = hover_border if hovering else normal_border
-            try:
-                box.update()
-            except Exception:
-                pass
+            safe_update(box)
 
         box.on_hover = _hover
         return box
@@ -389,10 +387,7 @@ class CadernoWritingMixin:
             title_text.color = c.colors['gold'] if hovering else c.colors['text']
             if central_idea_text is not None:
                 central_idea_text.color = c.colors['gold'] if hovering else c.colors['text']
-            try:
-                box.update()
-            except Exception:
-                pass
+            safe_update(box)
 
         box.on_hover = _hover
         return box
@@ -555,10 +550,7 @@ class CadernoWritingMixin:
         def _hover(e: ft.ControlEvent) -> None:
             hovering = e.data in (True, 'true')
             box.border = hover_border if hovering else normal_border
-            try:
-                box.update()
-            except Exception:
-                pass
+            safe_update(box)
 
         box.on_hover = _hover
         return box
@@ -655,8 +647,103 @@ class CadernoWritingMixin:
             scroll=ft.ScrollMode.AUTO,
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            on_scroll=self._on_writing_scroll,
         )
+        self.writing_scroll = scroll_wrapper
         return ft.Container(content=scroll_wrapper, expand=True, bgcolor=c.colors['bg'])
+
+    def _on_writing_scroll(self, event) -> None:
+        """Memoriza a posição para o refresh pós-edição não voltar ao topo."""
+        self.writing_scroll_offset = float(
+            getattr(event, 'pixels', 0) or 0
+        )
+
+    def _refresh_caderno_in_place(self) -> bool:
+        """Atualiza os blocos sem destruir o ScrollController das colunas.
+
+        ``Column.scroll_to()`` executado logo após uma remontagem chega antes
+        do layout no Flutter. Em vez de disputar esse timing, preservamos os
+        mesmos controles e substituímos apenas seus filhos.
+        """
+        if self.selected_tab != 'caderno' or self.root is None:
+            return False
+        current_scroll = self.writing_scroll
+        current_outline = self.outline_host
+        current_row = getattr(self, 'caderno_row', None)
+        if (
+            current_scroll is None
+            or current_outline is None
+            or current_row is None
+            or not current_scroll.controls
+        ):
+            return False
+        current_column = getattr(
+            current_scroll.controls[0], 'content', None
+        )
+        current_outline_scroll = getattr(
+            getattr(current_outline, 'content', None), 'content', None
+        )
+        if not isinstance(current_column, ft.Column) or not isinstance(
+            current_outline_scroll, ft.Column
+        ):
+            return False
+        header_host = getattr(self, 'header_host', None)
+        tab_bar_host = getattr(self, 'tab_bar_host', None)
+        # ``set_control_prop`` remove o marcador _frozen no próprio alvo.
+        # Isso mantém a identidade do ScrollController: sem remontagem, sem
+        # voltar ao topo e sem disputar o timing do layout do Flutter.
+        self._compose_writing()
+        rebuilt_scroll = self.writing_scroll
+        if not rebuilt_scroll.controls:
+            return False
+        rebuilt_column = getattr(rebuilt_scroll.controls[0], 'content', None)
+        if not isinstance(rebuilt_column, ft.Column):
+            return False
+        set_control_prop(
+            current_column,
+            'controls',
+            list(rebuilt_column.controls),
+        )
+        self.writing_scroll = current_scroll
+        self.writing_column = current_column
+
+        rebuilt_outline = self._compose_outline(
+            on_focus=self._focus_idea,
+            host=current_outline,
+        )
+        set_control_prop(
+            current_outline_scroll,
+            'controls',
+            list(rebuilt_outline.content.controls),
+        )
+        self.outline_host = current_outline
+
+        current_rail = getattr(self, 'rail_host', None)
+        if getattr(self, 'show_rail', False) and current_rail is not None:
+            current_rail_content = getattr(current_rail, 'content', None)
+            if isinstance(current_rail_content, ft.Column):
+                rebuilt_rail = self._compose_rail()
+                set_control_prop(
+                    current_rail_content,
+                    'controls',
+                    list(rebuilt_rail.content.controls),
+                )
+                self.rail_host = current_rail
+
+        if header_host is not None:
+            set_control_prop(
+                header_host,
+                'content',
+                self._compose_header(),
+            )
+        if tab_bar_host is not None:
+            set_control_prop(
+                tab_bar_host,
+                'content',
+                self._compose_tabs(),
+            )
+        self.page.update()
+        return True
 
     def _sec_head(self, label: str, count: int | None = None) -> ft.Row:
         c = self.config

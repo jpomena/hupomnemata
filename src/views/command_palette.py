@@ -10,6 +10,7 @@ from src.utils.fa import fa_icon
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from src.utils.control_safety import safe_update
 
 if TYPE_CHECKING:
     from src.views.core_composer import CoreComposer
@@ -87,10 +88,7 @@ class CommandPalette:
             if pos == self.index:
                 return
             item.bgcolor = c.colors["card_hover"] if hovering else None
-            try:
-                item.update()
-            except Exception:
-                pass
+            safe_update(item)
 
         box.on_hover = _hover
         self._rows.append((box, glyph))
@@ -103,10 +101,7 @@ class CommandPalette:
             selected = position == self.index
             box.bgcolor = colors["selected"] if selected else None
             glyph.color = colors["gold"] if selected else colors["faint"]
-        try:
-            self.results.update()
-        except Exception:
-            pass
+        safe_update(self.results)
 
     def _render(self, query: str = "") -> None:
         c = self.config

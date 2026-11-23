@@ -32,6 +32,13 @@
       "#C7AA64",
       "#6C93A5",
       "#988979"
+    ],
+    "error_text": "#FF6B6B",
+    "error_bg": "#FF6B6B25",
+    "space_gradient": [
+      "#090D1C",
+      "#050711",
+      "#020306"
     ]
   },
   "COLORS_LIGHT": {
@@ -67,7 +74,9 @@
       "#8E7234",
       "#3B5C6C",
       "#665749"
-    ]
+    ],
+    "error_text": "#B71C1C",
+    "error_bg": "#B71C1C18"
   },
   "FONTS": {
     "cormorant": {
@@ -246,6 +255,26 @@
     "Grafo Conceitual": {
       "description": "Mapear ligações teóricas e redes",
       "icon": "hub"
+    }
+  },
+  "TEMPLATE_COLORS": {
+    "dark": {
+      "bg": "#121212",
+      "surface": "#1E1E1E",
+      "text": "#E7E7E7",
+      "text_muted": "#A0A0A0",
+      "border": "#2E2E2E",
+      "gold": "#D4AF37",
+      "link_stroke": "rgba(212, 175, 55, 0.35)"
+    },
+    "light": {
+      "bg": "#F9F9FB",
+      "surface": "#FFFFFF",
+      "text": "#1A1A1A",
+      "text_muted": "#666666",
+      "border": "#E0E0E0",
+      "gold": "#896200",
+      "link_stroke": "rgba(137, 98, 0, 0.28)"
     }
   }
 }

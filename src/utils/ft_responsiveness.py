@@ -1,6 +1,10 @@
 """Funções de escala para manter a interface proporcional à janela."""
 
+import logging
+
 import flet as ft
+
+logger = logging.getLogger('hupomnemata.ui')
 
 BASE_WIDTH = 1280
 BASE_HEIGHT = 720
@@ -44,8 +48,8 @@ class Responsive:
                 sh = float(user32.GetSystemMetrics(1))
                 if sw > 200 and sh > 200:
                     return sw, sh
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - API Win32 opcional
+                logger.debug('Métricas de tela indisponíveis via Win32: %s', error)
 
             # Detecção de resolução de tela para Linux / X11 / Wayland
             try:
@@ -56,8 +60,8 @@ class Responsive:
                 tk_root.destroy()
                 if sw > 200 and sh > 200:
                     return sw, sh
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - Tk opcional
+                logger.debug('Métricas de tela indisponíveis via Tk: %s', error)
 
             return 1920.0, 1080.0
 

@@ -61,9 +61,40 @@ def _create_legacy_database(path: Path) -> None:
     try:
         connection.execute('CREATE TABLE legacy (id INTEGER PRIMARY KEY, tag TEXT)')
         connection.execute("INSERT INTO legacy (tag) VALUES ('preservado')")
+        connection.execute(
+            'CREATE TABLE alembic_version '
+            '(version_num VARCHAR(32) NOT NULL PRIMARY KEY)'
+        )
+        connection.execute(
+            "INSERT INTO alembic_version (version_num) "
+            "VALUES ('8793c7031ee3')"
+        )
         connection.commit()
     finally:
         connection.close()
+
+
+def test_pre_alembic_database_is_not_adopted(tmp_path):
+    """Banco anterior ao Alembic não deve ser importado automaticamente."""
+    legacy = tmp_path / 'old' / 'hupomnemata.db'
+    target = tmp_path / 'novo' / 'hupomnemata.db'
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(legacy))
+    try:
+        connection.execute(
+            'CREATE TABLE legacy (id INTEGER PRIMARY KEY, tag TEXT)'
+        )
+        connection.execute("INSERT INTO legacy (tag) VALUES ('antigo')")
+        connection.commit()
+    finally:
+        connection.close()
+
+    result = migrate_legacy_database(target, candidates=[legacy])
+
+    assert result['migrated'] is False
+    assert 'Alembic' in str(result['reason'])
+    assert not target.exists()
+    assert legacy.exists()
 
 
 def test_legacy_database_is_adopted_once_and_preserved(tmp_path):

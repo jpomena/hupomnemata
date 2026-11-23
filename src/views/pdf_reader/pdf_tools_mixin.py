@@ -7,6 +7,7 @@ via ``self``.
 import flet as ft
 
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_update
 
 s = ui.s
 W600 = ui.W600
@@ -62,10 +63,7 @@ class PdfToolsMixin:
             self.gesture_container.mouse_cursor = cursor
 
         self._render_tool_mode_selector()
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self, exceptions=(RuntimeError, AttributeError))
 
     def _render_view_mode_selector(self) -> None:
         c = self.config
@@ -98,14 +96,8 @@ class PdfToolsMixin:
         self._load_current_page()
         if hasattr(self, 'more_popup_btn'):
             self.more_popup_btn.items = self._build_more_menu_items()
-            try:
-                self.more_popup_btn.update()
-            except (RuntimeError, AttributeError):
-                pass
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+            safe_update(self.more_popup_btn, exceptions=(RuntimeError, AttributeError))
+        safe_update(self, exceptions=(RuntimeError, AttributeError))
 
     def _set_view_mode(self, mode: str) -> None:
         self._on_view_mode_change(mode)
@@ -215,10 +207,7 @@ class PdfToolsMixin:
         self.right_zone.controls = self._compose_right_controls()
         if hasattr(self, 'more_popup_btn'):
             self.more_popup_btn.items = self._build_more_menu_items()
-        try:
-            self.right_zone.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self.right_zone, exceptions=(RuntimeError, AttributeError))
 
     def handle_page_resize(self, _e: ft.ControlEvent | None = None) -> None:
         """Trata o redimensionamento da janela do leitor."""

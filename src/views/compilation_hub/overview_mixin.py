@@ -6,10 +6,17 @@ from src.contracts import CompilationPayload
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from .common import close_dialog, dialog, fmt_date, form_field, open_dialog, text_input
+from src.utils.control_safety import safe_update
 
 
 class CompilationHubOverviewMixin:
     """Nome, descrição, datas e exclusão da compilação."""
+
+    def _on_overview_scroll(self, event) -> None:
+        """Memoriza a rolagem da Visão geral para os diálogos não a perderem."""
+        self.overview_scroll_offset = float(
+            getattr(event, 'pixels', 0) or 0
+        )
 
     # ── ações ──────────────────────────────────────────────
 
@@ -42,10 +49,7 @@ class CompilationHubOverviewMixin:
         def save(_event=None) -> None:
             if not (self.name_field.value or '').strip():
                 self.name_field.error_text = 'Dê um nome à compilação.'
-                try:
-                    self.name_field.update()
-                except Exception:
-                    pass
+                safe_update(self.name_field)
                 return
             close_dialog(self.page)
             self._save_details(self.name_field.value or '', self.description_field.value)

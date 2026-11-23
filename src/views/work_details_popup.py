@@ -15,6 +15,7 @@ from src.domains import (
 from src.utils import ABNTUtils
 from src.utils.types import ViewConfig, WORK_TYPE_LABELS
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_update
 
 
 class WorkDetailsPopup:
@@ -684,10 +685,7 @@ class WorkDetailsPopup:
                 else self.config.colors["border"],
             )
         if self.page:
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _handle_edit_click(self, e) -> None:
         if self.nous_service is None or not self.page:
@@ -723,10 +721,7 @@ class WorkDetailsPopup:
             if self.synthesis_container is not None:
                 self.synthesis_container.content = self._build_synthesis_body()
             if self.page:
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                safe_update(self.page)
 
         def restore_ai(_):
             self.nous_service.override_work_description(self.resource.id, None)
@@ -735,10 +730,7 @@ class WorkDetailsPopup:
             if self.synthesis_container is not None:
                 self.synthesis_container.content = self._build_synthesis_body()
             if self.page:
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                safe_update(self.page)
 
         actions = [
             ft.TextButton(

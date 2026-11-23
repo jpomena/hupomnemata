@@ -1,7 +1,13 @@
 """Paridade entre o esquema criado pelo Alembic e o metadata do ORM."""
 
+import os
+import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -150,3 +156,30 @@ def test_legacy_citations_are_renamed_before_stamp(tmp_path: Path):
         assert row[3] is not None
     finally:
         engine.dispose()
+
+
+def test_alembic_cli_bootstraps_missing_data_dir(tmp_path: Path):
+    """A CLI deve criar o diretório de dados antes de abrir o SQLite."""
+    root = Path(__file__).resolve().parents[1]
+    data_dir = tmp_path / 'nested' / 'hupomnemata-data'
+    assert not data_dir.exists()
+
+    env = {**os.environ, 'HUPOMNEMATA_DATA_DIR': str(data_dir)}
+    result = subprocess.run(
+        [sys.executable, '-m', 'alembic', 'upgrade', 'head'],
+        cwd=root,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    database = data_dir / 'hupomnemata.db'
+    assert database.exists()
+
+    config = Config(str(root / 'alembic.ini'))
+    head = ScriptDirectory.from_config(config).get_current_head()
+    with sqlite3.connect(database) as conn:
+        version = conn.execute('SELECT version_num FROM alembic_version').fetchone()
+    assert version == (head,)

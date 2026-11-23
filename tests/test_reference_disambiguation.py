@@ -208,7 +208,12 @@ def test_reference_html_and_text():
     assert reference_text(ref) == "SILVA, João. Título em Negrito. In: Revista Filosófica, 2024."
 
 
-def test_copy_references_clipboard():
+def test_copy_references_clipboard(monkeypatch):
+    # O transporte real depende de wl-copy/xclip/xsel instalados na máquina.
+    monkeypatch.setattr(
+        'src.utils.clipboard._copy_plain_text_to_system_clipboard',
+        lambda text: True,
+    )
     ref1 = ViewReference(parts=[
         ReferencePart("AUTOR A. "),
         ReferencePart("Obra A", TextStyle.BOLD),

@@ -25,6 +25,7 @@ from src.views.work_insert_specs.catalog import (
     PARENT,
     SECTION_ORDER,
 )
+from src.utils.control_safety import safe_update
 
 PARENT_KEY = "__parent__"
 PRESERVE_TITLE_HELP = (
@@ -46,10 +47,7 @@ class _FormItem:
 def _safe_update(control: ft.Control | None) -> None:
     if control is None:
         return
-    try:
-        control.update()
-    except (RuntimeError, AssertionError, AttributeError):
-        pass
+    safe_update(control, exceptions=(RuntimeError, AssertionError, AttributeError))
 
 
 class RenderMixin:

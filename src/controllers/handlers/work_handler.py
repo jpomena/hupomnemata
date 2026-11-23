@@ -51,6 +51,7 @@ from src.utils.types import ViewReference
 from src.views.work_insert_specs import WORK_TYPES
 from src.views.core_composer import CoreComposer
 from src.controllers.work_submission_controller import WorkSubmissionController
+from src.utils.control_safety import safe_update
 
 
 class WorkControllerMixin:
@@ -59,10 +60,7 @@ class WorkControllerMixin:
     def open_insert_work(self) -> None:
         if self.work_insert_modal is not None:
             self.page.show_dialog(self.work_insert_modal)
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def open_import_work(self) -> None:
         """Abre o diálogo de importação automatizada por DOI, ISBN ou ISSN."""
@@ -132,8 +130,8 @@ class WorkControllerMixin:
                         or "[s.l.]"
                     )
                     parent_id, parent_title = find_or_create_magazine(str(j_title), pub_place)
-                except Exception:
-                    pass
+                except Exception as error:
+                    log_exception('Falha ao resolver periódico pelo título', error)
 
         modal = CoreComposer.compose_work_insert_modal(
             page=self.page,
@@ -151,10 +149,7 @@ class WorkControllerMixin:
             on_navigate_to_work=lambda wid: self.navigate_with("Acervo", focus_work_id=wid),
         )
         self.page.show_dialog(modal)
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        safe_update(self.page)
 
     def open_work_details(self, resource) -> None:
         def _on_open_pdf(wid: int) -> None:
@@ -175,10 +170,7 @@ class WorkControllerMixin:
             on_open_pdf=_on_open_pdf,
         )
         self.page.show_dialog(modal)
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        safe_update(self.page)
 
     @staticmethod
     def format_reference(
@@ -318,10 +310,7 @@ class WorkControllerMixin:
             ),
         )
         self.page.show_dialog(modal)
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        safe_update(self.page)
 
     @staticmethod
     def _edit_form_values(

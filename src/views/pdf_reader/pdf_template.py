@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.configs.settings import ASSETS_DIR
+from src.configs.settings import ASSETS_DIR, template_palette
 
 _TEMPLATE_PATH = ASSETS_DIR / "templates" / "pdf_viewer.html"
 
@@ -31,12 +31,12 @@ def generate_pdf_viewer_html(
     O template é carregado de assets/templates/pdf_viewer.html. O título é escapado
     com html.escape antes de ser interpolado em HTML.
     """
-    is_dark = (theme_mode or "dark").lower() == "dark"
-    bg_color = "#121212" if is_dark else "#F9F9FB"
-    surface_color = "#1E1E1E" if is_dark else "#FFFFFF"
-    text_color = "#E7E7E7" if is_dark else "#1A1A1A"
-    gold_accent = "#D4AF37" if is_dark else "#896200"
-    border_color = "#2E2E2E" if is_dark else "#E0E0E0"
+    palette = template_palette(theme_mode)
+    bg_color = palette["bg"]
+    surface_color = palette["surface"]
+    text_color = palette["text"]
+    gold_accent = palette["gold"]
+    border_color = palette["border"]
 
     ann_json = json.dumps(annotations or [], ensure_ascii=False).replace(
         "</", r"<\/"

@@ -289,8 +289,8 @@ class WorksInspectorMixin:
                 if name in hidden:
                     continue
                 rows.append((helper._label(name), helper._format_value(value)))
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception('Falha ao montar propriedades da obra', error)
         parent_id = self._parent_id(resource)
         parent = self._work(parent_id)
         if parent is not None:
@@ -313,8 +313,8 @@ class WorksInspectorMixin:
         try:
             synthesis = helper._compose_synthesis_section()
             sections.append(ft.Container(synthesis, padding=ft.Padding.symmetric(horizontal=s(24), vertical=s(16))))
-        except Exception:
-            pass
+        except Exception as error:
+            log_exception('Falha ao compor a síntese da obra', error)
         return sections
 
     def _inspector_fragments(self, fragments: list[dict]) -> list[ft.Control]:

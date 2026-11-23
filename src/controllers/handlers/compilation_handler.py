@@ -7,6 +7,7 @@ from src.utils.error_log import log_exception
 from src.utils.types import ViewReference
 from src.views.fragments import FragmentsComposer
 from src.views.core_composer import CoreComposer
+from src.utils.control_safety import safe_update
 
 
 class CompilationControllerMixin:
@@ -452,10 +453,7 @@ class CompilationControllerMixin:
             on_create_parent_work=self.open_parent_work,
         )
         self.page.show_dialog(modal)
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        safe_update(self.page)
 
     def _add_created_compilation_work(
         self,

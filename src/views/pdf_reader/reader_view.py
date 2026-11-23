@@ -17,6 +17,7 @@ from .pdf_navigation_mixin import PdfNavigationMixin
 from .pdf_pan_mixin import PdfPanSelectionMixin
 from .pdf_render_mixin import PdfRenderMixin
 from .pdf_tools_mixin import PdfToolsMixin
+from src.utils.control_safety import safe_update
 
 s = ui.s
 W500 = ui.W500
@@ -115,10 +116,7 @@ class PdfReaderView(
             self.page_number_display.border = ft.Border.all(
                 1, config.colors['gold'] if hovering else ui.alpha(config.colors['border'], 0.6)
             )
-            try:
-                self.page_number_display.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(self.page_number_display, exceptions=(RuntimeError, AttributeError))
 
         self.page_number_display.on_hover = _on_page_label_hover
 

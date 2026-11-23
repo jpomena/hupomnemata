@@ -10,6 +10,7 @@ from src.utils.fa import glyph as fa_glyph
 from src.utils.types import ViewConfig
 from src.views import ui_kit as ui
 from src.views.ui_kit import MOTION_FAST, MOTION_SLOW, motion, s
+from src.utils.control_safety import safe_update
 
 
 @dataclass
@@ -81,10 +82,7 @@ class SidebarComposer:
             self._items.pop(key, None)
         switcher.content = self._projects_content()
         self._project_signature = tuple(self.data.compilations)
-        try:
-            switcher.update()
-        except Exception:
-            pass
+        safe_update(switcher)
 
     # ── peças ──────────────────────────────────────────────
 
@@ -264,10 +262,7 @@ class SidebarComposer:
         glyph.value = char
         glyph.font_family = family
         button.tooltip = "Recolher cadernos" if self.compilations_expanded else "Expandir cadernos"
-        try:
-            button.update()
-        except Exception:
-            pass
+        safe_update(button)
 
     def update_state(self, current: str, data: SidebarData | None = None) -> None:
         """Atualiza item ativo e contadores sem reconstruir a barra lateral."""
@@ -305,10 +300,7 @@ class SidebarComposer:
             value = len(self.data.compilations) if key == "compilations" else getattr(self.data, key, None)
             if value is not None:
                 count.value = str(value)
-        try:
-            ref["box"].update()
-        except Exception:
-            pass
+        safe_update(ref["box"])
 
     def _sync_projects(self) -> None:
         signature = tuple(self.data.compilations)
@@ -321,10 +313,7 @@ class SidebarComposer:
                 self._items.pop(key, None)
             self._project_signature = signature
             switcher.content = self._projects_content()
-            try:
-                switcher.update()
-            except Exception:
-                pass
+            safe_update(switcher)
         else:
             for destination, ref in list(self._items.items()):
                 if destination.startswith("compilacao:"):

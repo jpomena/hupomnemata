@@ -23,6 +23,7 @@ from .common import (
     plural,
 )
 from .caderno_mixin import quoted
+from src.utils.control_safety import safe_update, set_control_prop
 
 
 class CompilationHubWorksMixin:
@@ -171,10 +172,7 @@ class CompilationHubWorksMixin:
         state['chevron'].rotate = 0 if collapsed else 3.141592653589793 / 2
         state['card'].data = {'work_id': work_id, 'collapsed': collapsed}
         for control in (state['body'], state['chevron']):
-            try:
-                control.update()
-            except Exception:
-                pass
+            safe_update(control)
 
     def _on_works_scroll(self, event) -> None:
         self.works_scroll_offset = float(getattr(event, 'pixels', 0) or 0)
@@ -188,25 +186,44 @@ class CompilationHubWorksMixin:
         if current_scroll is None or current_outline is None:
             return False
         current_outline_scroll = current_outline.content.content
+        # A política de controles imperativos remove _frozen durante a
+        # atribuição. Preservar a coluna é mais confiável do que remontar e
+        # tentar restaurar o offset depois do layout.
         self._compose_works_and_fragments()
         new_scroll = self.works_scroll
 
         # A identidade dos Columns roláveis é preservada; só seus filhos mudam.
-        current_scroll.controls = list(new_scroll.controls)
+        set_control_prop(
+            current_scroll,
+            'controls',
+            list(new_scroll.controls),
+        )
         rebuilt_outline = self._compose_outline(
             on_focus=self._focus_idea_in_works,
             host=current_outline,
         )
-        current_outline_scroll.controls = list(rebuilt_outline.content.controls)
+        set_control_prop(
+            current_outline_scroll,
+            'controls',
+            list(rebuilt_outline.content.controls),
+        )
         self.works_scroll = current_scroll
         self.works_outline_host = current_outline
 
         header_host = getattr(self, 'header_host', None)
         tab_bar_host = getattr(self, 'tab_bar_host', None)
         if header_host is not None:
-            header_host.content = self._compose_header()
+            set_control_prop(
+                header_host,
+                'content',
+                self._compose_header(),
+            )
         if tab_bar_host is not None:
-            tab_bar_host.content = self._compose_tabs()
+            set_control_prop(
+                tab_bar_host,
+                'content',
+                self._compose_tabs(),
+            )
         self.page.update()
         return True
 
@@ -293,10 +310,7 @@ class CompilationHubWorksMixin:
         def _hover(event) -> None:
             hovering = event.data in (True, 'true')
             row.bgcolor = c.colors['card_hover'] if hovering else None
-            try:
-                row.update()
-            except Exception:
-                pass
+            safe_update(row)
 
         row.on_hover = _hover
         return row

@@ -101,6 +101,10 @@ class WindowControllerMixin:
         data_str = str(getattr(event, "data", "") or "")
         event_str = f"{type_str} {data_str}".lower()
 
+        if "close" in event_str:
+            self.request_close()
+            return
+
         if any(k in event_str for k in ("maximize", "unmaximize", "restore")):
             is_max = "unmaximize" not in event_str and ("maximize" in event_str)
             self._last_maximized_state = is_max

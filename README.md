@@ -55,21 +55,36 @@ Inspirado no conceito clássico foucaultiano dos *hupomnēmata* — os cadernos 
 ## Instalação e Execução
 
 1. **Clonar o repositório e criar o ambiente virtual:**
-   ```powershell
+   ```bash
    git clone https://github.com/jpomena/hupomnemata.git
    cd hupomnemata
    python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
+   source .venv/bin/activate      # Linux/macOS
+   # .\.venv\Scripts\Activate.ps1 # Windows (PowerShell)
    ```
 
-2. **Instalar as dependências:**
-   ```powershell
+2. **Instalar as dependências** (repita após cada `git pull`; o `requirements.txt` é fixado):
+   ```bash
    pip install -r requirements.txt
    ```
 
 3. **Iniciar a aplicação:**
-   ```powershell
+   ```bash
    python main.py
+   ```
+
+   O `main.py` executa o bootstrap do diretório de dados (`~/.local/share/hupomnemata`
+   no Linux, AppData no Windows) e leva o banco ao head do Alembic.
+
+4. **Migrações pela CLI** (opcional; o bootstrap acima já as aplica):
+   ```bash
+   alembic upgrade head
+   alembic current
+   ```
+
+   Em ambientes de teste ou diagnóstico, isole os dados sem tocar no banco do usuário:
+   ```bash
+   HUPOMNEMATA_DATA_DIR=/tmp/hupomnemata-data alembic upgrade head
    ```
 
 ---
@@ -78,14 +93,15 @@ Inspirado no conceito clássico foucaultiano dos *hupomnēmata* — os cadernos 
 
 A suíte de testes cobre formatadores, validações de domínio, repositórios, serviços de metadados, parsers de referências, integridade do SQLite, migrações Alembic e fluxos visuais Flet:
 
-```powershell
+```bash
 python -m pytest
 ```
 
-Atualmente, **707 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
+Atualmente, **753 testes automatizados** garantem a integridade operacional e visual do sistema. A análise estática é feita com:
 
-```powershell
+```bash
 python -m flake8 src tests main.py
+npx --yes pyright
 ```
 
 ---

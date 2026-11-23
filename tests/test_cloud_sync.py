@@ -214,3 +214,266 @@ def test_sync_pull_remote_changes(sync_service, tmp_path, clean_db):
     assert result.status == SyncStatus.SUCCESS
     assert "updated from google drive" in result.message.lower()
     assert sync_service._get_last_synced_sha256() == remote_sha
+
+
+def test_loopback_oauth_survives_empty_preconnect(monkeypatch):
+    """LibreWolf abre uma conexão vazia antes do GET real; o fluxo deve continuar."""
+    import socket
+    import threading
+    import time
+    import urllib.request
+    from urllib.parse import urlparse
+
+    from src.services import cloud_sync_service as module
+
+    class FakeFlow:
+        redirect_uri = None
+        credentials = object()
+
+        def authorization_url(self, **kwargs):
+            self.auth_kwargs = kwargs
+            return "https://accounts.example/auth", "state"
+
+        def fetch_token(self, authorization_response):
+            self.callback = authorization_response
+
+    flow = FakeFlow()
+
+    def fake_open(url, new=1, autoraise=True):
+        port = urlparse(flow.redirect_uri).port
+
+        def hit():
+            with socket.create_connection(("127.0.0.1", port)):
+                pass
+            time.sleep(0.05)
+            urllib.request.urlopen(
+                flow.redirect_uri + "?code=abc&state=state", timeout=2
+            ).read()
+
+        threading.Thread(target=hit, daemon=True).start()
+        return True
+
+    monkeypatch.setattr(module.webbrowser, "open", fake_open)
+    callback = module._run_loopback_oauth(flow, timeout_seconds=5)
+    assert callback.endswith("/?code=abc&state=state")
+    assert flow.auth_kwargs["access_type"] == "offline"
+    assert flow.auth_kwargs["prompt"] == "consent"
+
+
+def test_authenticate_uses_tolerant_loopback(sync_service, tmp_path, monkeypatch):
+    """authenticate deve usar o servidor tolerante e trocar o código pelo token."""
+    creds_file = tmp_path / "credentials.json"
+    creds_file.write_text('{"installed": {}}', encoding="utf-8")
+    captured = {}
+
+    class FakeFlow:
+        credentials = object()
+
+        def fetch_token(self, authorization_response):
+            captured["response"] = authorization_response
+
+    def fake_loopback(flow, timeout_seconds):
+        captured["timeout"] = timeout_seconds
+        return "http://127.0.0.1:1234/?code=abc&state=state"
+
+    monkeypatch.setattr(
+        "src.services.cloud_sync_service.InstalledAppFlow.from_client_secrets_file",
+        lambda *args, **kwargs: FakeFlow(),
+    )
+    monkeypatch.setattr(
+        "src.services.cloud_sync_service._run_loopback_oauth", fake_loopback
+    )
+    monkeypatch.setattr(
+        sync_service, "_save_credentials", lambda creds: captured.setdefault("saved", True)
+    )
+
+    assert sync_service.authenticate(client_secrets_path=creds_file) is True
+    assert captured["timeout"] == 600
+    assert captured["response"].startswith("https://127.0.0.1:1234/")
+    assert captured.get("saved") is True
+
+
+def test_first_sync_empty_local_pulls_remote(sync_service, monkeypatch, tmp_path):
+    """Primeira sincronização com banco local vazio deve baixar a nuvem."""
+    monkeypatch.setattr(sync_service, "is_authenticated", lambda: True)
+    monkeypatch.setattr(
+        sync_service,
+        "create_local_snapshot",
+        lambda: (tmp_path / "local.db.gz", "localhash"),
+    )
+    monkeypatch.setattr(sync_service, "_get_last_synced_sha256", lambda: None)
+    monkeypatch.setattr(sync_service, "_local_has_data", lambda: False)
+    monkeypatch.setattr(
+        sync_service, "_find_appdata_file", lambda name: {"id": f"id-{name}"}
+    )
+
+    remote_manifest = {"db_sha256": "remotehash", "device_id": "outra-estacao"}
+
+    def fake_download(file_id, dest):
+        if "manifest" in file_id:
+            dest.write_text(json.dumps(remote_manifest), encoding="utf-8")
+        else:
+            dest.write_bytes(b"snapshot")
+        return dest
+
+    monkeypatch.setattr(sync_service, "_download_appdata_file", fake_download)
+    monkeypatch.setattr(sync_service, "compute_sha256", lambda path: "remotehash")
+    restored = {}
+    monkeypatch.setattr(
+        sync_service,
+        "restore_from_snapshot",
+        lambda path: restored.setdefault("path", path),
+    )
+    uploads = []
+    monkeypatch.setattr(
+        sync_service,
+        "_upload_appdata_file",
+        lambda *args, **kwargs: uploads.append(args),
+    )
+    monkeypatch.setattr(sync_service, "_set_last_synced_sha256", lambda value: None)
+
+    result = sync_service.sync()
+    assert result.status == SyncStatus.SUCCESS
+    assert "updated from Google Drive" in result.message
+    assert restored.get("path") is not None
+    assert uploads == []
+
+
+def test_first_sync_with_local_data_requires_explicit_choice(
+    sync_service, monkeypatch, tmp_path
+):
+    """Primeira sincronização com dados locais não pode sobrescrever a nuvem."""
+    monkeypatch.setattr(sync_service, "is_authenticated", lambda: True)
+    monkeypatch.setattr(
+        sync_service,
+        "create_local_snapshot",
+        lambda: (tmp_path / "local.db.gz", "localhash"),
+    )
+    monkeypatch.setattr(sync_service, "_get_last_synced_sha256", lambda: None)
+    monkeypatch.setattr(sync_service, "_local_has_data", lambda: True)
+    monkeypatch.setattr(
+        sync_service, "_find_appdata_file", lambda name: {"id": f"id-{name}"}
+    )
+
+    def fake_download(file_id, dest):
+        dest.write_text(
+            json.dumps({"db_sha256": "remotehash", "device_id": "outra-estacao"}),
+            encoding="utf-8",
+        )
+        return dest
+
+    monkeypatch.setattr(sync_service, "_download_appdata_file", fake_download)
+    backup = tmp_path / "conflict.db"
+    monkeypatch.setattr(sync_service, "create_conflict_backup", lambda: backup)
+    uploads = []
+    monkeypatch.setattr(
+        sync_service,
+        "_upload_appdata_file",
+        lambda *args, **kwargs: uploads.append(args),
+    )
+
+    result = sync_service.sync()
+    assert result.status == SyncStatus.CONFLICT
+    assert result.conflict_backup_path == str(backup)
+    assert uploads == []
+
+
+def test_partial_remote_never_overwrites_empty_local(sync_service, monkeypatch, tmp_path):
+    """Nuvem com manifesto mas sem snapshot não pode ser sobrescrita por engano."""
+    monkeypatch.setattr(sync_service, "is_authenticated", lambda: True)
+    monkeypatch.setattr(
+        sync_service,
+        "create_local_snapshot",
+        lambda: (tmp_path / "local.db.gz", "localhash"),
+    )
+    monkeypatch.setattr(sync_service, "_local_has_data", lambda: False)
+
+    def fake_find(name):
+        if name == MANIFEST_FILE_NAME:
+            return {"id": "manifest_id"}
+        return None
+
+    monkeypatch.setattr(sync_service, "_find_appdata_file", fake_find)
+    uploads = []
+    monkeypatch.setattr(
+        sync_service,
+        "_upload_appdata_file",
+        lambda *args, **kwargs: uploads.append(args),
+    )
+
+    result = sync_service.sync()
+    assert result.status == SyncStatus.ERROR
+    assert "incompleta" in result.message
+    assert uploads == []
+
+
+def test_force_pull_refuses_empty_remote_when_local_has_data(
+    sync_service, monkeypatch, tmp_path
+):
+    """'Manter Nuvem' não pode apagar a base local se a nuvem estiver vazia."""
+    monkeypatch.setattr(sync_service, "is_authenticated", lambda: True)
+    monkeypatch.setattr(
+        sync_service,
+        "create_local_snapshot",
+        lambda: (tmp_path / "local.db.gz", "localhash"),
+    )
+    monkeypatch.setattr(sync_service, "_get_last_synced_sha256", lambda: None)
+    monkeypatch.setattr(sync_service, "_local_has_data", lambda: True)
+    monkeypatch.setattr(sync_service, "_snapshot_has_data", lambda path: False)
+    monkeypatch.setattr(
+        sync_service, "_find_appdata_file", lambda name: {"id": f"id-{name}"}
+    )
+
+    def fake_download(file_id, dest):
+        if "manifest" in file_id:
+            dest.write_text(
+                json.dumps({"db_sha256": "remotehash", "device_id": "outra"}),
+                encoding="utf-8",
+            )
+        else:
+            dest.write_bytes(b"snapshot")
+        return dest
+
+    monkeypatch.setattr(sync_service, "_download_appdata_file", fake_download)
+    monkeypatch.setattr(sync_service, "compute_sha256", lambda path: "remotehash")
+    restored = []
+    monkeypatch.setattr(
+        sync_service,
+        "restore_from_snapshot",
+        lambda path: restored.append(path),
+    )
+
+    result = sync_service.sync(force_pull=True)
+    assert result.status == SyncStatus.ERROR
+    assert "nuvem está vazia" in result.message
+    assert restored == []
+
+
+def test_delete_remote_database_removes_manifest_snapshot_and_markers(
+    sync_service, monkeypatch
+):
+    """Apagar o banco remoto remove manifesto, snapshot e marcadores locais."""
+    drive = MagicMock()
+    sync_service.get_drive_service = MagicMock(return_value=drive)
+    monkeypatch.setattr(
+        sync_service,
+        "_find_appdata_file",
+        lambda name: {"id": f"id-{name}"},
+    )
+
+    for name in (
+        "last_synced_hash.txt",
+        "remote_manifest.json",
+        SNAPSHOT_FILE_NAME,
+        "downloaded_snapshot.db.gz",
+    ):
+        (sync_service.sync_dir / name).write_bytes(b"x")
+
+    deleted = sync_service.delete_remote_database()
+
+    assert set(deleted) == {MANIFEST_FILE_NAME, SNAPSHOT_FILE_NAME}
+    assert drive.files.return_value.delete.call_count == 2
+    assert not (sync_service.sync_dir / "last_synced_hash.txt").exists()
+    assert not (sync_service.sync_dir / "remote_manifest.json").exists()
+    assert not (sync_service.sync_dir / SNAPSHOT_FILE_NAME).exists()
+    assert not (sync_service.sync_dir / "downloaded_snapshot.db.gz").exists()

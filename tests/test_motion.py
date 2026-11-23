@@ -133,3 +133,29 @@ def _walk(control):
         yield from _walk(content)
     for item in getattr(control, "controls", []) or []:
         yield from _walk(item)
+
+
+def test_ui_kit_hover_survives_frozen_controls(view_config):
+    """Hover é o fluxo que mais recebeu 'Frozen controls cannot be updated'."""
+    icon_box = ui.icon_button(view_config, "copy", boxed=True)
+    glyph = icon_box.content
+    object.__setattr__(icon_box, "_frozen", True)
+    object.__setattr__(glyph, "_frozen", True)
+
+    icon_box.on_hover(_Event("true"))
+
+    assert glyph.scale == 1.08
+    assert not hasattr(glyph, "_frozen")
+
+    icon_box.on_hover(_Event("false"))
+    assert glyph.scale == 1.0
+
+    link = ui.link_button(view_config, "Ver obra")
+    link_text = link.content.controls[0]
+    link_glyph = link.content.controls[1]
+    for control in (link, link_text, link_glyph):
+        object.__setattr__(control, "_frozen", True)
+    link.on_hover(_Event("true"))
+    assert link_text.color == view_config.colors["gold"]
+    assert link_glyph.offset.x == 0.18
+    assert not hasattr(link, "_frozen")

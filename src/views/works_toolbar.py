@@ -7,6 +7,7 @@ from src.utils.types import ReferencePart, ViewReference
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
 from src.views.works_common import TYPE_ICONS
+from src.utils.control_safety import safe_update
 
 
 class WorksToolbarMixin:
@@ -84,10 +85,7 @@ class WorksToolbarMixin:
                 for resource in resources:
                     self.on_delete_work(resource)
             if self.page:
-                try:
-                    self.page.update()
-                except Exception:
-                    pass
+                safe_update(self.page)
 
         dialog = ft.AlertDialog(
             bgcolor=c.colors["surface"],

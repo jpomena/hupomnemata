@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional
 import flet as ft
 
 from src.utils.types import ViewConfig
-from src.views.ui_kit import MOTION_FAST, MOTION_SLOW, motion
+from src.views.ui_kit import MOTION_FAST, MOTION_SLOW, alpha, motion
+from src.utils.control_safety import safe_update
 
 
 class KnowledgePanel:
@@ -85,7 +86,10 @@ class KnowledgePanel:
             content=self.excerpt_text,
             bgcolor=self.config.colors["surface"],
             border=ft.Border(
-                left=ft.BorderSide(3 * self.scale, self.config.colors["border"]),
+                left=ft.BorderSide(
+                    3 * self.scale,
+                    alpha(self.config.colors["gold"], 0.42),
+                ),
                 top=ft.BorderSide(1, self.config.colors["border"]),
                 right=ft.BorderSide(1, self.config.colors["border"]),
                 bottom=ft.BorderSide(1, self.config.colors["border"]),
@@ -103,6 +107,9 @@ class KnowledgePanel:
             options=[],
             width=280 * self.scale,
             text_size=self.config.font_sizes["montserrat_tiny"] * self.scale,
+            bgcolor=self.config.colors["bg"],
+            border_color=self.config.colors["border"],
+            color=self.config.colors["text"],
             visible=False,
         )
 
@@ -166,9 +173,9 @@ class KnowledgePanel:
                     content=ft.Column(
                         controls=[
                             ft.Text(
-                                "SÍNTESE DA OBRA / RESUMO",
+                                "Síntese da obra",
                                 size=12 * self.scale,
-                                weight=ft.FontWeight.W_700,
+                                weight=ft.FontWeight.W_600,
                                 font_family=self.config.font_families["montserrat"],
                                 color=self.config.colors["muted"],
                             ),
@@ -192,12 +199,12 @@ class KnowledgePanel:
                                     ft.Icon(
                                         ft.Icons.AUTO_AWESOME,
                                         size=15 * self.scale,
-                                        color=self.config.colors["text"],
+                                        color=self.config.colors["gold"],
                                     ),
                                     ft.Text(
-                                        "OBRAS PRÓXIMAS / RESSONANTES",
+                                        "Obras ressonantes",
                                         size=13 * self.scale,
-                                        weight=ft.FontWeight.W_700,
+                                        weight=ft.FontWeight.W_600,
                                         color=self.config.colors["text"],
                                         font_family=self.config.font_families["montserrat"],
                                     ),
@@ -213,12 +220,12 @@ class KnowledgePanel:
                                     ft.Icon(
                                         ft.Icons.FORMAT_QUOTE,
                                         size=15 * self.scale,
-                                        color=self.config.colors["text"],
+                                        color=self.config.colors["gold"],
                                     ),
                                     ft.Text(
-                                        "FRAGMENTOS DESTA OBRA",
+                                        "Fragmentos desta obra",
                                         size=13 * self.scale,
-                                        weight=ft.FontWeight.W_700,
+                                        weight=ft.FontWeight.W_600,
                                         color=self.config.colors["text"],
                                         font_family=self.config.font_families["montserrat"],
                                     ),
@@ -311,12 +318,12 @@ class KnowledgePanel:
         self.panel_container.padding = 16 * self.scale
         self.panel_container.opacity = 1.0
         self.panel_container.border = ft.Border(
-            left=ft.BorderSide(1, self.config.colors["border"])
+            left=ft.BorderSide(
+                1,
+                alpha(self.config.colors["gold"], 0.34),
+            )
         )
-        try:
-            self.panel_container.update()
-        except Exception:
-            pass
+        safe_update(self.panel_container)
 
     def _build_fragment_card(self, frag: Dict[str, Any]) -> ft.Control:
         f_id = int(frag.get("id") or 0)
@@ -393,10 +400,7 @@ class KnowledgePanel:
             hovering = event.data in (True, "true")
             box.bgcolor = self.config.colors.get("card_hover", self.config.colors["surface"]) if hovering else self.config.colors["surface"]
             box.border = ft.Border.all(1, self.config.colors["border_strong"] if hovering else self.config.colors["border"])
-            try:
-                box.update()
-            except Exception:
-                pass
+            safe_update(box)
 
         card.on_hover = _hover
         return card
@@ -407,10 +411,7 @@ class KnowledgePanel:
             snack = ft.SnackBar(ft.Text("Trecho copiado para a área de transferência."))
             self.page.overlay.append(snack)
             snack.open = True
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            safe_update(self.page)
 
     def _handle_add_frag_click(self, frag_id: int) -> None:
         self._pending_fragment_id = frag_id
@@ -488,10 +489,7 @@ class KnowledgePanel:
                 1,
                 self.config.colors["gold"] if hovering else self.config.colors["border"],
             )
-            try:
-                box.update()
-            except Exception:
-                pass
+            safe_update(box)
 
         card.on_hover = _hover
         return card
@@ -519,10 +517,7 @@ class KnowledgePanel:
 
         self.compilation_dropdown.visible = True
         self.compilation_confirm_btn.visible = True
-        try:
-            self.panel_container.update()
-        except Exception:
-            pass
+        safe_update(self.panel_container)
 
     def _confirm_add_compilation(self, _e: ft.ControlEvent) -> None:
         if not self.compilation_dropdown.value:
@@ -542,10 +537,7 @@ class KnowledgePanel:
         self.compilation_dropdown.visible = False
         self.compilation_confirm_btn.visible = False
         self._pending_fragment_id = None
-        try:
-            self.panel_container.update()
-        except Exception:
-            pass
+        safe_update(self.panel_container)
 
     def close(self) -> None:
         self.current_node = None
@@ -555,10 +547,7 @@ class KnowledgePanel:
         self.panel_container.padding = 0
         self.panel_container.border = None
         self.on_close()
-        try:
-            self.panel_container.update()
-        except Exception:
-            pass
+        safe_update(self.panel_container)
 
     def compose(self) -> ft.Control:
         return self.panel_container

@@ -93,8 +93,13 @@ class FileBackend:
         )
         try:
             os.chmod(temporary, 0o600)
-        except OSError:
-            pass  # Windows: ACL do perfil do usuário já é restritiva
+        except OSError as error:
+            # Windows: a ACL do perfil do usuário já é restritiva.
+            logger.warning(
+                'Não foi possível restringir permissões de %s: %s',
+                temporary,
+                error,
+            )
         temporary.replace(self.path)
 
     def get(self, name: str) -> str | None:

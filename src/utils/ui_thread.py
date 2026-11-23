@@ -67,5 +67,8 @@ def run_on_ui(page: Any, callback: Callable[[], None]) -> None:
 
     try:
         run_task(_runner)
-    except (RuntimeError, TypeError):
+    except Exception:  # noqa: BLE001 - ponte de UI deve ter fallback
+        # Em duplos de teste ou após o fechamento da sessão o agendamento
+        # pode falhar de formas que não são RuntimeError/TypeError. Nunca
+        # deixe o callback de encerramento sem execução.
         callback()

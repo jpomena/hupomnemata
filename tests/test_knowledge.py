@@ -1,5 +1,6 @@
 """Testes unitários para o módulo de conhecimento e Estruturas de Saber."""
 
+import flet as ft
 import numpy as np
 import pytest
 from src.db.sqlite_runtime import create_sqlite_engine
@@ -382,6 +383,15 @@ def test_knowledge_composer_compose_with_nodes():
 
     composer._handle_node_clicked(mock_graph_data["nodes"][0])
     assert composer.panel.panel_container.visible is True
+    assert composer.cosmic_title.value == "Crítica da Razão Pura"
+    assert composer.cosmic_header is not None
+    assert composer.legend_container is not None
+    assert composer.type_filter_control is not None
+
+    composer._handle_type_filter_change("works")
+    assert composer.type_filter == "works"
+    assert len(composer._get_filtered_nodes()) == 1
+    composer._handle_type_filter_change("all")
 
 
 def test_armillary_sphere_3d_centering_and_dimensions():
@@ -478,6 +488,16 @@ def test_armillary_sphere_3d_filter_mode():
     assert "frag_1" in sphere.projected_nodes
     assert "frag_2" in sphere.projected_nodes
     assert len(sphere.projected_nodes) == 2
+
+    # 4. Filtro adicional por tipo, independente da constelação
+    sphere.set_filter_mode("all")
+    sphere.set_type_filter("works")
+    assert len(sphere.projected_nodes) == 1
+    assert "work_1" in sphere.projected_nodes
+    sphere.set_type_filter("fragments")
+    assert len(sphere.projected_nodes) == 2
+    assert "work_1" not in sphere.projected_nodes
+    sphere.set_type_filter("all")
 
 
 def test_armillary_sphere_3d_celestial_grid_and_starfield():
@@ -1108,7 +1128,6 @@ def test_armillary_sphere_zoom_controls():
 
 def test_knowledge_composer_sensitivity_slider_and_hud():
     """Valida presença do slider de sensibilidade e HUD flutuante de zoom no compositor."""
-    import flet as ft
     from src.configs.settings import COLORS_LIGHT, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
     from src.utils.types import ViewConfig
     from src.views.knowledge.knowledge_composer import KnowledgeComposer
@@ -1152,7 +1171,6 @@ def test_knowledge_composer_sensitivity_slider_and_hud():
 
 def test_armillary_sphere_3d_gestures_and_hud_positioning():
     """Valida que o HUD não oclui a esfera 3D e que eventos de arrasto orbital e zoom são processados."""
-    import flet as ft
     from src.configs.settings import COLORS_LIGHT, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
     from src.utils.types import ViewConfig
     from src.views.knowledge.knowledge_composer import KnowledgeComposer
@@ -1289,7 +1307,6 @@ def test_armillary_sphere_3d_smoothness_typography_and_path_batching():
 
 def test_cosmic_tapestry_and_responsive_toolbar_adaptation():
     """Valida a tapeçaria cósmica profunda (Via Láctea, nebulosas, estrelas espectrais) e adaptação elástica da toolbar."""
-    import flet as ft
     import flet.canvas as cv
     from src.configs.settings import COLORS_DARK, FONT_FAMILIES, FONT_SIZES, FONT_WEIGHTS, UI
     from src.utils.types import ViewConfig
@@ -1379,3 +1396,71 @@ def test_cosmic_tapestry_and_responsive_toolbar_adaptation():
     assert composer.filter_mode_dropdown.width == 110 * composer.scale
     assert composer.sync_button.content.value == "Sync"
     assert composer.d3_button.content.value == "D3"
+
+
+def test_armillary_cosmic_links_cluster_labels_and_dark_labels():
+    """A teia de constelação, os rótulos de cluster e a paleta escura do visor."""
+    import flet.canvas as cv
+
+    from src.configs.settings import COLORS_DARK
+    from src.utils.types import ViewConfig
+    from src.views.knowledge.armillary_sphere_3d import ArmillaryConstellation3D
+
+    config = ViewConfig(
+        colors=COLORS_DARK,
+        page_fonts={},
+        font_families={"cormorant": "Cormorant", "montserrat": "Montserrat"},
+        font_sizes={"cormorant_medium": 18},
+        icon_sizes={},
+        font_weights={"cormorant_bold": 700},
+        ui={},
+        texts={},
+        core_menus={},
+        main_view_cards={},
+    )
+    sphere = ArmillaryConstellation3D(
+        config=config,
+        scale=1.0,
+        on_select_node=lambda _: None,
+        canvas_width=1000.0,
+        canvas_height=800.0,
+    )
+    nodes = [
+        {
+            "id": "work_1",
+            "type": "work",
+            "label": "Obra Alpha",
+            "cluster_id": 1,
+            "cluster_name": "Idealismo",
+        },
+        {
+            "id": "frag_1",
+            "type": "fragment",
+            "label": "Fragmento Beta",
+            "cluster_id": 1,
+            "cluster_name": "Idealismo",
+        },
+    ]
+    links = [{"source": "work_1", "target": "frag_1", "weight": 0.9}]
+    sphere.set_data(nodes, links, [{"id": 1, "name": "Idealismo"}])
+
+    constellation_paths = [
+        shape
+        for shape in sphere.canvas.shapes
+        if isinstance(shape, cv.Path) and shape.data == "constellation_link"
+    ]
+    assert len(constellation_paths) == 1
+
+    labels = [
+        shape.value
+        for shape in sphere.canvas.shapes
+        if isinstance(shape, cv.Text)
+    ]
+    assert "IDEALISMO" in labels
+    node_labels = [
+        shape
+        for shape in sphere.canvas.shapes
+        if isinstance(shape, cv.Text) and shape.value == "Obra Alpha"
+    ]
+    assert node_labels
+    assert node_labels[0].style.color == COLORS_DARK["text"]

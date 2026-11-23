@@ -133,8 +133,8 @@ def _pick_file_tkinter(
         root.withdraw()
         try:
             root.attributes("-topmost", True)
-        except Exception:
-            pass
+        except Exception as error:  # noqa: BLE001 - backend Tk variável
+            log_exception('Falha ao fixar o seletor de arquivos no topo', error)
 
         filetypes = []
         if allowed_extensions:

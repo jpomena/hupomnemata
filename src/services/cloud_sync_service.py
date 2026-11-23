@@ -10,18 +10,24 @@ import json
 import logging
 import os
 import shutil
+from contextlib import contextmanager
 import sqlite3
 import sys
+import threading
+import time
 import uuid
+import webbrowser
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow, WSGITimeoutError
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
@@ -42,6 +48,93 @@ MANIFEST_FILE_NAME = "sync_manifest.json"
 TOKEN_SECRET_NAME = "google_drive_token"
 
 logger = logging.getLogger("hupomnemata.cloud_sync")
+
+OAUTH_TIMEOUT_SECONDS = 600
+OAUTH_SUCCESS_BODY = (
+    '<!doctype html><html lang="pt-BR"><meta charset="utf-8">'
+    '<title>Hupomnêmata</title><body style="font-family:sans-serif;padding:2rem">'
+    '<h1>Autenticação concluída</h1>'
+    '<p>Você já pode fechar esta janela e voltar ao Hupomnêmata.</p>'
+    '</body></html>'
+).encode('utf-8')
+
+
+class _OAuthCallbackHandler(BaseHTTPRequestHandler):
+    """Aceita conexões especulativas e só encerra no callback real."""
+
+    server: '_OAuthCallbackServer'
+
+    def do_GET(self) -> None:
+        query = parse_qs(urlparse(self.path).query)
+        if 'code' in query or 'error' in query:
+            self.server.callback_path = self.path
+            body = OAUTH_SUCCESS_BODY
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        body = b'Not found'
+        self.send_response(404)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: Any) -> None:
+        logger.debug('OAuth callback: ' + format, *args)
+
+
+class _OAuthCallbackServer(ThreadingHTTPServer):
+    """Servidor loopback concorrente: preconnects vazios não matam o fluxo."""
+
+    daemon_threads = True
+    allow_reuse_address = False
+    callback_path: str | None = None
+
+
+def _run_loopback_oauth(
+    flow: InstalledAppFlow,
+    timeout_seconds: int = OAUTH_TIMEOUT_SECONDS,
+) -> str:
+    """Executa o consentimento e devolve a URL de callback válida.
+
+    O LibreWolf abre uma conexão TCP especulativa vazia antes do GET real.
+    Um servidor de requisição única (como ``run_local_server``) consome essa
+    conexão e encerra; aqui o servidor é concorrente e ignora conexões sem
+    ``code``/``error`` até o callback verdadeiro ou o timeout.
+    """
+    server = _OAuthCallbackServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+    server.timeout = 0.5
+    try:
+        flow.redirect_uri = f'http://127.0.0.1:{server.server_port}/'
+        auth_url, _ = flow.authorization_url(
+            access_type='offline',
+            prompt='consent',
+        )
+        logger.info('Abrindo o navegador para o consentimento Google.')
+        webbrowser.open(auth_url, new=1, autoraise=True)
+
+        deadline = time.monotonic() + timeout_seconds
+        while server.callback_path is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WSGITimeoutError(
+                    'Timed out waiting for response from authorization server'
+                )
+            server.timeout = min(0.5, remaining)
+            server.handle_request()
+
+        callback = f'http://127.0.0.1:{server.server_port}{server.callback_path}'
+        if 'error=' in callback:
+            raise RuntimeError(
+                'A autorização foi recusada no navegador. Tente novamente.'
+            )
+        return callback
+    finally:
+        server.server_close()
 
 
 class SyncStatus(str, Enum):
@@ -66,6 +159,7 @@ class SyncResult:
     conflict_backup_path: str | None = None
     uploaded_pdfs: int = 0
     downloaded_pdfs: int = 0
+    direction: str | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
 
@@ -110,6 +204,7 @@ class CloudSyncService:
             self.secret_store = SecretStore()
 
         self._drive_service: Resource | None = None
+        self._sync_lock = threading.Lock()
 
     # ── credenciais OAuth ─────────────────────────────────────
 
@@ -139,8 +234,12 @@ class CloudSyncService:
         self.secret_store.set_secret(TOKEN_SECRET_NAME, creds.to_json())
         try:
             self.token_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as error:
+            logger.warning(
+                'Não foi possível remover o token legado %s: %s',
+                self.token_path,
+                error,
+            )
 
     def get_device_id(self) -> str:
         """Retrieve persistent device identifier or generate one if absent."""
@@ -184,10 +283,20 @@ class CloudSyncService:
 
         try:
             flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), SCOPES)
-            creds = flow.run_local_server(port=0)
-            self._save_credentials(creds)
+            callback = _run_loopback_oauth(flow, timeout_seconds=OAUTH_TIMEOUT_SECONDS)
+            flow.fetch_token(
+                authorization_response=callback.replace('http://', 'https://', 1)
+            )
+            self._save_credentials(flow.credentials)
             self._drive_service = None
             return True
+        except WSGITimeoutError as error:
+            log_exception("Google OAuth2 authentication timed out", error)
+            raise RuntimeError(
+                "A autenticação com o Google expirou. Feche a aba antiga do "
+                "navegador e tente novamente; conclua o consentimento em até "
+                "10 minutos."
+            ) from error
         except Exception as error:
             log_exception("Failed during Google OAuth2 authentication flow", error)
             raise
@@ -324,11 +433,12 @@ class CloudSyncService:
     def build_manifest(self, db_sha256: str) -> dict[str, Any]:
         """Construct canonical sync manifest."""
         return {
-            "manifest_version": "1.0",
+            "manifest_version": "1.1",
             "schema_version": self.get_current_schema_version(),
             "device_id": self.get_device_id(),
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "db_sha256": db_sha256,
+            "counts": self._database_counts(self.db_path),
         }
 
     def _find_appdata_file(self, filename: str) -> dict[str, Any] | None:
@@ -383,6 +493,50 @@ class CloudSyncService:
 
         return dest_path
 
+    @staticmethod
+    def _database_counts(path: Path) -> dict[str, int]:
+        """Conta registros do usuário em um banco (tolerante a esquema legado)."""
+        counts: dict[str, int] = {}
+        if not path.exists():
+            return counts
+        try:
+            connection = sqlite3.connect(str(path))
+            try:
+                for key, table in (
+                    ('resources', 'bibliographic_resources'),
+                    ('fragments', 'fragments'),
+                    ('compilations', 'compilations'),
+                ):
+                    try:
+                        row = connection.execute(
+                            f'SELECT COUNT(*) FROM {table}'
+                        ).fetchone()
+                        counts[key] = int(row[0]) if row else 0
+                    except sqlite3.Error:
+                        counts[key] = 0
+            finally:
+                connection.close()
+        except sqlite3.Error as error:
+            log_exception('CloudSyncService._database_counts', error)
+        return counts
+
+    def _local_has_data(self) -> bool:
+        """Indica se o banco local já contém registros do usuário."""
+        return any(self._database_counts(self.db_path).values())
+
+    def _snapshot_has_data(self, gz_path: Path) -> bool:
+        """Inspeciona o snapshot comprimido antes de promover qualquer troca."""
+        temp = self.sync_dir / 'temp_inspect.db'
+        if temp.exists():
+            temp.unlink()
+        try:
+            with gzip.open(gz_path, 'rb') as source, open(temp, 'wb') as target:
+                shutil.copyfileobj(source, target)
+            return any(self._database_counts(temp).values())
+        finally:
+            if temp.exists():
+                temp.unlink()
+
     def _get_last_synced_sha256(self) -> str | None:
         """Retrieve the SHA-256 hash recorded during the last successful sync."""
         marker = self.sync_dir / "last_synced_hash.txt"
@@ -395,7 +549,27 @@ class CloudSyncService:
         marker = self.sync_dir / "last_synced_hash.txt"
         marker.write_text(sha256_hash, encoding="utf-8")
 
+    @contextmanager
+    def sync_exclusive(self):
+        """Reserva a sincronização para uma operação destrutiva exclusiva."""
+        with self._sync_lock:
+            yield
+
     def sync(
+        self,
+        sync_pdfs: bool = False,
+        force_push: bool = False,
+        force_pull: bool = False,
+    ) -> SyncResult:
+        """Serializa sincronizações manuais, automáticas e de encerramento."""
+        with self._sync_lock:
+            return self._sync_unlocked(
+                sync_pdfs=sync_pdfs,
+                force_push=force_push,
+                force_pull=force_pull,
+            )
+
+    def _sync_unlocked(
         self,
         sync_pdfs: bool = False,
         force_push: bool = False,
@@ -417,8 +591,10 @@ class CloudSyncService:
             remote_manifest_meta = self._find_appdata_file(MANIFEST_FILE_NAME)
             remote_snapshot_meta = self._find_appdata_file(SNAPSHOT_FILE_NAME)
 
-            # Scenario A: Initial cloud upload (remote is blank or force push requested)
-            if not remote_manifest_meta or not remote_snapshot_meta or force_push:
+            remote_is_blank = not remote_manifest_meta and not remote_snapshot_meta
+
+            # Scenario A: nuvem virgem ou push explicitamente solicitado
+            if force_push or remote_is_blank:
                 manifest = self.build_manifest(local_sha256)
                 manifest_path = self.sync_dir / MANIFEST_FILE_NAME
                 manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -435,6 +611,38 @@ class CloudSyncService:
                     status=SyncStatus.SUCCESS,
                     message="Initial database state successfully pushed to Google Drive.",
                     uploaded_pdfs=uploaded_pdfs,
+                    direction="push",
+                )
+
+            # Nuvem parcial (só manifesto ou só snapshot): não sobrescrever
+            # silenciosamente e não tentar baixar um arquivo inexistente.
+            if not remote_manifest_meta or not remote_snapshot_meta:
+                if force_pull:
+                    return SyncResult(
+                        status=SyncStatus.ERROR,
+                        message=(
+                            "A nuvem está incompleta (manifesto ou snapshot "
+                            "ausente); não é possível baixar. Nada foi alterado."
+                        ),
+                    )
+                if self._local_has_data():
+                    conflict_backup = self.create_conflict_backup()
+                    return SyncResult(
+                        status=SyncStatus.CONFLICT,
+                        message=(
+                            "A nuvem está incompleta (manifesto ou snapshot "
+                            "ausente). Escolha explicitamente qual cópia deve "
+                            "prevalecer."
+                        ),
+                        conflict_backup_path=str(conflict_backup),
+                        direction="conflict",
+                    )
+                return SyncResult(
+                    status=SyncStatus.ERROR,
+                    message=(
+                        "A nuvem está incompleta (manifesto ou snapshot "
+                        "ausente). Nada foi sobrescrito; verifique o Google Drive."
+                    ),
                 )
 
             # Download and analyze remote manifest
@@ -457,7 +665,31 @@ class CloudSyncService:
                     message="Database is already synchronized with Google Drive.",
                     uploaded_pdfs=uploaded_pdfs,
                     downloaded_pdfs=downloaded_pdfs,
+                    direction="none",
                 )
+
+            # Primeira sincronização desta instalação com nuvem já povoada:
+            # nunca sobrescrever o remoto em silêncio. Banco local vazio puxa
+            # a nuvem; banco local com dados exige decisão explícita.
+            if last_synced_sha256 is None and not force_push and not force_pull:
+                if not self._local_has_data():
+                    force_pull = True
+                else:
+                    conflict_backup = self.create_conflict_backup()
+                    return SyncResult(
+                        status=SyncStatus.CONFLICT,
+                        message=(
+                            "Primeira sincronização: existem dados locais e "
+                            "uma cópia remota. Escolha explicitamente qual "
+                            "cópia deve prevalecer."
+                        ),
+                        conflict_backup_path=str(conflict_backup),
+                        direction="conflict",
+                        details={
+                            "remote_manifest": remote_manifest,
+                            "local_sha256": local_sha256,
+                        },
+                    )
 
             # Scenario C: Conflict / Divergence Detection
             # Remote differs from local, originated from a different machine, and local changed since last sync
@@ -474,6 +706,7 @@ class CloudSyncService:
                     status=SyncStatus.CONFLICT,
                     message="Conflict detected: cloud version has changes from another device.",
                     conflict_backup_path=str(conflict_backup),
+                    direction="conflict",
                     details={"remote_manifest": remote_manifest, "local_sha256": local_sha256},
                 )
 
@@ -485,6 +718,23 @@ class CloudSyncService:
 
                 if downloaded_sha != remote_sha256:
                     raise ValueError("Remote snapshot checksum verification failed.")
+
+                # Pull explicitamente solicitado, mas a nuvem está vazia:
+                # substituir apagaria toda a base local sem possibilidade de
+                # recuperação. O usuário deve usar "Manter Local" para enviar.
+                if (
+                    force_pull
+                    and self._local_has_data()
+                    and not self._snapshot_has_data(downloaded_gz)
+                ):
+                    return SyncResult(
+                        status=SyncStatus.ERROR,
+                        message=(
+                            "A nuvem está vazia (0 obras). A substituição foi "
+                            "bloqueada para proteger os dados locais. Use "
+                            "'Manter Local' para enviar esta base à nuvem."
+                        ),
+                    )
 
                 self.restore_from_snapshot(downloaded_gz)
                 self._set_last_synced_sha256(remote_sha256)
@@ -498,6 +748,7 @@ class CloudSyncService:
                     message="Database successfully updated from Google Drive.",
                     uploaded_pdfs=uploaded_pdfs,
                     downloaded_pdfs=downloaded_pdfs,
+                    direction="pull",
                 )
 
             # Scenario E: Push local changes (local modified, same device or fast-forward)
@@ -518,6 +769,7 @@ class CloudSyncService:
                 message="Local changes successfully uploaded to Google Drive.",
                 uploaded_pdfs=uploaded_pdfs,
                 downloaded_pdfs=downloaded_pdfs,
+                direction="push",
             )
 
         except Exception as error:
@@ -526,6 +778,34 @@ class CloudSyncService:
                 status=SyncStatus.ERROR,
                 message=f"Cloud synchronization failed: {error}",
             )
+
+    def delete_remote_database(self) -> list[str]:
+        """Apaga manifesto e snapshot do banco no appDataFolder do Drive.
+
+        Não remove PDFs nem outros arquivos do usuário. Deve ser chamado sob
+        ``sync_exclusive()`` para não competir com uma sincronização em curso.
+        """
+        service = self.get_drive_service()
+        deleted: list[str] = []
+        for name in (MANIFEST_FILE_NAME, SNAPSHOT_FILE_NAME):
+            meta = self._find_appdata_file(name)
+            if not meta:
+                continue
+            service.files().delete(fileId=meta["id"]).execute()
+            deleted.append(name)
+            logger.info('Arquivo de banco removido da nuvem: %s', name)
+
+        for name in (
+            'last_synced_hash.txt',
+            'remote_manifest.json',
+            SNAPSHOT_FILE_NAME,
+            'downloaded_snapshot.db.gz',
+            'temp_restored.db',
+        ):
+            path = self.sync_dir / name
+            if path.exists():
+                path.unlink()
+        return deleted
 
     def sync_pdf_storage(self) -> tuple[int, int]:
         """Perform differential two-way synchronization of PDF documents."""

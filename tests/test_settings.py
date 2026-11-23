@@ -207,7 +207,7 @@ def test_settings_composer_structure_and_callbacks(test_config):
     body = view.content.controls[1]
     scroll_column = body.content
     cards_row = scroll_column.controls[0]
-    assert len(cards_row.controls) == 4
+    assert len(cards_row.controls) == 5
 
     # Theme card
     theme_card = cards_row.controls[0].content

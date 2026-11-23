@@ -10,8 +10,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import flet as ft
 import flet.canvas as cv
 
+from src.configs.settings import COLORS_DARK
 from src.utils.types import ViewConfig
 from src.views.ui_kit import alpha
+from src.utils.control_safety import safe_update
 
 
 class ArmillaryConstellation3D:
@@ -40,6 +42,7 @@ class ArmillaryConstellation3D:
 
         # Modo de filtro celeste: 'all' (todas), 'works' (apenas obras), 'fragments' (apenas fragmentos)
         self.filter_mode: str = "all"
+        self.type_filter: str = "all"
 
         # Controle de exibição da grade cartográfica de coordenadas celestes
         self.show_celestial_grid: bool = True
@@ -145,13 +148,24 @@ class ArmillaryConstellation3D:
         self.render(high_detail=True)
 
     def set_filter_mode(self, mode: str) -> None:
-        """Define o filtro de nós ('all', 'works', 'fragments') e re-renderiza."""
-        if mode not in {"all", "works", "fragments"}:
+        """Define o filtro de constelação e re-renderiza."""
+        if mode not in {"all", "works", "fragments"} and not mode.startswith(
+            "cluster_"
+        ):
             mode = "all"
         if self.filter_mode == mode:
             return
         self.filter_mode = mode
         self._compute_3d_coordinates()
+        self.render()
+
+    def set_type_filter(self, mode: str) -> None:
+        """Filtra por tipo de astro sem alterar a constelação selecionada."""
+        if mode not in {"all", "works", "fragments"}:
+            mode = "all"
+        if self.type_filter == mode:
+            return
+        self.type_filter = mode
         self.render()
 
     def _update_rotation_matrix(self) -> None:
@@ -326,7 +340,7 @@ class ArmillaryConstellation3D:
             else:
                 pts_mag3.append((px, py))
 
-        star_dust = self.config.colors.get("star_dust", self.config.colors["text"])
+        star_dust = COLORS_DARK.get("star_dust", COLORS_DARK["text"])
         self._cached_star_shapes = [
             cv.Points(
                 points=pts_mag3,
@@ -533,6 +547,21 @@ class ArmillaryConstellation3D:
                     n["y3"] *= scale_factor
                     n["z3"] *= scale_factor
 
+    @staticmethod
+    def _node_color(
+        node: Dict[str, Any],
+        fallback: str,
+        palette: List[str],
+    ) -> str:
+        """Prefere a paleta cósmica escura do cluster ao invés da paleta clara."""
+        cluster_id = node.get("cluster_id")
+        if palette and cluster_id is not None:
+            try:
+                return palette[int(cluster_id) % len(palette)]
+            except (TypeError, ValueError):
+                pass
+        return node.get("color") or fallback
+
     def _project_point(self, x: float, y: float, z: float) -> Tuple[float, float, float]:
         """Aplica rotação orbital 3D e projeção perspectiva cônica na tela de forma ultra-otimizada."""
         # Rotação Y (Yaw) usando trig pré-calculada
@@ -563,19 +592,22 @@ class ArmillaryConstellation3D:
 
             # O visor da esfera armilar opera permanentemente no vácuo sideral escuro
             # Paleta de alta luminosidade astronômica e anéis tênues translúcidos
-            ring_color = self.config.colors.get("constellation_ring", self.config.colors.get("gold", "#C5A059"))
+            # O visor é sempre um céu profundo: a paleta cósmica não segue o
+            # tema claro do restante do app, senão os rótulos desaparecem.
+            ring_color = COLORS_DARK["constellation_ring"]
             ring_color_back = alpha(ring_color, 0.125)
             ring_color_front = alpha(ring_color, 0.22)
 
-            grid_color = self.config.colors.get("constellation_grid", self.config.colors.get("muted", "#A89260"))
+            grid_color = COLORS_DARK["constellation_grid"]
             grid_color_subtle = alpha(grid_color, 0.10)
-            grid_tick_color = self.config.colors.get("constellation_grid_tick", self.config.colors.get("gold", "#C5A059"))
+            grid_tick_color = COLORS_DARK["constellation_grid_tick"]
             grid_tick_subtle = alpha(grid_tick_color, 0.16)
 
-            work_node_color = self.config.colors.get("constellation_node_work", self.config.colors.get("gold", "#E5C158"))
-            frag_node_color = self.config.colors.get("constellation_node_fragment", self.config.colors.get("faint", self.config.colors.get("muted", "#7E9DB5")))
-            text_color = self.config.colors.get("text", "#E2E1E8")
-            sel_text_color = self.config.colors.get("gold", "#FFE296")
+            work_node_color = COLORS_DARK["constellation_node_work"]
+            frag_node_color = COLORS_DARK["constellation_node_fragment"]
+            text_color = COLORS_DARK["text"]
+            sel_text_color = COLORS_DARK["gold"]
+            cluster_palette = COLORS_DARK.get("cluster_palette") or []
 
             shapes: list[cv.Shape] = []
 
@@ -603,6 +635,15 @@ class ArmillaryConstellation3D:
             else:
                 visible_nodes = self.nodes
 
+            if self.type_filter == "works":
+                visible_nodes = [
+                    n for n in visible_nodes if n.get("type") == "work"
+                ]
+            elif self.type_filter == "fragments":
+                visible_nodes = [
+                    n for n in visible_nodes if n.get("type") != "work"
+                ]
+
             visible_ids = {n["id"] for n in visible_nodes} | {str(n["id"]) for n in visible_nodes}
 
             # 4. Projeção de Nós Visíveis
@@ -618,6 +659,34 @@ class ArmillaryConstellation3D:
                 self.projected_nodes[n_id] = (sx, sy, sz)
                 self.projected_nodes[str(n_id)] = (sx, sy, sz)
                 node_depths.append((sz, node, sx, sy))
+
+            # 4b. Teia de constelação: arestas fracas em um único Path por quadro.
+            # A seleção continua usando filamentos cv.Line brilhantes.
+            if high_detail and self.links:
+                link_elements: list[cv.Path.PathElement] = []
+                for link in self.links:
+                    s_id = str(link.get("source", ""))
+                    t_id = str(link.get("target", ""))
+                    if s_id not in visible_ids or t_id not in visible_ids:
+                        continue
+                    if s_id not in self.projected_nodes or t_id not in self.projected_nodes:
+                        continue
+                    sx1, sy1, _sz1 = self.projected_nodes[s_id]
+                    sx2, sy2, _sz2 = self.projected_nodes[t_id]
+                    link_elements.append(cv.Path.MoveTo(sx1, sy1))
+                    link_elements.append(cv.Path.LineTo(sx2, sy2))
+                if link_elements:
+                    shapes.append(
+                        cv.Path(
+                            elements=link_elements,
+                            data="constellation_link",
+                            paint=ft.Paint(
+                                color=alpha(ring_color, 0.075),
+                                stroke_width=max(0.65, 0.9 * self.scale),
+                                style=ft.PaintingStyle.STROKE,
+                            ),
+                        )
+                    )
 
             # Identificação dos nós conexos imediatos à seleção ativa
             connected_node_ids: Set[str] = set()
@@ -682,9 +751,19 @@ class ArmillaryConstellation3D:
                 is_connected = has_selection and (n_id_str in connected_node_ids)
                 is_dimmed = has_selection and not is_connected
                 depth_scale = 520.0 / max(80.0, sz + self.camera_distance)
+                frontness = max(
+                    0.0,
+                    min(
+                        1.0,
+                        0.5
+                        - 0.5 * (sz / max(1.0, self.sphere_radius)),
+                    ),
+                )
 
                 if node_type == "work":
-                    node_color = node.get("color") or work_node_color
+                    node_color = self._node_color(
+                        node, work_node_color, cluster_palette
+                    )
 
                     if is_dimmed:
                         # Nó desvinculado da seleção: Translúcido e discreto, eliminando poluição visual
@@ -718,14 +797,53 @@ class ArmillaryConstellation3D:
                                 paint=ft.Paint(color=corona_color),
                             )
                         )
+                        if is_selected:
+                            # Retículo orbital do nó inspecionado.
+                            shapes.append(
+                                cv.Circle(
+                                    x=sx,
+                                    y=sy,
+                                    radius=core_r * 2.9,
+                                    data="node_reticle",
+                                    paint=ft.Paint(
+                                        color=alpha(sel_text_color, 0.38),
+                                        stroke_width=max(0.9, 1.2 * self.scale),
+                                        style=ft.PaintingStyle.STROKE,
+                                    ),
+                                )
+                            )
+                            shapes.append(
+                                cv.Circle(
+                                    x=sx,
+                                    y=sy,
+                                    radius=core_r * 3.9,
+                                    data="node_reticle",
+                                    paint=ft.Paint(
+                                        color=alpha(sel_text_color, 0.14),
+                                        stroke_width=max(0.7, 0.9 * self.scale),
+                                        style=ft.PaintingStyle.STROKE,
+                                    ),
+                                )
+                            )
                         # Núcleo estelar
+                        core_color = (
+                            sel_text_color
+                            if is_selected
+                            else (
+                                node_color
+                                if is_connected
+                                else alpha(
+                                    node_color, 0.55 + 0.45 * frontness
+                                )
+                            )
+                        )
                         shapes.append(
                             cv.Circle(
                                 x=sx,
                                 y=sy,
                                 radius=core_r,
                                 data="node_core",
-                                paint=ft.Paint(color=sel_text_color if is_selected else node_color),
+                                paint=ft.Paint(color=core_color),
                             )
                         )
                         # Rótulo de texto: Cormorant Garamond com peso W_700/W_800 para nobreza e fidelidade ao app
@@ -748,7 +866,9 @@ class ArmillaryConstellation3D:
                                 )
                             )
                 else:
-                    node_color = node.get("color") or frag_node_color
+                    node_color = self._node_color(
+                        node, frag_node_color, cluster_palette
+                    )
                     if is_dimmed:
                         core_r = 3.0 * depth_scale * self.scale
                         dimmed_color = alpha(node_color, 0.10)
@@ -772,13 +892,24 @@ class ArmillaryConstellation3D:
                                     paint=ft.Paint(color=alpha(frag_node_color, 0.28)),
                                 )
                             )
+                        core_color = (
+                            sel_text_color
+                            if is_selected
+                            else (
+                                node_color
+                                if is_connected
+                                else alpha(
+                                    node_color, 0.50 + 0.50 * frontness
+                                )
+                            )
+                        )
                         shapes.append(
                             cv.Circle(
                                 x=sx,
                                 y=sy,
                                 radius=core_r,
                                 data="node_core",
-                                paint=ft.Paint(color=sel_text_color if is_selected else node_color),
+                                paint=ft.Paint(color=core_color),
                             )
                         )
 
@@ -790,11 +921,69 @@ class ArmillaryConstellation3D:
             # 8. Anéis da Esfera Armilar — Metade Anterior (Z >= 0)
             self._render_armillary_rings(shapes, ring_color_back, ring_color_front, draw_front=True, high_detail=high_detail)
 
+            # 9. Nomes das constelações: anotação cartográfica sutil, apenas
+            # quando não há seleção ativa (para não competir com a inspeção).
+            if high_detail and not has_selection and len(visible_nodes) > 1:
+                cluster_names: dict[int, str] = {}
+                for cluster in self.clusters:
+                    try:
+                        cluster_names[int(cluster.get("id"))] = str(
+                            cluster.get("name") or ""
+                        )
+                    except (TypeError, ValueError):
+                        continue
+                groups: dict[int, list[tuple[float, float]]] = {}
+                for node in visible_nodes:
+                    cluster_id = node.get("cluster_id")
+                    if cluster_id is None:
+                        continue
+                    projected = self.projected_nodes.get(str(node["id"]))
+                    if projected is None:
+                        continue
+                    try:
+                        key = int(cluster_id)
+                    except (TypeError, ValueError):
+                        continue
+                    groups.setdefault(key, []).append(
+                        (projected[0], projected[1])
+                    )
+                for cluster_id, points in groups.items():
+                    if len(points) < 2:
+                        continue
+                    label = cluster_names.get(cluster_id) or next(
+                        (
+                            str(node.get("cluster_name") or "")
+                            for node in visible_nodes
+                            if node.get("cluster_id") == cluster_id
+                            and node.get("cluster_name")
+                        ),
+                        f"Constelação {cluster_id}",
+                    )
+                    if not label:
+                        continue
+                    if len(label) > 30:
+                        label = label[:28] + "…"
+                    center_x = sum(point[0] for point in points) / len(points)
+                    center_y = (
+                        sum(point[1] for point in points) / len(points)
+                        - 16.0 * self.scale
+                    )
+                    shapes.append(
+                        cv.Text(
+                            x=center_x,
+                            y=center_y,
+                            value=label.upper(),
+                            style=ft.TextStyle(
+                                size=max(9.5, 10.5 * self.scale),
+                                font_family=self.font_family_ui,
+                                weight=ft.FontWeight.W_600,
+                                color=alpha(grid_tick_color, 0.52),
+                            ),
+                        )
+                    )
+
             self.canvas.shapes = shapes
-            try:
-                self.canvas.update()
-            except Exception:
-                pass
+            safe_update(self.canvas)
         finally:
             self._is_rendering = False
             if self._pending_render:
@@ -929,29 +1118,20 @@ class ArmillaryConstellation3D:
         """Sinaliza início de interação de arraste contínuo."""
         self._is_dragging = True
         self.gesture_detector.mouse_cursor = ft.MouseCursor.GRABBING
-        try:
-            self.gesture_detector.update()
-        except Exception:
-            pass
+        safe_update(self.gesture_detector)
 
     def _handle_pan_end(self, _e: ft.DragEndEvent) -> None:
         """Ao soltar o mouse, renderiza o quadro final em qualidade total com todos os rótulos de texto."""
         self._is_dragging = False
         self.gesture_detector.mouse_cursor = ft.MouseCursor.GRAB
-        try:
-            self.gesture_detector.update()
-        except Exception:
-            pass
+        safe_update(self.gesture_detector)
         self.render(high_detail=True)
 
     def _handle_pan_cancel(self, _e: ft.ControlEvent) -> None:
         """Trata o cancelamento do gesto de arraste orbital."""
         self._is_dragging = False
         self.gesture_detector.mouse_cursor = ft.MouseCursor.GRAB
-        try:
-            self.gesture_detector.update()
-        except Exception:
-            pass
+        safe_update(self.gesture_detector)
         self.render(high_detail=True)
 
     def _handle_pan_update(self, e: ft.DragUpdateEvent) -> None:

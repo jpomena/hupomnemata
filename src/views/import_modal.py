@@ -17,6 +17,7 @@ from src.services.metadata_service import (
 )
 from src.views import ui_kit as ui
 from src.views.ui_kit import s
+from src.utils.control_safety import safe_update
 
 
 class ImportModalDialog:
@@ -194,34 +195,25 @@ class ImportModalDialog:
         self.error_box.visible = False
         self.duplicate_box.visible = False
         self.ignore_duplicate = False
-        try:
-            self.badge_container.update()
-            self.error_box.update()
-            self.duplicate_box.update()
-        except Exception:
-            pass
+        safe_update(self.badge_container)
+        safe_update(self.error_box)
+        safe_update(self.duplicate_box)
 
     def _set_loading(self, loading: bool) -> None:
         self.loading = loading
         self.loading_box.visible = loading
         self.btn_submit.disabled = loading
         self.input_field.disabled = loading
-        try:
-            self.loading_box.update()
-            self.btn_submit.update()
-            self.input_field.update()
-        except Exception:
-            pass
+        safe_update(self.loading_box)
+        safe_update(self.btn_submit)
+        safe_update(self.input_field)
 
     def _show_error(self, message: str) -> None:
         self.error_text.value = message
         self.error_box.visible = True
         self.duplicate_box.visible = False
-        try:
-            self.error_box.update()
-            self.duplicate_box.update()
-        except Exception:
-            pass
+        safe_update(self.error_box)
+        safe_update(self.duplicate_box)
 
     def _show_duplicate_warning(self, work_id: int, work_title: str) -> None:
         c = self.config
@@ -234,10 +226,7 @@ class ImportModalDialog:
         def _on_force_continue(_e):
             self.ignore_duplicate = True
             self.duplicate_box.visible = False
-            try:
-                self.duplicate_box.update()
-            except Exception:
-                pass
+            safe_update(self.duplicate_box)
             self._execute_remote_search()
 
         warn_color = c.colors.get("warning", c.colors["gold"])
@@ -269,10 +258,7 @@ class ImportModalDialog:
             padding=s(10),
         )
         self.duplicate_box.visible = True
-        try:
-            self.duplicate_box.update()
-        except Exception:
-            pass
+        safe_update(self.duplicate_box)
 
     def _on_search_clicked(self) -> None:
         if self.loading:
@@ -302,10 +288,7 @@ class ImportModalDialog:
         raw = (self.input_field.value or "").strip()
         self._set_loading(True)
         self.error_box.visible = False
-        try:
-            self.error_box.update()
-        except Exception:
-            pass
+        safe_update(self.error_box)
 
         async def _async_search():
             import asyncio

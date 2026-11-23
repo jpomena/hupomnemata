@@ -4,11 +4,16 @@ Movimentação literal: sem ``__init__``, colabora com ``PdfReaderView``
 via ``self``.
 """
 
+import logging
+
 import flet as ft
 
 from src.utils.clipboard import _copy_plain_text_to_system_clipboard
 from src.utils.error_log import log_exception
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_execute, safe_update
+
+logger = logging.getLogger('hupomnemata.ui')
 
 
 class PdfNavigationMixin:
@@ -63,10 +68,7 @@ class PdfNavigationMixin:
 
         self.page_number_label.value = self._format_page_label()
         self.page_count_label.value = self._format_page_count_label()
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self, exceptions=(RuntimeError, AttributeError))
 
     def _handle_offset_increment(self, _e: ft.ControlEvent | None = None) -> None:
         if self.is_modal_open:
@@ -121,16 +123,14 @@ class PdfNavigationMixin:
         self.page_number_input.autofocus = True
         self.page_number_display.visible = False
         self.page_number_input.visible = True
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self, exceptions=(RuntimeError, AttributeError))
 
         if self.page and hasattr(self.page, 'run_task'):
-            try:
-                self.page.run_task(self.page_number_input.focus)
-            except Exception:
-                pass
+            safe_execute(
+                'focar campo de número de página',
+                self.page.run_task,
+                self.page_number_input.focus,
+            )
 
     def _submit_page_input(self, _e: ft.ControlEvent | None = None) -> None:
         """Valida e aplica a página digitada ao pressionar Enter ou perder o foco (blur)."""
@@ -148,7 +148,7 @@ class PdfNavigationMixin:
             if 1 <= parsed <= self.total_pages:
                 target_page = parsed
         except (ValueError, TypeError):
-            pass
+            logger.debug('Entrada de página inválida: %r', raw_val)
 
         if target_page is not None and target_page != self.current_page:
             self.current_page = target_page
@@ -157,10 +157,7 @@ class PdfNavigationMixin:
         else:
             self.page_number_label.value = self._format_page_label()
             self.page_count_label.value = self._format_page_count_label()
-            try:
-                self.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(self, exceptions=(RuntimeError, AttributeError))
 
     def _cancel_page_input(self, _e: ft.ControlEvent | None = None) -> None:
         """Cancela a edição restaurando o valor original do indicador sem erros."""
@@ -173,10 +170,7 @@ class PdfNavigationMixin:
         self.page_number_display.visible = True
         self.page_number_label.value = self._format_page_label()
         self.page_count_label.value = self._format_page_count_label()
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self, exceptions=(RuntimeError, AttributeError))
 
     def _on_page_input_submit(self, e: ft.ControlEvent) -> None:
         self._submit_page_input(e)
@@ -255,13 +249,10 @@ class PdfNavigationMixin:
         async def _scroll() -> None:
             try:
                 await self.scroll_column.scroll_to(offset=0, duration=0)
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - rolagem é conveniência
+                logger.debug('Falha ao rolar o leitor ao topo: %s', error)
 
-        try:
-            run_task(_scroll)
-        except Exception:
-            pass
+        safe_execute('rolar o leitor ao topo', run_task, _scroll)
 
     def _prev_page(self, _e: ft.ControlEvent | None = None) -> None:
         if self.is_modal_open:
@@ -318,7 +309,4 @@ class PdfNavigationMixin:
             self.sidebar_container.padding = 0
             self.sidebar_container.width = 0
             self.sidebar_container.border = None
-        try:
-            self.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(self, exceptions=(RuntimeError, AttributeError))

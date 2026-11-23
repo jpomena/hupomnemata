@@ -15,6 +15,7 @@ from src.views.work_insert_specs import (
     DEFAULTED_FIELDS,
     PARTIAL_FORM_FIELDS,
 )
+from src.utils.control_safety import safe_update
 
 
 class WorkSubmissionController:
@@ -261,11 +262,7 @@ class WorkSubmissionController:
             )
         )
         self.page.show_dialog(self.multiple_authors_modal)
-        try:
-            self.page.update()
-        except Exception:
-            # Atualização de página é best-effort durante a abertura do modal.
-            pass
+        safe_update(self.page)
 
     def _select_existing_author(self, index: int, author_id: int) -> None:
         self._pending_author_ids[index] = author_id

@@ -20,8 +20,16 @@ PHYSICAL_ATTRIBUTES = parameters['PHYSICAL_ATTRIBUTES']
 
 COLORS_LIGHT = parameters['COLORS_LIGHT']
 COLORS_DARK = parameters['COLORS_DARK']
+TEMPLATE_COLORS = parameters['TEMPLATE_COLORS']
 CLUSTER_PALETTE_LIGHT = COLORS_LIGHT.get('cluster_palette', [])
 CLUSTER_PALETTE_DARK = COLORS_DARK.get('cluster_palette', [])
+
+
+def template_palette(theme_mode: str) -> dict[str, str]:
+    """Paleta canônica dos templates HTML autônomos (grafo e leitor PDF)."""
+    key = 'dark' if (theme_mode or 'dark').lower() == 'dark' else 'light'
+    return TEMPLATE_COLORS[key]
+
 
 CORE_MENUS = parameters['CORE_MENUS']
 

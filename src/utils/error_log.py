@@ -8,6 +8,25 @@ LOG_PATH = Path(__file__).resolve().parents[2] / "logs" / "error_log.txt"
 LOGGER_NAME = "hupomnemata"
 
 
+def configure_flet_logging() -> None:
+    """Persiste erros não tratados de eventos do Flet em ``logs/flet.log``."""
+    logger = logging.getLogger("flet")
+    logger.setLevel(logging.INFO)
+    log_path = (LOG_PATH.parent / "flet.log").resolve()
+    if any(
+        isinstance(handler, logging.FileHandler)
+        and Path(handler.baseFilename).resolve() == log_path
+        for handler in logger.handlers
+    ):
+        return
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    logger.addHandler(handler)
+
+
 def log_exception(context: str, error: Exception) -> None:
     """Write a handled exception and its traceback to the central log."""
     logger = logging.getLogger(LOGGER_NAME)

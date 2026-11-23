@@ -57,6 +57,12 @@ def run_migrations_online() -> None:
     if connectable is None:
         configured_url = config.get_main_option("sqlalchemy.url")
         if not configured_url or configured_url.startswith("driver://"):
+            # A CLI do Alembic pode rodar antes de a aplicação criar o
+            # diretório de dados (XDG/AppData). Sem isso, o SQLite falha com
+            # "unable to open database file" em máquina limpa.
+            from src.db.bootstrap import bootstrap_user_environment
+
+            bootstrap_user_environment()
             connectable = app_engine
         else:
             connectable = engine_from_config(

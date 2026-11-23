@@ -174,7 +174,7 @@ def test_settings_section_shows_settings_dashboard():
     assert isinstance(scroll_column, ft.Column)
     cards_row = scroll_column.controls[0]
     assert isinstance(cards_row, ft.ResponsiveRow)
-    assert len(cards_row.controls) == 4
+    assert len(cards_row.controls) == 5
 
 
 # ── Início (Gabinete de Leitura) ───────────────────────────

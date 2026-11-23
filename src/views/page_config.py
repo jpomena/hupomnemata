@@ -52,4 +52,4 @@ class PageConfigurator:
         page.window.title_bar_buttons_hidden = True
         page.window.maximizable = True
         page.window.minimizable = True
-        page.window.prevent_close = False
+        page.window.prevent_close = True

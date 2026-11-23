@@ -12,6 +12,7 @@ from src.utils.fa import glyph as fa_glyph
 from src.views import ui_kit as ui
 from src.views.sidebar import SidebarData
 from src.views.ui_kit import MOTION_FAST, motion, s
+from src.utils.control_safety import safe_update
 
 if TYPE_CHECKING:
     from src.views.core_composer import CoreComposer
@@ -68,8 +69,19 @@ class WindowChromeComposer:
                 composer.page.window.maximized = not composer.page.window.maximized
                 composer.page.update()
 
-        async def close_window(_):
-            await composer.page.window.close()
+        def close_window(_):
+            handler = getattr(composer, "on_request_close", None)
+            if callable(handler):
+                handler()
+                return
+            close = getattr(composer.page.window, "close", None)
+            if not callable(close):
+                return
+            run_task = getattr(composer.page, "run_task", None)
+            if callable(run_task):
+                run_task(close)
+            else:
+                close()
 
         is_maximized = bool(
             getattr(getattr(composer.page, "window", None), "maximized", False)
@@ -100,10 +112,7 @@ class WindowChromeComposer:
         def _on_hover_brand(e):
             hovering = e.data in (True, "true")
             brand_text.color = c.colors["gold"] if hovering else c.colors["text"]
-            try:
-                brand.update()
-            except (RuntimeError, AttributeError):
-                pass
+            safe_update(brand, exceptions=(RuntimeError, AttributeError))
 
         brand.on_hover = _on_hover_brand
         composer.back_button = ui.icon_button(
@@ -179,10 +188,7 @@ class WindowChromeComposer:
         composer.back_button = ui.icon_button(composer.config, "arrow-left", on_click=lambda _e: composer.on_history(-1) if composer.on_history else None, tooltip="Voltar (⌘[)", disabled=not can_back)
         composer.forward_button = ui.icon_button(composer.config, "arrow-right", on_click=lambda _e: composer.on_history(1) if composer.on_history else None, tooltip="Avançar (⌘])", disabled=not can_forward)
         host.content = ft.Row([composer.back_button, composer.forward_button], spacing=s(2), tight=True)
-        try:
-            host.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(host, exceptions=(RuntimeError, AttributeError))
 
     def refresh_crumbs(self) -> None:
         """Reconstroi o breadcrumb a partir da navegacao atual."""
@@ -190,10 +196,7 @@ class WindowChromeComposer:
         if host is None:
             return
         host.controls = self.crumb_controls()
-        try:
-            host.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(host, exceptions=(RuntimeError, AttributeError))
 
     def update_window_state(self, is_maximized: bool) -> None:
         """Atualiza o icone de maximizar/restaurar sem recriar a UI."""
@@ -206,7 +209,4 @@ class WindowChromeComposer:
             glyph.value = char
             glyph.font_family = family
         button.tooltip = "Restaurar" if is_maximized else "Maximizar"
-        try:
-            button.update()
-        except (RuntimeError, AttributeError):
-            pass
+        safe_update(button, exceptions=(RuntimeError, AttributeError))

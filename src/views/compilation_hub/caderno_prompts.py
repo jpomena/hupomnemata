@@ -22,6 +22,7 @@ from .common import (
     select_input,
     text_input,
 )
+from src.utils.control_safety import safe_update
 
 
 class CadernoPromptsMixin:
@@ -63,10 +64,7 @@ class CadernoPromptsMixin:
             value = (title_field.value or '').strip()
             if not value:
                 title_field.error_text = 'Dê um nome à seção.'
-                try:
-                    title_field.update()
-                except Exception:
-                    pass
+                safe_update(title_field)
                 return
             idea = (idea_field.value or '').strip() or None
             close_dialog(self.page)
@@ -297,10 +295,7 @@ class CadernoPromptsMixin:
                     )
                 )
             rows_host.controls = controls
-            try:
-                rows_host.update()
-            except Exception:
-                pass
+            safe_update(rows_host)
 
         def toggle(section_id: int) -> None:
             self._toggle_fragment_section(fragment_id, section_id)

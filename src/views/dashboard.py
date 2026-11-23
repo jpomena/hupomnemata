@@ -20,6 +20,7 @@ from src.utils.display_dates import (
 )
 from src.views import ui_kit as ui
 from src.views.ui_kit import W500, W600, W700, s
+from src.utils.control_safety import safe_update
 
 FEED_LIMIT = 8
 LEFT_SPAN = 17
@@ -260,10 +261,7 @@ class DashboardComposer:
             kpi_icon.color = colors['gold'] if hovering else colors['faint']
             kpi_label.color = colors['text'] if hovering else colors['muted']
             value_text.color = colors['gold'] if hovering else colors['text']
-            try:
-                cell.update()
-            except Exception:
-                pass
+            safe_update(cell)
 
         cell.on_hover = _hover
         return cell
@@ -525,10 +523,7 @@ class DashboardComposer:
             name.style = ft.TextStyle(
                 decoration=ft.TextDecoration.UNDERLINE if hovering else ft.TextDecoration.NONE,
             )
-            try:
-                name_box.update()
-            except Exception:
-                pass
+            safe_update(name_box)
 
         name_box.on_hover = _hover
         row = ft.Container(

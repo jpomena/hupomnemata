@@ -14,6 +14,7 @@ import flet as ft
 from src.services.cloud_sync_service import SyncStatus
 from src.utils.ui_thread import run_on_ui
 from src.views import ui_kit as ui
+from src.utils.control_safety import safe_update
 
 
 class SettingsCloudMixin:
@@ -72,23 +73,23 @@ class SettingsCloudMixin:
             f"A nuvem possui alterações gravadas {rel_time} por outra estação, "
             "enquanto esta máquina também possui alterações locais não sincronizadas."
         )
+        remote_counts = remote_manifest.get("counts")
+        if isinstance(remote_counts, dict):
+            explanatory_text += (
+                f" Nuvem: {remote_counts.get('resources', 0)} obras, "
+                f"{remote_counts.get('fragments', 0)} fragmentos, "
+                f"{remote_counts.get('compilations', 0)} compilações."
+            )
         reassurance_text = "Uma cópia fria de segurança da base local foi preservada em disco."
 
         modal_ref: list[ft.AlertDialog | None] = [None]
 
-        def safe_update(ctrl: ft.Control | None = None) -> None:
+        def safe_ui_update(ctrl: ft.Control | None = None) -> None:
             def _apply() -> None:
-                if ctrl is not None:
-                    try:
-                        ctrl.update()
-                        return
-                    except Exception:
-                        pass
+                if ctrl is not None and safe_update(ctrl):
+                    return
                 if page is not None:
-                    try:
-                        page.update()
-                    except Exception:
-                        pass
+                    safe_update(page)
 
             run_on_ui(page, _apply)
 
@@ -96,7 +97,7 @@ class SettingsCloudMixin:
             ui.close_dialog(page)
             if modal_ref[0] is not None:
                 modal_ref[0].open = False
-            safe_update()
+            safe_ui_update()
 
         def resolve_conflict(force_pull: bool = False, force_push: bool = False):
             close_modal()
@@ -112,8 +113,8 @@ class SettingsCloudMixin:
                 color=c.colors["gold"],
                 bgcolor=c.colors["surface"],
             )
-            safe_update(status_text)
-            safe_update(feedback_banner)
+            safe_ui_update(status_text)
+            safe_ui_update(feedback_banner)
 
             def run_resolution():
                 try:
@@ -126,22 +127,22 @@ class SettingsCloudMixin:
                         status_text.value = f"Sincronizado: {res_resolve.message}"
                         status_text.color = c.colors["gold"]
                         feedback_banner.visible = False
-                        safe_update(status_text)
-                        safe_update(feedback_banner)
+                        safe_ui_update(status_text)
+                        safe_ui_update(feedback_banner)
                         if self.on_navigate:
                             self.on_navigate("settings")
                     else:
                         status_text.value = f"Erro ao resolver conflito: {res_resolve.message}"
                         status_text.color = c.colors["danger"]
                         feedback_banner.visible = False
-                        safe_update(status_text)
-                        safe_update(feedback_banner)
+                        safe_ui_update(status_text)
+                        safe_ui_update(feedback_banner)
                 except Exception as err:
                     status_text.value = f"Erro na resolução: {err}"
                     status_text.color = c.colors["danger"]
                     feedback_banner.visible = False
-                    safe_update(status_text)
-                    safe_update(feedback_banner)
+                    safe_ui_update(status_text)
+                    safe_ui_update(feedback_banner)
 
             run_task = getattr(page, "run_task", None) if page is not None else None
             if run_task is not None:
@@ -230,21 +231,14 @@ class SettingsCloudMixin:
 
         feedback_banner = ft.Container(visible=False)
 
-        def safe_update(ctrl: ft.Control | None = None) -> None:
+        def safe_ui_update(ctrl: ft.Control | None = None) -> None:
             page = self.page or getattr(status_text, "page", None)
 
             def _apply() -> None:
-                if ctrl is not None:
-                    try:
-                        ctrl.update()
-                        return
-                    except Exception:
-                        pass
+                if ctrl is not None and safe_update(ctrl):
+                    return
                 if page is not None:
-                    try:
-                        page.update()
-                    except Exception:
-                        pass
+                    safe_update(page)
 
             run_on_ui(page, _apply)
 
@@ -256,8 +250,8 @@ class SettingsCloudMixin:
                 color=self.config.colors["gold"],
                 bgcolor=self.config.colors["surface"],
             )
-            safe_update(status_text)
-            safe_update(feedback_banner)
+            safe_ui_update(status_text)
+            safe_ui_update(feedback_banner)
 
             def run_sync():
                 try:
@@ -295,8 +289,8 @@ class SettingsCloudMixin:
                     status_text.value = f"Erro durante sincronização: {err}"
                     status_text.color = self.config.colors["danger"]
                     feedback_banner.visible = False
-                safe_update(status_text)
-                safe_update(feedback_banner)
+                safe_ui_update(status_text)
+                safe_ui_update(feedback_banner)
 
             run_task = getattr(self.page, "run_task", None) if hasattr(self, "page") and self.page is not None else None
             if run_task is not None:
@@ -315,20 +309,20 @@ class SettingsCloudMixin:
 
             status_text.value = "Abrindo navegador para autenticação..."
             status_text.color = self.config.colors["gold"]
-            safe_update(status_text)
+            safe_ui_update(status_text)
 
             def run_auth():
                 try:
                     sync_svc.authenticate()
                     status_text.value = "Autenticação concluída! Atualizando painel..."
                     status_text.color = self.config.colors["gold"]
-                    safe_update(status_text)
+                    safe_ui_update(status_text)
                     if self.on_navigate:
                         self.on_navigate("settings")
                 except Exception as err:
                     status_text.value = f"Falha na autenticação: {err}"
                     status_text.color = self.config.colors["danger"]
-                    safe_update(status_text)
+                    safe_ui_update(status_text)
 
             run_task = getattr(self.page, "run_task", None) if hasattr(self, "page") and self.page is not None else None
             if run_task is not None:

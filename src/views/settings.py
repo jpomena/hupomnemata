@@ -8,6 +8,7 @@ import flet as ft
 from src.services.cloud_sync_service import CloudSyncService
 from src.utils.types import ViewConfig
 from src.views.settings_cloud import SettingsCloudMixin
+from src.views.settings_database import SettingsDatabaseMixin
 from src.views.settings_preview import SettingsPreviewMixin
 from src.views.settings_scale import SettingsScaleMixin
 from src.views.settings_theme import SettingsThemeMixin
@@ -18,6 +19,7 @@ class SettingsComposer(
     SettingsScaleMixin,
     SettingsPreviewMixin,
     SettingsCloudMixin,
+    SettingsDatabaseMixin,
 ):
     """Compõe a interface visual do painel de Configurações."""
 
@@ -36,6 +38,7 @@ class SettingsComposer(
         on_reset_settings: Callable[[], None],
         cloud_sync_service: Any = None,
         page: ft.Page | None = None,
+        on_delete_databases: Callable[[bool], None] | None = None,
     ) -> None:
         self.scale = scale
         self.config = config
@@ -50,6 +53,7 @@ class SettingsComposer(
         self.on_reset_settings = on_reset_settings
         self.cloud_sync_service = cloud_sync_service or CloudSyncService()
         self.page = page
+        self.on_delete_databases = on_delete_databases
 
         self.settings_texts = self.config.texts.get("settings", {})
         self.scale_value_text: ft.Text | None = None
@@ -196,6 +200,10 @@ class SettingsComposer(
             ft.Container(
                 content=self._compose_cloud_sync_card(),
                 col={"xs": 12, "sm": 12, "md": 6, "lg": 6},
+            ),
+            ft.Container(
+                content=self._compose_database_card(),
+                col={"xs": 12, "sm": 12, "md": 12, "lg": 12},
             ),
         ]
 

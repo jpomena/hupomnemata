@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-from src.configs.settings import ASSETS_DIR
+from src.configs.settings import ASSETS_DIR, template_palette
 
 _TEMPLATE_PATH = ASSETS_DIR / "templates" / "knowledge_graph.html"
 
@@ -26,14 +26,14 @@ def generate_graph_html(graph_data: Dict[str, Any], theme_mode: str = "dark", sc
     são serializados com escape da sequência '</' para impedir injeção de fechamento
     de script.
     """
-    is_dark = (theme_mode or "dark").lower() == "dark"
-    bg_color = "#121212" if is_dark else "#F9F9FB"
-    surface_color = "#1E1E1E" if is_dark else "#FFFFFF"
-    text_color = "#E7E7E7" if is_dark else "#1A1A1A"
-    text_muted = "#A0A0A0" if is_dark else "#666666"
-    border_color = "#2E2E2E" if is_dark else "#E0E0E0"
-    gold_accent = "#D4AF37" if is_dark else "#896200"
-    link_stroke = "rgba(212, 175, 55, 0.35)" if is_dark else "rgba(137, 98, 0, 0.28)"
+    palette = template_palette(theme_mode)
+    bg_color = palette["bg"]
+    surface_color = palette["surface"]
+    text_color = palette["text"]
+    text_muted = palette["text_muted"]
+    border_color = palette["border"]
+    gold_accent = palette["gold"]
+    link_stroke = palette["link_stroke"]
 
     data_json = json.dumps(graph_data, ensure_ascii=False).replace("</", r"<\/")
 
