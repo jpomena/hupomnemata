@@ -14,6 +14,12 @@ from src.services.settings_service import SettingsService
 from src.services.knowledge_service import KnowledgeService
 from src.utils.error_log import log_exception
 
+MAGAZINE_SYNTHESIS_REFUSAL = (
+    "Revistas são contêineres estruturais do acervo (guarda-chuva de artigos "
+    "e coleções periódicas) e não recebem síntese epistemológica. "
+    "Gere a síntese para os artigos vinculados a ela."
+)
+
 # Modelos conhecidos em ordem de preferência analítica. A lista é apenas um
 # desempate local: a disponibilidade real é sempre confirmada via API.
 KNOWN_MODELS = [
@@ -189,6 +195,12 @@ class NousAIService:
             if not resource:
                 return False, f"Obra #{work_id} não encontrada no acervo."
 
+            # Revistas são contêineres guarda-chuva: não são obras substantivas
+            # em nenhuma outra camada do aplicativo e, portanto, não recebem
+            # síntese epistemológica (nem entram na malha de conhecimento).
+            if resource.is_magazine:
+                return False, MAGAZINE_SYNTHESIS_REFUSAL
+
             sw = resource.specific_work
             title = getattr(sw, "title", "Obra sem título") if sw else "Obra sem título"
             subtitle = getattr(sw, "subtitle", "") if sw else ""
@@ -323,6 +335,11 @@ class NousAIService:
             resources = list(session.query(BibliographicResource).all())
             items = []
             for res in resources:
+                # Revistas (Magazine) atuam como guarda-chuva de artigos e
+                # coleções periódicas: não são contabilizadas como obras no
+                # Acervo nem na malha, logo também não recebem síntese do Nous.
+                if res.is_magazine:
+                    continue
                 sw = res.specific_work
                 title = getattr(sw, "title", f"Obra #{res.id}") if sw else f"Obra #{res.id}"
                 year = getattr(sw, "display_year", "") if sw else ""

@@ -521,3 +521,39 @@ def test_nous_batch_generation_granular_callbacks(mock_view_config):
     assert res["total"] == 2
     assert res["success"] == 2
     assert completed_ids == [(10, True), (20, True)]
+
+
+def _stub_nous_service() -> NousAIService:
+    """Serviço Nous com chave fictícia: o caminho de rede nunca é alcançado nos testes."""
+    settings = SimpleNamespace(
+        load_settings=lambda: SimpleNamespace(gemini_api_key="AIzaSyStubKey")
+    )
+    return NousAIService(settings_service=settings)
+
+
+def test_magazine_excluded_from_nous_synthesis():
+    """Revistas são contêineres guarda-chuva: não entram na listagem nem na síntese do Nous."""
+    from src.services.metadata_service import find_or_create_magazine
+
+    mag_id, _ = find_or_create_magazine("Cadernos de Filosofia", "São Paulo")
+
+    with SessionLocal() as session:
+        book_res = BibliographicResource()
+        book_res.editorial_monograph = EditorialMonograph(
+            title="Crítica da Razão Pura",
+            display_year="1781",
+        )
+        session.add(book_res)
+        session.commit()
+        book_id = book_res.id
+
+    service = _stub_nous_service()
+
+    items = service.list_works_ai_status()
+    ids = {item["id"] for item in items}
+    assert book_id in ids
+    assert mag_id not in ids
+
+    ok, message = service.generate_work_description(mag_id)
+    assert ok is False
+    assert "Revista" in message
